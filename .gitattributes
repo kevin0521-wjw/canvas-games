@@ -1,0 +1,9 @@
+# 统一换行符：源码与文本一律以 LF 入库。
+# 否则 Windows 上提交时 Git 会做 LF→CRLF 转换，别人 clone 下来改一行就可能
+# 触发「整个文件重写」的假 diff（几十 KB 的 index.html 尤其明显）。
+* text=auto eol=lf
+
+# 明确按二进制处理，别做换行转换
+*.png binary
+*.jpg binary
+*.ico binary

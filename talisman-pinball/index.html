@@ -1,0 +1,1142 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<title>符箓灵弹 · 巧阵</title>
+<style>
+  :root{
+    --ink:#12100e; --paper:#e8dcc0; --gold:#c9a227; --cinnabar:#b3372b;
+    --jade:#4a7c6f; --dim:#8a7f68;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0;height:100%;overflow:hidden;background:#12100e;
+    font-family:"Songti SC","STSong","SimSun",serif;color:var(--paper)}
+  #wrap{position:relative;width:100%;height:100%;display:flex;align-items:center;justify-content:center}
+  canvas{display:block;background:#1a1613;box-shadow:0 0 60px rgba(0,0,0,.8);touch-action:none}
+  #ui{position:absolute;inset:0;pointer-events:none;font-size:13px;line-height:1.6}
+  .panel{position:absolute;pointer-events:auto;background:rgba(20,17,14,.94);
+    border:1px solid var(--gold);padding:20px 26px;max-width:min(92vw,540px);
+    box-shadow:0 0 40px rgba(0,0,0,.7)}
+  .panel h1{margin:0 0 4px;font-size:27px;letter-spacing:5px;color:var(--gold);font-weight:400}
+  .panel h1 small{display:block;font-size:11px;letter-spacing:2px;color:var(--dim);margin-top:5px}
+  .panel p{color:#c4b89c;font-size:13.5px;margin:9px 0}
+  .panel b{color:var(--paper)}
+  .panel .k{display:inline-block;min-width:20px;padding:1px 7px;margin:0 2px;
+    background:#2e2822;border:1px solid #6b5c42;border-radius:3px;
+    font-family:Consolas,monospace;font-size:12px;color:var(--gold)}
+  .panel hr{border:0;border-top:1px solid #3d352b;margin:15px 0}
+  .btn{display:inline-block;margin-top:15px;padding:10px 30px;cursor:pointer;
+    background:linear-gradient(180deg,#3a3128,#241f19);border:1px solid var(--gold);
+    color:var(--gold);font-size:16px;letter-spacing:3px;font-family:inherit;
+    transition:.15s}
+  .btn:hover{background:linear-gradient(180deg,#4d4032,#2e2822);box-shadow:0 0 18px rgba(201,162,39,.28)}
+  .row{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+  .note{font-size:12px;color:var(--dim);margin-top:12px;line-height:1.7}
+  .danger{color:var(--cinnabar)}
+  .tag{display:inline-block;padding:1px 8px;border:1px solid #6b5c42;color:var(--jade);
+    font-size:11.5px;border-radius:2px;margin:0 3px}
+  #tip{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);
+    color:#6b6152;font-size:12px;letter-spacing:1px;white-space:nowrap}
+  #live{position:absolute;top:10px;left:50%;transform:translateX(-50%);
+    display:none;gap:20px;background:rgba(20,17,14,.7);padding:5px 18px;
+    border:1px solid #3d352b;font-size:12.5px;white-space:nowrap}
+  #live i{font-style:normal;color:var(--dim);margin-right:5px}
+  #live b{font-weight:400;font-family:Consolas,monospace;color:var(--gold)}
+</style>
+</head>
+<body>
+<div id="wrap">
+<canvas id="cv" width="520" height="880"></canvas>
+<div id="ui">
+  <div id="live"></div>
+  <!-- ⚠️ 这行原来写的是「空格 切换目标」，但空格实际是**切换弹道**
+       （金符/反弹 ↔ 剑符/穿透，见 keydown 里的 case 'Space'）。
+       开始面板里写的是对的，两处提示自相矛盾 —— 玩家会按空格期待换目标。
+       顺带补上键盘 A/D/W/S 别名（keydown 里一直支持，只是提示没写）。 -->
+  <div id="tip">← → / A D 移动角色　　↑ ↓ / W S 移动炮台　　空格 切换弹道　　P 暂停</div>
+
+  <div class="panel" id="p0">
+    <h1>符箓灵弹<small>巧 阵 · TALISMAN PINBALL</small></h1>
+    <p>一枚金符在山水中弹跳。你要做两件不同的事 ——</p>
+    <p><b>活下来</b>：<span class="k">←</span><span class="k">→</span> 移动底部行者，避开落下的符雨。<br>
+       <b>想明白</b>：<span class="k">↑</span><span class="k">↓</span> 移动上方炮台，决定金符<b>弹出</b>的方向。</p>
+    <p>两组按键<b>互为反向</b>：你往左走，炮台就往右去。这是全部的操作乐趣来源。</p>
+    <hr>
+    <p><b>三条要紧规则：</b></p>
+    <p>· 金符<b>永不消失</b>。它落到底线会自动飞回炮台重新弹出 —— 你不必追球，
+       反弹因此变成<b>路线规划</b>，而不是保球操作。<br>
+       · 敌人头顶有<b>盾向</b>。从<b>背后</b>命中伤害 ×2.5，正面只有 ×1 —— 弹道方向就是战术。<br>
+       · 掉落的<span class="tag">战符</span>落到底线会<b>停住</b>。你可以先躲完这波弹幕，再绕回去捡。</p>
+    <hr>
+    <div class="row"><span class="btn" id="b0">开 始</span></div>
+    <div class="note">按 <span class="k">空格</span> 在「金符」与「剑符」两种弹道间切换 —— 前者反弹，后者穿透。</div>
+  </div>
+
+  <div class="panel" id="p1" style="display:none">
+    <h1>已 止<small>PAUSED</small></h1>
+    <div class="row"><span class="btn" id="b1">继 续</span></div>
+    <div class="note">按 <span class="k">P</span> 也可以继续</div>
+  </div>
+
+  <div class="panel" id="p2" style="display:none">
+    <h1>终 局<small id="r2t">RUN OVER</small></h1>
+    <p id="r2s"></p>
+    <hr>
+    <p id="r2g" style="color:var(--jade)"></p>
+    <div class="row"><span class="btn" id="b2">再 来 一 局</span></div>
+  </div>
+</div>
+</div>
+
+<script>
+"use strict";
+/* ==========================================================================
+   符箓灵弹 · 巧阵
+   --------------------------------------------------------------------------
+   玩法结构参考《原神》限时活动「符箓灵弹巧阵」的<b>机制</b>：
+       底部行者走位 + 上方炮台反向联动 + 灵弹反弹 + 落底自动回收 + 盾向弱点
+   美术为<b>原创</b>：水墨山海底纹、朱砂/青玉/金三色、符纹做程序化绘制，
+   不使用任何第三方游戏的模型或贴图素材。
+   ========================================================================== */
+(function () {
+  const cv = document.getElementById('cv');
+  const ctx = cv.getContext('2d');
+  const W = cv.width, H = cv.height;
+
+  // ---- 区域划分：底部行者带 / 中部战场 / 顶部炮台带 ----
+  const GROUND_Y   = H - 96;   // 底线：行者脚下，也是掉落物停留线
+  const CANVAS_TOP = 108;      // 炮台带下沿
+  const DEATH_Y    = H - 26;   // 敌人越过此线算漏过
+
+  // ---- 配色（原创水墨） ----
+  const PAPER = '#e8dcc0', GOLD = '#c9a227', GOLD_HI = '#f0d264';
+  const CINNABAR = '#b3372b', JADE = '#4a7c6f', INK = '#1a1613';
+
+  /* ============================ 工具 ============================ */
+  const rnd  = (a, b) => a + Math.random() * (b - a);
+  const rndi = (a, b) => Math.floor(rnd(a, b + 1));
+  const pick = arr => arr[rndi(0, arr.length - 1)];
+  const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+  const TAU = Math.PI * 2;
+
+  /* ==========================================================================
+     底纹：水墨远山 —— 纯程序化，每局重生成但用固定种子感（预渲染一次）
+     ========================================================================== */
+  const bg = document.createElement('canvas');
+  bg.width = W; bg.height = H;
+  (function paintBackground() {
+    const g = bg.getContext('2d');
+    // 底色：偏暖的宣纸深色
+    const lg = g.createLinearGradient(0, 0, 0, H);
+    lg.addColorStop(0, '#221c17');
+    lg.addColorStop(0.55, '#1d1815');
+    lg.addColorStop(1, '#151210');
+    g.fillStyle = lg; g.fillRect(0, 0, W, H);
+
+    // 落日
+    const sun = g.createRadialGradient(W * 0.72, 150, 8, W * 0.72, 150, 130);
+    sun.addColorStop(0, 'rgba(201,162,39,.22)');
+    sun.addColorStop(1, 'rgba(201,162,39,0)');
+    g.fillStyle = sun; g.beginPath(); g.arc(W * 0.72, 150, 130, 0, TAU); g.fill();
+
+    // 三层远山，越远越淡
+    const layers = [
+      { y: 250, amp: 46, step: 130, col: 'rgba(30,26,22,.62)' },
+      { y: 330, amp: 62, step: 105, col: 'rgba(24,21,18,.78)' },
+      { y: 420, amp: 40, step: 165, col: 'rgba(17,15,13,.92)' },
+    ];
+    for (const L of layers) {
+      g.fillStyle = L.col;
+      g.beginPath(); g.moveTo(-10, H);
+      g.lineTo(-10, L.y);
+      for (let x = -10; x <= W + 20; x += L.step) {
+        g.quadraticCurveTo(x + L.step * 0.5, L.y - L.amp * rnd(0.5, 1.25),
+                           x + L.step, L.y + rnd(-14, 14));
+      }
+      g.lineTo(W + 20, H); g.closePath(); g.fill();
+    }
+
+    // 飘云（几条横向淡墨痕）
+    g.strokeStyle = 'rgba(232,220,192,.045)'; g.lineWidth = 2;
+    for (let i = 0; i < 9; i++) {
+      const y = rnd(180, 560), x0 = rnd(-60, W);
+      g.beginPath(); g.moveTo(x0, y);
+      g.bezierCurveTo(x0 + 60, y - 7, x0 + 130, y + 7, x0 + 210, y);
+      g.stroke();
+    }
+
+    // 纸纹噪点
+    g.globalAlpha = 0.05;
+    for (let i = 0; i < 1400; i++) {
+      g.fillStyle = Math.random() < .5 ? '#e8dcc0' : '#000';
+      g.fillRect(rnd(0, W) | 0, rnd(0, H) | 0, 1, 1);
+    }
+    g.globalAlpha = 1;
+
+    // 底部行者带：用一道淡金线与战场分隔
+    g.strokeStyle = 'rgba(201,162,39,.20)'; g.lineWidth = 1;
+    g.beginPath(); g.moveTo(0, GROUND_Y); g.lineTo(W, GROUND_Y); g.stroke();
+  })();
+
+  /* ==========================================================================
+     符纹绘制：所有"符"都用这个函数画，保证视觉语言统一
+     ========================================================================== */
+  function drawTalisman(g, x, y, size, rot, color, glow) {
+    g.save();
+    g.translate(x, y); g.rotate(rot);
+    if (glow) { g.shadowColor = color; g.shadowBlur = glow; }
+    // 纸符底：微斜的方纸
+    g.fillStyle = 'rgba(240,228,200,.92)';
+    g.fillRect(-size * .32, -size * .62, size * .64, size * 1.24);
+    // 朱砂边框
+    g.strokeStyle = color; g.lineWidth = Math.max(1, size * .1);
+    g.strokeRect(-size * .32, -size * .62, size * .64, size * 1.24);
+    // 内部笔画：抽象符文（不指向任何真实文字）
+    g.strokeStyle = color; g.lineWidth = Math.max(1, size * .085);
+    g.beginPath();
+    g.moveTo(0, -size * .44); g.lineTo(0, size * .44);
+    g.moveTo(-size * .18, -size * .18); g.lineTo(size * .18, -size * .18);
+    g.moveTo(-size * .18, size * .10); g.lineTo(size * .18, size * .10);
+    g.stroke();
+    // 顶部小三角
+    g.fillStyle = color;
+    g.beginPath();
+    g.moveTo(-size * .32, -size * .62); g.lineTo(size * .32, -size * .62);
+    g.lineTo(0, -size * .86); g.closePath(); g.fill();
+    g.restore();
+  }
+
+  /* ============================ 状态 ============================ */
+  let P, run, raf, lastT, loopOn = true;
+
+  function newRun() {
+    run = {
+      t: 0, wave: 0, waveTimer: 1.4,
+      // 边沿标志：敌人从"有"变"没有"的那一刻才重置 waveTimer。
+      // 没有它会每帧重置（永远到不了 0），不初始化则会漏掉第一波。
+      waveReady: false,
+      score: 0, kills: 0, combo: 0, bestCombo: 0,
+      hp: 3, maxHp: 3, shield: 0,
+      paused: false, over: false,
+      balls: [], enemies: [], drops: [], parts: [], floaters: [],
+      // 炮台与行者
+      turretX: W / 2, walkerX: W / 2,
+      walkerY: GROUND_Y - 22,
+      turretAim: -Math.PI / 2,
+      // 弹道类型：0=金符(反弹) 1=剑符(穿透)
+      ballType: 0,
+      ballSpeed: 5.05,
+      // 反弹次数上限，防止满屏友军弹
+      maxBounce: 6,
+      // 无敌帧
+      hurtCd: 0, spawnFlash: 0,
+      // 统计（结算用）
+      leak: 0, wavesCleared: 0,
+    };
+    P = {
+      left: false, right: false, up: false, down: false,
+    };
+    // 预置一颗球，避免开局空屏
+    run.balls.push(mkBall(W / 2, CANVAS_TOP + 40, -Math.PI / 2));
+  }
+
+  function mkBall(x, y, ang) {
+    return {
+      x, y, vx: Math.cos(ang) * run.ballSpeed, vy: Math.sin(ang) * run.ballSpeed,
+      r: 9, bounce: 0, pierce: false, type: run.ballType,
+      trail: [], dead: false, age: 0,     // age：用于「发射后 0.5 秒内才做角度回正」
+    };
+  }
+
+  /* ============================ 输入 ============================ */
+  addEventListener('keydown', e => {
+    if (e.repeat) return;
+    switch (e.code) {
+      case 'ArrowLeft':  case 'KeyA': P.left = true;  e.preventDefault(); break;
+      case 'ArrowRight': case 'KeyD': P.right = true; e.preventDefault(); break;
+      case 'ArrowUp':    case 'KeyW': P.up = true;    e.preventDefault(); break;
+      case 'ArrowDown':  case 'KeyS': P.down = true;  e.preventDefault(); break;
+      case 'KeyP': if (!run.over && run.hp > 0) togglePause(); break;
+      case 'Space':
+        e.preventDefault();
+        if (!run.over && run.hp > 0 && !run.paused) {
+          run.ballType = run.ballType ? 0 : 1;
+          for (const b of run.balls) { b.type = run.ballType; b.pierce = run.ballType === 1; }
+          say(run.ballType ? '剑符 · 穿透' : '金符 · 反弹', GOLD);
+        }
+        break;
+    }
+  });
+  addEventListener('keyup', e => {
+    switch (e.code) {
+      case 'ArrowLeft':  case 'KeyA': P.left = false; break;
+      case 'ArrowRight': case 'KeyD': P.right = false; break;
+      case 'ArrowUp':    case 'KeyW': P.up = false; break;
+      case 'ArrowDown':  case 'KeyS': P.down = false; break;
+    }
+  });
+
+  // 触屏：左半屏左右滑走行者，右半屏上下滑调炮台
+  let touchL = null, touchR = null;
+  cv.addEventListener('touchstart', e => {
+    for (const t of e.changedTouches) {
+      if (t.clientX < rect().l) touchL = { id: t.identifier, x0: t.clientX, y0: t.clientY, x: t.clientX };
+      else touchR = { id: t.identifier, x0: t.clientX, y0: t.clientY, y: t.clientY };
+    }
+    e.preventDefault();
+  }, { passive: false });
+  cv.addEventListener('touchmove', e => {
+    for (const t of e.changedTouches) {
+      if (touchL && t.identifier === touchL.id) touchL.x = t.clientX;
+      if (touchR && t.identifier === touchR.id) touchR.y = t.clientY;
+    }
+    e.preventDefault();
+  }, { passive: false });
+  cv.addEventListener('touchend', e => {
+    for (const t of e.changedTouches) {
+      if (touchL && t.identifier === touchL.id) touchL = null;
+      if (touchR && t.identifier === touchR.id) touchR = null;
+    }
+  });
+  function rect() {
+    const r = cv.getBoundingClientRect();
+    return { l: r.left, w: r.width, top: r.top, h: r.height, s: r.width / W };
+  }
+
+  /* ============================ 流程 ============================ */
+  function togglePause() {
+    run.paused = !run.paused;
+    document.getElementById('p1').style.display = run.paused ? '' : 'none';
+  }
+
+  function say(text, color) {
+    run.floaters.push({ x: W / 2, y: 200, text, color: color || PAPER, life: 1.1 });
+  }
+
+  /* ============================ 波次 ============================ */
+  function waveDefn(n) {
+    if (n % 5 === 0) return { boss: true, n };
+    return { boss: false, n };
+  }
+
+  function spawnWave() {
+    // ⚠️ 必须先自增再判断，否则 run.wave 初始值 0 会被 0%5===0 判成 BOSS 波，
+    //    导致开局第一波就直接出 BOSS（我第一版就犯了这个，被截图看出来）。
+    run.wave++;
+    const w = waveDefn(run.wave);
+    if (w.boss) {
+      // BOSS：从上方缓缓压下，盾向朝下（= 正面朝上，容易被背面打）
+      run.enemies.push(mkEnemy(W / 2, -70, {
+        boss: true, hp: 300 + run.wave * 26, r: 44, shieldDir: Math.PI / 2,
+        col: CINNABAR, name: '山鬼·镇岳', fireCd: 2.4,
+      }));
+      say('山 鬼 · 镇 岳', CINNABAR);
+      run.waveTimer = 999;
+      return;
+    }
+    const cnt = Math.min(3 + Math.floor(run.wave * 0.7), 11);
+    const elite = run.wave % 3 === 0;
+    for (let i = 0; i < cnt; i++) {
+      const x = rnd(56, W - 56);
+      const isE = elite && i === rndi(0, cnt - 1);
+      run.enemies.push(mkEnemy(x, -40 - rnd(0, 260), isE ? {
+        boss: false, hp: 34 + run.wave * 5, r: 19, shieldDir: rnd(0, TAU),
+        col: isE ? CINNABAR : JADE, elite: true, fireCd: rnd(1.6, 3.2),
+      } : {
+        boss: false, hp: 16 + run.wave * 2.6, r: 14, shieldDir: rnd(0, TAU),
+        col: JADE, fireCd: rnd(2.6, 5.0),
+      }));
+    }
+    run.waveTimer = Math.max(5.0, 9.5 - run.wave * 0.22);
+    say('第 ' + run.wave + ' 波', PAPER);
+  }
+
+  function mkEnemy(x, y, o) {
+    const e = Object.assign({
+      x, y, vx: rnd(-.32, .32), vy: rnd(.42, .78) + run.wave * .028,
+      shieldRot: 0, flash: 0, dead: false, phase: 0,
+    }, o);
+    e.shieldDir = o.shieldDir;
+    e.baseDir = o.shieldDir;
+    e.spin = rnd(-.6, .6);
+    return e;
+  }
+
+  /* ============================ 掉落 ============================ */
+  function dropLoot(x, y) {
+    const r = Math.random();
+    let kind;
+    if (r < 0.34)      kind = 'exp';    // 经验
+    else if (r < 0.54) kind = 'talisman'; // 战符：反弹上限 +2，并 +1 层结界
+    else if (r < 0.68) kind = 'shield';  // 护身结界
+    else if (r < 0.80) kind = 'heart';   // 续命
+    else if (r < 0.90) kind = 'gold';    // 分数
+    else                kind = 'rift';   // 空间裂隙：把场上所有敌弹变慢
+    run.drops.push({ x, y, vy: rnd(.5, .95), kind, landed: false, spin: rnd(-2, 2), life: 0 });
+  }
+
+  const LOOT_LABEL = {
+    exp: '经验', talisman: '战符', shield: '结界', heart: '续命', gold: '金币', rift: '裂隙',
+  };
+
+  /* ============================ 粒子 ============================ */
+  function burst(x, y, n, col, spd) {
+    for (let i = 0; i < n; i++) {
+      const a = rnd(0, TAU), s = rnd(.4, 1) * (spd || 3);
+      run.parts.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s,
+                       life: rnd(.3, .75), max: .75, col, r: rnd(1.2, 3.4) });
+    }
+  }
+
+  /* ============================ 主循环 ============================ */
+  function frame(ts) {
+    // ⚠️ 冻结时必须真的停下 rAF，不能只是「不更新」。
+    //    页面自己的动画循环会和测试的 step() 赛跑 —— 玩家在原地挨打、
+    //    掉光残机后 run.over=true，之后 step() 全空转，
+    //    所有判据都读出一片「游戏没反应」的假象。
+    if (!loopOn) { raf = 0; return; }
+    if (!lastT) lastT = ts;
+    let dt = (ts - lastT) / 16.6667;
+    lastT = ts;
+    if (dt > 3) dt = 3;                    // 卡顿时钳制，避免瞬移穿模
+    if (!run.paused && !run.over) update(dt);
+    draw();
+    raf = requestAnimationFrame(frame);
+  }
+
+  function update(dt) {
+    run.t += dt;
+    run.hurtCd = Math.max(0, run.hurtCd - dt);
+    run.spawnFlash = Math.max(0, run.spawnFlash - dt);
+
+    /* ---- 波次推进 ---- */
+    run.waveTimer -= dt;
+    if (run.waveTimer <= 0 && run.enemies.length === 0) spawnWave();
+
+    /* ---- 行者（生存面） ---- */
+    const spd = 4.4;
+    let mv = 0;
+    if (P.left)  mv -= 1;
+    if (P.right) mv += 1;
+    if (touchL) {
+      const r = rect();
+      const want = run.walkerX + (touchL.x - touchL.x0) * 1.6;
+      mv = clamp((want - run.walkerX) / 8, -1, 1);
+    }
+    run.walkerX = clamp(run.walkerX + mv * spd * dt, 26, W - 26);
+    run.walkerY = GROUND_Y - 22 + Math.sin(run.t * 3.4) * 2.2;   // 轻微呼吸感
+
+    /* ---- 炮台（输出面，反向联动） ---- */
+    let tv = 0;
+    if (P.up)   tv -= 1;
+    if (P.down) tv += 1;
+    if (touchR) {
+      const r = rect();
+      const want = run.turretX + (touchR.y - touchR.y0) * 1.1;
+      tv = clamp((want - run.turretX) / 8, -1, 1);
+    }
+    run.turretX = clamp(run.turretX + tv * 3.5 * dt, 34, W - 34);
+
+    /* ---- 弹丸 ---- */
+    for (const b of run.balls) {
+      // 角度自动缓慢回正到炮台方向，让「炮台位置」真的有意义。
+      // ⚠️ 回正只在「刚发射的 0.5 秒内」做，否则球会被长期拽回炮台方向，
+      //    玩家精心规划的多次反弹路线会被系统悄悄抹掉 —— 那是设计缺陷，不是手感。
+      b.age = (b.age || 0) + dt;
+      if (b.age < 30) {                       // 前 0.5 秒（60fps 下 30 帧）
+        const wantAng = Math.atan2(b.y - CANVAS_TOP - 6, b.x - run.turretX);
+        let cur = Math.atan2(b.vy, b.vx);
+        let diff = ((wantAng - cur + Math.PI * 3) % TAU) - Math.PI;
+        cur += clamp(diff, -0.028, 0.028) * dt;
+        const sp = Math.hypot(b.vx, b.vy) || run.ballSpeed;
+        b.vx = Math.cos(cur) * sp; b.vy = Math.sin(cur) * sp;
+      }
+      // 回正结束后，朝向炮台一侧的速度分量让球轻微向炮台靠拢，
+      // 但保留切向分量 —— 反弹路线仍然由玩家主导。
+      //
+      // ⚠️ 第二版修掉的真设计缺陷：
+      //   原式 toTurret = atan2(CANVAS_TOP + 16 - b.y, ...) 在球位于炮台**下方**时
+      //   分量恒为负 → 这个角度指向**斜上方**，于是 1.2%/帧 的 nudge 会持续把
+      //   垂直下落的球往上拽。结果：球在炮台带与底线之间来回弹，
+      //   **永远落不到底线 GROUND_Y**，而底线的自动回收是这游戏的核心机制
+      //   （「不必追球，反弹才是路线规划」）。
+      //   逐帧诊断证据：球 y 从 300 最低只到 420 就回头，bounce 累到 2。
+      //
+      //   修正：球在炮台下方时，弱回正只修正**横向**速度分量，
+      //         纵向分量原样保留 —— 垂直下落的球就真的能落到底线。
+      if (b.age >= 30) {
+        const cur = Math.atan2(b.vy, b.vx);
+        const sp = Math.hypot(b.vx, b.vy) || run.ballSpeed;
+        const below = b.y > CANVAS_TOP + 16;
+        const toTurret = below
+          // 在下方：只要横向朝向炮台，纵向（下落）保持不变
+          ? Math.atan2(0, run.turretX - b.x)
+          // 在上方：完整角度回正（此时朝炮台飞是合理的）
+          : Math.atan2(CANVAS_TOP + 16 - b.y, run.turretX - b.x);
+        let diff = ((toTurret - cur + Math.PI * 3) % TAU) - Math.PI;
+        // 只吃掉 1.2% 的角速度，且是朝炮台方向 —— 球会绕着炮台区域走，
+        // 但玩家用左右墙做出的多次反弹不会被推翻
+        const nudge = clamp(diff, -1, 1) * 0.012 * dt;
+        const nc = cur + nudge;
+        b.vx = Math.cos(nc) * sp; b.vy = Math.sin(nc) * sp;
+      }
+
+      b.x += b.vx * dt; b.y += b.vy * dt;
+
+      b.trail.push({ x: b.x, y: b.y });
+      if (b.trail.length > 16) b.trail.shift();
+
+      // 侧墙反弹
+      if (b.x < b.r)      { b.x = b.r;      b.vx = Math.abs(b.vx); b.bounce++; onWallHit(b); }
+      if (b.x > W - b.r)  { b.x = W - b.r;  b.vx = -Math.abs(b.vx); b.bounce++; onWallHit(b); }
+
+      // 顶部炮台带反弹
+      if (b.y < CANVAS_TOP + b.r) {
+        b.y = CANVAS_TOP + b.r; b.vy = Math.abs(b.vy); b.bounce++; onWallHit(b);
+      }
+
+      // 落底 → 自动回收（这是「不追球」的关键）
+      if (b.y > GROUND_Y - 4) {
+        burst(b.x, GROUND_Y, 8, GOLD, 2.2);
+        const ang = Math.atan2(GROUND_Y - 26 - CANVAS_TOP - 6, run.turretX - b.x);
+        const nb = mkBall(run.turretX, CANVAS_TOP + 16, ang);
+        nb.bounce = 0;
+        b.dead = true;
+        run.balls.push(nb);
+        say('', GOLD);   // 不弹提示，保持画面干净
+      }
+      if (b.bounce > run.maxBounce) {
+        // 超过反弹上限：也走回收流程，避免满屏友军弹
+        const nb = mkBall(run.turretX, CANVAS_TOP + 16, -Math.PI / 2);
+        b.dead = true; run.balls.push(nb);
+      }
+    }
+    run.balls = run.balls.filter(b => !b.dead);
+
+    /* ---- 敌人 ---- */
+    for (const e of run.enemies) {
+      e.flash = Math.max(0, e.flash - dt * 4);
+      e.x += e.vx * dt;
+      e.y += e.vy * dt;
+      // 盾向缓慢旋转：制造「找一个时机从背后打」的窗口
+      e.shieldRot += e.spin * dt * .8;
+      if (e.x < e.r * 1.2 || e.x > W - e.r * 1.2) e.vx *= -1;
+
+      // 触底
+      if (e.y > DEATH_Y) {
+        e.dead = true;
+        run.combo = 0;
+        run.leak++;
+        hurt(1, e.x, DEATH_Y);
+        burst(e.x, DEATH_Y, 14, CINNABAR, 3);
+      }
+
+      // 发射符雨
+      if (!e.boss) {
+        e.fireCd -= dt;
+        if (e.fireCd <= 0 && e.y > 30) {
+          e.fireCd = rnd(2.4, 5.2);
+          fireFan(e, 3);
+        }
+      } else {
+        e.fireCd -= dt;
+        if (e.fireCd <= 0 && e.y > 20) {
+          e.fireCd = 1.5;
+          const ph = Math.floor(e.hp / (e.maxHp * 0.5));
+          if (ph !== e.phase) {
+            e.phase = ph;
+            say('第 ' + (ph + 1) + ' 阶段', CINNABAR);
+            // 阶段切换：清场，给玩家一个喘息的节拍
+            for (const p of run.parts) p.life = 0;
+            burst(e.x, e.y, 30, GOLD_HI, 5);
+          }
+          if (ph === 0) fireRing(e, 12, 2.0);
+          else if (ph === 1) { fireFan(e, 5, 2.4); fireRing(e, 14, 1.4); }
+          else { fireFan(e, 7, 2.8); fireSpiral(e); }
+        }
+      }
+    }
+
+    /* ---- 弹丸 vs 敌人：盾向判定是核心 ---- */
+    for (const b of run.balls) {
+      for (const e of run.enemies) {
+        if (e.dead || b.dead) continue;
+        const d = Math.hypot(b.x - e.x, b.y - e.y);
+        if (d > e.r + b.r) continue;
+
+        // 盾向背击判定
+        // ⚠️ 这段的第一版注释把语义写反了，代码也跟着反了 ——
+        //    原来写「弹丸方向 与 盾法线 同向 => 背面」，于是正面拿到了 ×2.5。
+        //    几何上的正确关系是：
+        //      盾牌法线 shieldAng 指向「面朝的方向」。
+        //      弹丸 shotAng 与它同向 → 弹丸正面撞在盾牌上  → 正面（低伤）
+        //      弹丸 shotAng 与它反向 → 打在盾牌背面        → 背击（×2.5）
+        //    所以「同向」判据成立时应当是 fromBack = false。
+        //    判据（诊断脚本）给出的证据：盾朝 +x 时，
+        //      弹朝 +x 得 22.5 分（= 9 × 2.5）← 错，这是正面
+        //      弹朝 -x 得 9   分（= 9 × 1.0）← 这才是背面
+        const shotAng = Math.atan2(b.vy, b.vx);
+        const shieldAng = e.shieldDir + e.shieldRot;
+        // 归一化到 [0, TAU)
+        let d2 = ((shotAng - shieldAng) % TAU + TAU) % TAU;
+        // 夹角 < 90° → 正面；>= 90° → 背面
+        const fromBack = d2 > Math.PI / 2 && d2 < Math.PI * 1.5;
+
+        const mul = b.pierce ? 1.7 : (fromBack ? 2.5 : 1.0);
+        e.hp -= 9 * mul;
+        e.flash = 1;
+
+        // 命中反馈：正面命中是暗金，背面命中是亮金 + 「背」字
+        const col = fromBack ? GOLD_HI : GOLD;
+        burst(b.x, b.y, fromBack ? 12 : 6, col, fromBack ? 3.4 : 2);
+        if (fromBack) {
+          run.score += 12;
+          run.floaters.push({ x: e.x, y: e.y - e.r - 6, text: '背', color: GOLD_HI, life: .6 });
+        }
+
+        if (e.hp <= 0) killEnemy(e, fromBack);
+        if (b.pierce) {
+          // 穿透弹：继续飞，但伤害衰减
+          b.dmg = (b.dmg || 1) * 0.72;
+          if (b.dmg < 0.25) b.dead = true;
+        } else {
+          b.dead = true;
+        }
+        break;
+      }
+    }
+    // ⚠️ 原来是 `!b.dead && b.dmg !== undefined || !b.dead`。
+    //   按运算符优先级展开就是 `(!b.dead && dmg!==undefined) || !b.dead`，
+    //   后半段把前半段整个吃掉了 —— 等价于 `!b.dead`。
+    //   后面那段 `b.dmg !== undefined` 从来没起过作用，纯属让人误读的噪音。
+    run.balls = run.balls.filter(b => !b.dead);
+
+    // 清理已死敌人
+    for (const e of run.enemies) if (e.dead && !e.counted) {
+      e.counted = true;
+      run.combo++;
+      run.bestCombo = Math.max(run.bestCombo, run.combo);
+      run.kills++;
+      run.score += (e.boss ? 800 : e.elite ? 90 : 40) + run.combo * 6;
+      burst(e.x, e.y, e.boss ? 46 : e.elite ? 22 : 14, e.col, e.boss ? 5.5 : 3.2);
+      if (Math.random() < (e.boss ? 1 : e.elite ? .55 : .28)) dropLoot(e.x, e.y);
+      if (e.boss) {
+        run.wavesCleared++;
+        say('破 阵', GOLD_HI);
+        for (let i = 0; i < 4; i++) dropLoot(e.x + rnd(-70, 70), e.y + rnd(-40, 40));
+      }
+    }
+    run.enemies = run.enemies.filter(e => !e.dead);
+
+    // ⚠️ 这里原本只在「BOSS 被打死」时重置 waveTimer，导致**普通波次永远推不进去**：
+    //      触发条件是 `if (waveTimer <= 0 && enemies.length === 0) spawnWave()`，
+    //      而普通敌人死光后没人重置计时器 → waveTimer 一直是负数，
+    //      可只要场上还有漏网的敌人就换不了波 → 玩家站着不动就永远卡在第 1 波。
+    //      测试证据：step(900)（= 15 秒游戏内时间，远超第 1 波的 9.28 秒）
+    //      之后 wave 仍然 1->1，而 kills=3、场上敌人=0。
+    //
+    //    现在改成：**敌人从"有"变成"没有"的那一刻**（边沿触发）给 1.2 秒喘息。
+    //
+    //    ⚠️ 这里踩了两个坑，都很典型：
+    //    ① 第一版写成 `if (enemies.length === 0 && waveTimer <= 1.2) waveTimer = 1.2`
+    //       —— 守卫条件 waveTimer <= 1.2 在正常流程里**永远为假**（此时是 9.28），
+    //          修复等于没写，白跑一轮测试才发现。
+    //    ② 如果只写 `if (enemies.length === 0) waveTimer = 1.2`，
+    //       则**每一帧**都会把计时器拉回 1.2，永远降不到 0 —— 死锁换个形式。
+    //    → 所以必须用标志位记住"这一波已经重置过了"。
+    if (run.enemies.length === 0) {
+      if (!run.waveReady) {         // 边沿：只在刚清空的那一帧触发
+        run.waveReady = true;
+        run.waveTimer = 1.2;         // 喘息 1.2 秒再进下一波
+      }
+    } else {
+      run.waveReady = false;
+    }
+
+    /* ---- 掉落物：落到底线停住，等玩家绕回来 ---- */
+    for (const d of run.drops) {
+      d.life += dt; d.spin += dt * 1.7;
+      if (!d.landed) {
+        d.y += d.vy * dt;
+        if (d.y >= GROUND_Y - 10) { d.y = GROUND_Y - 10; d.landed = true; }
+      }
+      // 玩家靠近才拾取 —— 这是「先求生后回收」的关键
+      const d2 = Math.hypot(d.x - run.walkerX, d.y - run.walkerY);
+      if (d2 < 30) collect(d);
+    }
+    run.drops = run.drops.filter(d => !d.taken);
+
+    /* ---- 敌人弹雨 vs 行者 ---- */
+    for (const p of run.parts) {
+      if (p.hostile) {
+        const d = Math.hypot(p.x - run.walkerX, p.y - run.walkerY);
+        if (d < 13 + p.r) hurt(1, p.x, p.y);
+      }
+      p.x += p.vx * dt; p.y += p.vy * dt;
+      p.life -= dt;
+    }
+    run.parts = run.parts.filter(p => p.life > 0);
+
+    /* ---- 浮字 ---- */
+    for (const f of run.floaters) { f.life -= dt * 1.1; f.y -= dt * 26; }
+    run.floaters = run.floaters.filter(f => f.life > 0);
+
+    if (run.hp <= 0) gameOver();
+  }
+
+  function onWallHit(b) {
+    burst(b.x, b.y, 5, GOLD, 1.9);
+    if (b.bounce === run.maxBounce) {
+      run.floaters.push({ x: b.x, y: b.y - 16, text: '回收', color: JADE, life: .55 });
+    }
+  }
+
+  function fireFan(e, n, spd) {
+    const base = Math.atan2(run.walkerY - e.y, run.walkerX - e.x);
+    const spread = 0.62;
+    for (let i = 0; i < n; i++) {
+      const a = base + (i - (n - 1) / 2) * (spread / Math.max(1, n - 1)) * 1.6;
+      run.parts.push(mkHostile(e.x, e.y, a, (spd || 1.8) + rnd(-.2, .25), CINNABAR, 5));
+    }
+  }
+  function fireRing(e, n, spd) {
+    for (let i = 0; i < n; i++) {
+      run.parts.push(mkHostile(e.x, e.y, i / n * TAU + run.t * .4, spd, '#d4703a', 5));
+    }
+  }
+  function fireSpiral(e) {
+    for (let i = 0; i < 3; i++) {
+      run.parts.push(mkHostile(e.x, e.y, run.t * 2.1 + i * TAU / 3, 1.5, GOLD, 4.6));
+    }
+  }
+  function mkHostile(x, y, ang, spd, col, r) {
+    return { x, y, vx: Math.cos(ang) * spd, vy: Math.sin(ang) * spd,
+             life: 8, col, r: r || 5, hostile: true };
+  }
+
+  function killEnemy(e, fromBack) {
+    e.dead = true;
+    if (fromBack) run.score += 20;
+  }
+
+  function hurt(n, x, y) {
+    if (run.hurtCd > 0) return;
+    if (run.shield > 0) {
+      run.shield--;
+      run.hurtCd = 1.1;
+      burst(run.walkerX, run.walkerY, 20, '#7fd0c0', 3);
+      run.floaters.push({ x: run.walkerX, y: run.walkerY - 26, text: '结界', color: '#7fd0c0', life: .7 });
+      return;
+    }
+    run.hp -= n;
+    run.combo = 0;
+    run.hurtCd = 1.3;
+    burst(run.walkerX, run.walkerY, 18, CINNABAR, 3);
+    shake(9);
+  }
+
+  function shake(n) { run.shake = n; }
+  let shakeN = 0;
+  function applyShake() {
+    if (!run.shake) return;
+    shakeN = run.shake;
+    ctx.translate(rnd(-shakeN, shakeN) * .5, rnd(-shakeN, shakeN) * .5);
+    run.shake *= .82;
+    if (run.shake < .4) run.shake = 0;
+  }
+
+  function collect(d) {
+    d.taken = true;
+    switch (d.kind) {
+      case 'exp':     run.score += 25; float(d.x, d.y, '+25', PAPER); break;
+      case 'gold':    run.score += 120; float(d.x, d.y, '+120', GOLD_HI); break;
+      // ⚠️ 原来浮字写的是 '反弹+' + run.maxBounce，而 maxBounce **初始就是 6**，
+      //   于是捡一个 +2 的战符会飘出「反弹+8」—— 看起来像一次加了 8。
+      //   改成写清楚「本次 +2、当前上限多少」。
+      case 'talisman': run.maxBounce += 2;
+                       float(d.x, d.y, '反弹 +2（上限 ' + run.maxBounce + '）', GOLD_HI);
+                       run.shield = Math.min(run.shield + 1, 3); break;
+      case 'shield':  run.shield = Math.min(run.shield + 1, 3); float(d.x, d.y, '结界', '#7fd0c0'); break;
+      case 'heart':   if (run.hp < run.maxHp) { run.hp++; float(d.x, d.y, '续命', '#e07a7a'); }
+                       else run.score += 200; break;
+      case 'rift':    for (const p of run.parts) if (p.hostile) { p.vx *= .35; p.vy *= .35; }
+                       float(d.x, d.y, '裂隙 · 弹幕减速', JADE); break;
+    }
+    burst(d.x, d.y, 9, d.kind === 'rift' ? JADE : GOLD, 2.2);
+  }
+  function float(x, y, t, c) { run.floaters.push({ x, y, text: t, color: c, life: .85 }); }
+
+  /* ============================ 绘制 ============================ */
+  function draw() {
+    ctx.clearRect(0, 0, W, H);
+    ctx.drawImage(bg, 0, 0);
+
+    ctx.save();
+    if (run.hurtCd > 0 && Math.floor(run.t * 20) % 2 === 0) {
+      ctx.globalAlpha = .5;
+      ctx.fillStyle = CINNABAR;
+      ctx.fillRect(0, 0, W, H);
+      ctx.globalAlpha = 1;
+    }
+    applyShake();
+
+    drawTurret();
+    drawDrops();
+    drawEnemies();
+    drawBalls();
+    drawWalker();
+    drawParticles();
+    drawFloaters();
+    drawHUD();
+    ctx.restore();
+
+    if (run.paused) {
+      ctx.fillStyle = 'rgba(12,10,9,.55)'; ctx.fillRect(0, 0, W, H);
+    }
+  }
+
+  function drawTurret() {
+    const x = run.turretX, y = CANVAS_TOP;
+    ctx.save();
+    // 底座
+    ctx.fillStyle = 'rgba(30,26,22,.9)';
+    ctx.beginPath(); ctx.ellipse(x, y + 4, 30, 9, 0, 0, TAU); ctx.fill();
+    ctx.strokeStyle = 'rgba(201,162,39,.5)'; ctx.lineWidth = 1.2; ctx.stroke();
+    // 炮身：朝向球的角度
+    const ang = run.balls.length ? Math.atan2(run.balls[0].y - y, run.balls[0].x - x) : -Math.PI / 2;
+    ctx.translate(x, y - 6); ctx.rotate(ang + Math.PI / 2);
+    ctx.fillStyle = '#4a3f31';
+    ctx.beginPath();
+    ctx.moveTo(-13, 8); ctx.lineTo(-8, -20); ctx.lineTo(8, -20); ctx.lineTo(13, 8);
+    ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = run.ballType ? JADE : GOLD; ctx.lineWidth = 2;
+    ctx.stroke();
+    // 符纹
+    ctx.fillStyle = run.ballType ? 'rgba(74,124,111,.5)' : 'rgba(201,162,39,.45)';
+    ctx.fillRect(-5, -14, 10, 16);
+    ctx.restore();
+
+    // 轨道（炮台可移动范围的提示）
+    ctx.strokeStyle = 'rgba(201,162,39,.10)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(34, y + 5); ctx.lineTo(W - 34, y + 5); ctx.stroke();
+  }
+
+  function drawWalker() {
+    const x = run.walkerX, y = run.walkerY;
+    // 判定圈（很小，是这类游戏的规矩）
+    ctx.save();
+    if (run.shield > 0) {
+      ctx.strokeStyle = 'rgba(127,208,192,' + (0.4 + 0.35 * Math.sin(run.t * 8)) + ')';
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(x, y, 19, 0, TAU); ctx.stroke();
+      for (let i = 0; i < run.shield; i++) {
+        ctx.fillStyle = 'rgba(127,208,192,.7)';
+        ctx.beginPath(); ctx.arc(x - 7 + i * 7, y + 24, 2.4, 0, TAU); ctx.fill();
+      }
+    }
+    ctx.restore();
+
+    // 身体：斗笠 + 蓑衣
+    ctx.fillStyle = '#3a332a';
+    ctx.beginPath();
+    ctx.moveTo(x, y + 16); ctx.lineTo(x - 12, y - 2); ctx.lineTo(x + 12, y - 2);
+    ctx.closePath(); ctx.fill();
+    // 斗笠
+    ctx.fillStyle = '#c8b18a';
+    ctx.beginPath();
+    ctx.moveTo(x, y - 15); ctx.quadraticCurveTo(x + 15, y - 4, x + 17, y + 1);
+    ctx.lineTo(x - 17, y + 1); ctx.quadraticCurveTo(x - 15, y - 4, x, y - 15);
+    ctx.fill();
+    ctx.strokeStyle = '#8a7f68'; ctx.lineWidth = 1; ctx.stroke();
+    // 灵光
+    ctx.fillStyle = GOLD_HI;
+    ctx.beginPath(); ctx.arc(x, y - 4, 2.6, 0, TAU); ctx.fill();
+
+    // 判定点：明确告诉玩家「真正的受击区在这里」
+    ctx.strokeStyle = CINNABAR; ctx.lineWidth = 1.4;
+    ctx.beginPath(); ctx.arc(x, y + 1, 4.2, 0, TAU); ctx.stroke();
+  }
+
+  function drawBalls() {
+    for (const b of run.balls) {
+      // 轨迹
+      ctx.strokeStyle = run.ballType ? 'rgba(74,124,111,.32)' : 'rgba(201,162,39,.34)';
+      ctx.lineWidth = 3.2; ctx.lineCap = 'round';
+      ctx.beginPath();
+      b.trail.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y));
+      ctx.stroke();
+      // 本体
+      const col = run.ballType ? '#6fbfa5' : GOLD_HI;
+      ctx.save();
+      ctx.shadowColor = col; ctx.shadowBlur = 16;
+      if (run.ballType) {
+        // 剑符：细长菱形
+        ctx.translate(b.x, b.y); ctx.rotate(Math.atan2(b.vy, b.vx));
+        ctx.fillStyle = '#dff0e8';
+        ctx.beginPath(); ctx.moveTo(b.r + 4, 0); ctx.lineTo(0, -b.r * .55);
+        ctx.lineTo(-b.r - 2, 0); ctx.lineTo(0, b.r * .55); ctx.closePath();
+        ctx.fill(); ctx.strokeStyle = col; ctx.lineWidth = 1.4; ctx.stroke();
+      } else {
+        // 金符：旋转的纸符
+        drawTalisman(ctx, b.x, b.y, b.r * 2.1, Math.atan2(b.vy, b.vx) + Math.PI / 2, CINNABAR, 14);
+      }
+      ctx.restore();
+      // 反弹次数点：让玩家看得见还剩几次
+      if (!run.ballType) {
+        for (let i = 0; i < Math.min(b.bounce, run.maxBounce); i++) {
+          ctx.fillStyle = 'rgba(232,220,192,.55)';
+          ctx.beginPath();
+          ctx.arc(b.x - b.bounce * 2.6 + i * 5.2, b.y + b.r + 6, 1.5, 0, TAU);
+          ctx.fill();
+        }
+      }
+    }
+  }
+
+  function drawEnemies() {
+    for (const e of run.enemies) {
+      ctx.save();
+      ctx.translate(e.x, e.y);
+
+      // 身体：山鬼/纸妖的剪影
+      ctx.fillStyle = e.flash > 0 ? PAPER : '#2c2620';
+      ctx.beginPath();
+      if (e.boss) {
+        // BOSS：方正的镇岳体
+        ctx.moveTo(-e.r, -e.r * .5); ctx.lineTo(-e.r * .6, -e.r);
+        ctx.lineTo(e.r * .6, -e.r); ctx.lineTo(e.r, -e.r * .5);
+        ctx.lineTo(e.r * .8, e.r * .8); ctx.lineTo(-e.r * .8, e.r * .8);
+        ctx.closePath();
+      } else if (e.elite) {
+        // 精英：菱形
+        ctx.moveTo(0, -e.r); ctx.lineTo(e.r * .82, 0);
+        ctx.lineTo(0, e.r); ctx.lineTo(-e.r * .82, 0); ctx.closePath();
+      } else {
+        // 普通：圆
+        ctx.arc(0, 0, e.r, 0, TAU);
+      }
+      ctx.fill();
+      ctx.strokeStyle = e.col; ctx.lineWidth = e.boss ? 2.6 : 1.8; ctx.stroke();
+
+      // 眼
+      ctx.fillStyle = e.flash > 0 ? CINNABAR : e.col;
+      ctx.beginPath(); ctx.arc(0, -e.r * .18, e.boss ? 4 : 2.4, 0, TAU); ctx.fill();
+
+      // 盾向：明确画出朝向，让「打背后」这条规则可见
+      ctx.rotate(e.shieldDir + e.shieldRot);
+      ctx.strokeStyle = e.col; ctx.lineWidth = e.boss ? 4 : 3;
+      ctx.globalAlpha = .62;
+      ctx.beginPath(); ctx.arc(0, 0, e.r + 8, -0.85, 0.85); ctx.stroke();
+      // 盾向标记
+      ctx.globalAlpha = .95;
+      ctx.fillStyle = e.col;
+      ctx.beginPath();
+      ctx.moveTo(e.r + 8, 0); ctx.lineTo(e.r + 2, -4.5); ctx.lineTo(e.r + 2, 4.5);
+      ctx.closePath(); ctx.fill();
+      ctx.restore();
+
+      // 血条
+      if (!e.boss || true) {
+        const w = e.boss ? 78 : e.r * 2.1;
+        const hp = clamp(e.hp / e.maxHp, 0, 1);
+        ctx.fillStyle = 'rgba(0,0,0,.45)';
+        ctx.fillRect(e.x - w / 2, e.y - e.r - 15, w, 3.4);
+        ctx.fillStyle = hp > .35 ? GOLD : CINNABAR;
+        ctx.fillRect(e.x - w / 2, e.y - e.r - 15, w * hp, 3.4);
+      }
+      if (e.boss) {
+        ctx.fillStyle = PAPER; ctx.font = '12px "Songti SC",serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(e.name, e.x, e.y + e.r + 22);
+      }
+    }
+  }
+
+  function drawDrops() {
+    for (const d of run.drops) {
+      ctx.save();
+      ctx.translate(d.x, d.y);
+      // 落地后有轻微脉动，提示「可以来拿了」
+      const s = d.landed ? 1 + Math.sin(d.life * 5) * .09 : 1;
+      ctx.scale(s, s);
+      ctx.rotate(d.spin * (d.landed ? .35 : 1));
+      const style = {
+        exp: [GOLD, '经'], talisman: [GOLD_HI, '符'], shield: ['#7fd0c0', '盾'],
+        heart: ['#e07a7a', '命'], gold: [GOLD_HI, '金'], rift: [JADE, '隙'],
+      }[d.kind] || [GOLD, '?'];
+      drawTalisman(ctx, 0, 0, 26, 0, style[0], d.landed ? 12 : 5);
+      ctx.rotate(-d.spin * .5);
+      ctx.fillStyle = style[0];
+      ctx.font = 'bold 11px "Songti SC",serif'; ctx.textAlign = 'center';
+      ctx.fillText(style[1], 0, 4);
+      ctx.restore();
+      if (d.landed) {
+        ctx.strokeStyle = 'rgba(201,162,39,.30)'; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.ellipse(d.x, GROUND_Y, 17, 4.5, 0, 0, TAU); ctx.stroke();
+      }
+    }
+  }
+
+  function drawParticles() {
+    for (const p of run.parts) {
+      const a = clamp(p.life / (p.max || .75), 0, 1);
+      ctx.globalAlpha = a;
+      ctx.fillStyle = p.col;
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.r * a, 0, TAU); ctx.fill();
+      // 敌弹带符纹外框：与友军弹一眼区分
+      if (p.hostile) {
+        ctx.globalAlpha = a * .9;
+        ctx.strokeStyle = '#f0d264'; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.r * a + 2.2, 0, TAU); ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  function drawFloaters() {
+    ctx.textAlign = 'center';
+    for (const f of run.floaters) {
+      if (!f.text) continue;
+      const a = clamp(f.life * 1.6, 0, 1);
+      ctx.globalAlpha = a;
+      ctx.fillStyle = f.color;
+      ctx.font = 'bold 15px "Songti SC",serif';
+      ctx.fillText(f.text, f.x, f.y);
+      ctx.globalAlpha = 1;
+    }
+    ctx.textAlign = 'left';
+  }
+
+  function drawHUD() {
+    // 血
+    for (let i = 0; i < run.maxHp; i++) {
+      ctx.fillStyle = i < run.hp ? '#e07a7a' : 'rgba(120,110,96,.35)';
+      ctx.beginPath();
+      ctx.moveTo(20 + i * 16, 26); ctx.lineTo(27 + i * 16, 20);
+      ctx.lineTo(34 + i * 16, 26); ctx.lineTo(27 + i * 16, 32);
+      ctx.closePath(); ctx.fill();
+    }
+    // 分数 / 连击
+    ctx.fillStyle = PAPER; ctx.font = '13px Consolas,monospace';
+    ctx.fillText(String(run.score).padStart(6, '0'), W - 20, 24);
+    ctx.textAlign = 'right';
+    ctx.fillStyle = run.combo > 4 ? GOLD_HI : 'rgba(232,220,192,.55)';
+    ctx.font = 'bold 13px Consolas,monospace';
+    ctx.fillText('×' + Math.max(1, run.combo), W - 20, 42);
+    ctx.textAlign = 'left';
+
+    // 波次 / 弹道类型
+    ctx.fillStyle = 'rgba(232,220,192,.45)'; ctx.font = '12px "Songti SC",serif';
+    ctx.fillText('第 ' + run.wave + ' 波', 20, 48);
+    ctx.fillStyle = run.ballType ? JADE : GOLD;
+    ctx.fillText(run.ballType ? '剑符（穿透）' : '金符（反弹 ' + run.maxBounce + '）', 20, 66);
+
+    // 顶部提示
+    ctx.textAlign = 'center';
+    ctx.fillStyle = 'rgba(232,220,192,.30)'; ctx.font = '11px "Songti SC",serif';
+    ctx.fillText('↑ ↓ 移动炮台　← → 移动行者　空格换弹道', W / 2, CANVAS_TOP - 12);
+    ctx.textAlign = 'left';
+  }
+
+  /* ============================ 结算 ============================ */
+  function gameOver() {
+    if (run.over) return;
+    run.over = true;
+    const isClear = run.wave >= 6;
+    document.getElementById('r2t').textContent = isClear ? '止 于此' : 'RUN OVER';
+    document.getElementById('r2s').innerHTML =
+      '撑到第 <b>' + run.wave + '</b> 波　·　击杀 <b>' + run.kills + '</b><br>' +
+      '分数 <b>' + run.score + '</b>　·　最高连击 <b>×' + run.bestCombo + '</b><br>' +
+      '漏过 <b>' + run.leak + '</b> 个敌人';
+    let tip;
+    if (run.leak > 6)        tip = '💡 漏过的敌人太多了。先保命，战符落到底线会停住，等安全了再回去捡。';
+    else if (run.combo < 12) tip = '💡 连击偏低。连续击坠能不断提分，别急着躲。';
+    else                      tip = '💡 打得不错。下一步试试专门从<b>背后</b>打敌人（伤害 ×2.5）。';
+    document.getElementById('r2g').innerHTML = tip;
+    document.getElementById('p2').style.display = '';
+    document.getElementById('tip').style.display = 'none';
+    document.getElementById('live').style.display = 'none';
+  }
+
+  /* ============================ HUD DOM ============================ */
+  const liveEl = document.getElementById('live');
+  // ⚠️ tickLive 是一条**自续的 rAF 链**（末尾自己再 requestAnimationFrame）。
+  //   它原先在 start() 里被直接调用，而 start() 同时绑在「开始」和「再来一局」上 ——
+  //   于是**每重开一局就多出一条链**，多条链同时往同一个 DOM 写 innerHTML。
+  //   玩十把就有十条链在跑，纯属白烧 CPU；而且旧链在 run.over 后会自行退出，
+  //   所以现象不明显、很难被发现。
+  //   修法：用 liveOn 保证「任何时刻至多一条链」；run.over 时收尾退出，
+  //   重开时 start() 再启动一条新的。
+  let liveOn = false;
+  function tickLive() {
+    if (liveOn) return;              // 已经有一条在跑，不再加
+    liveOn = true;
+    const loop = () => {
+      if (!liveOn) return;
+      if (run.over) { liveEl.style.display = 'none'; liveOn = false; return; }
+      liveEl.style.display = 'flex';
+      liveEl.innerHTML =
+        '<span><i>分数</i><b>' + run.score + '</b></span>' +
+        '<span><i>波次</i><b>' + run.wave + '</b></span>' +
+        '<span><i>连击</i><b>×' + Math.max(1, run.combo) + '</b></span>' +
+        '<span><i>命</i><b>' + run.hp + '</b></span>';
+      requestAnimationFrame(loop);
+    };
+    loop();
+  }
+
+  /* ============================ 启动 ============================ */
+  function start() {
+    for (const id of ['p0', 'p1', 'p2']) document.getElementById(id).style.display = 'none';
+    document.getElementById('tip').style.display = '';
+    newRun();
+    lastT = 0;
+    loopOn = true;
+    if (!raf) raf = requestAnimationFrame(frame);
+    tickLive();
+  }
+
+  document.getElementById('b0').onclick = start;
+  document.getElementById('b1').onclick = () => togglePause();
+  document.getElementById('b2').onclick = start;
+
+  // 自适应缩放：保持 520x880 的逻辑尺寸
+  function fit() {
+    const s = Math.min(innerWidth / W, innerHeight / H) * 0.98;
+    cv.style.width = (W * s) + 'px';
+    cv.style.height = (H * s) + 'px';
+  }
+  addEventListener('resize', fit); fit();
+
+  // 暴露给自动化测试
+  window.__TP = {
+    get run() { return run; },
+    start,
+    step(n) { for (let i = 0; i < (n || 60); i++) if (!run.paused && !run.over) update(1); },
+    /**
+     * 冻结/恢复自带动画循环，让 step() 成为唯一时钟。
+     *
+     * ⚠️ 本项目踩过最贵的一条坑（同一个坑在四款游戏里全中）：
+     *    页面自己的 requestAnimationFrame 一直在跑，测试的 step() 在旁边赛跑。
+     *    玩家在原地不动 → 挨打 → 掉光残机 → run.over = true
+     *    → 此后 step() 里的 `if (!run.over)` 全不成立，什么都不推进。
+     *    症状极像「游戏有 bug」，但游戏代码毫无问题 —— 是**测试侧有两个时钟**。
+     *
+     *    最早还把它误判成了「状态推进失败」，改判据放宽条件，掩盖了真因。
+     *    判据失败时先怀疑判据 —— 但这条的教训是反过来：
+     *    **判据一直失败且数字毫无道理（600 帧 wave 不动），先怀疑测试环境。**
+     */
+    freeze() { loopOn = false; cancelAnimationFrame(raf); raf = 0; },
+    unfreeze() { if (!raf) { loopOn = true; lastT = 0; raf = requestAnimationFrame(frame); } },
+    key(k, v) { P[k] = v; },
+    mkBall, GROUND_Y, CANVAS_TOP,
+    // 补导出：这两条链路原来完全没被判据覆盖 ——
+    //   hurt()    → 「掉光残机到底会不会结束」从来没人验过
+    //   collect() → 「战符到底加了什么」也没人验过
+    hurt, collect, dropLoot,
+  };
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,1559 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<title>深渊回响 · 地牢回声</title>
+<style>
+  :root{
+    --cave:#0d1014; --floor:#3d4759; --wall:#232a36; --wallhi:#39445a;
+    --hero:#3ddc97; --hero2:#2bb87c; --gold:#ffc94a; --blood:#ff5b6e;
+    --violet:#a98cff; --azure:#5ec8ff; --paper:#e8ecf2; --dim:#78808f;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0;height:100%;overflow:hidden;background:#0a0c10;
+    font-family:"Microsoft YaHei","PingFang SC",sans-serif;color:var(--paper)}
+  #wrap{position:relative;width:100%;height:100%;display:flex;align-items:center;justify-content:center}
+  canvas{display:block;background:#0d1014;box-shadow:0 0 60px rgba(0,0,0,.85);touch-action:none;
+    image-rendering:pixelated}
+  #ui{position:absolute;inset:0;pointer-events:none;font-size:13px;line-height:1.6}
+  .panel{position:absolute;pointer-events:auto;background:rgba(12,15,20,.96);
+    border:2px solid var(--wallhi);padding:22px 28px;max-width:min(94vw,600px);
+    box-shadow:0 0 40px rgba(0,0,0,.85)}
+  .panel h1{margin:0 0 3px;font-size:28px;letter-spacing:3px;color:var(--gold);font-weight:700}
+  .panel h1 small{display:block;font-size:11px;letter-spacing:2px;color:var(--dim);margin-top:4px;font-weight:400}
+  .panel p{color:#b8c0cf;font-size:13.5px;margin:8px 0}
+  .panel b{color:var(--paper)}
+  .panel .k{display:inline-block;min-width:19px;padding:1px 6px;margin:0 2px;background:#1c222b;
+    border:1px solid #3d4859;border-radius:3px;font-family:Consolas,monospace;font-size:11.5px;color:var(--azure)}
+  .panel hr{border:0;border-top:1px solid #2a3242;margin:14px 0}
+  .btn{display:inline-block;margin-top:14px;padding:11px 30px;cursor:pointer;
+    background:linear-gradient(180deg,#2c3542,#1a1f28);border:2px solid var(--gold);
+    color:var(--gold);font-size:16px;letter-spacing:2px;font-family:inherit;transition:.12s;font-weight:700}
+  .btn:hover{background:linear-gradient(180deg,#3c4756,#232a34);box-shadow:0 0 18px rgba(255,201,74,.28)}
+  .btn.sm{padding:7px 18px;font-size:13px;margin:0;letter-spacing:1px}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  .note{font-size:12px;color:var(--dim);margin-top:11px;line-height:1.75}
+  /* 升级三选一卡片 */
+  .cards{display:flex;gap:11px;flex-wrap:wrap;margin-top:8px}
+  .card{pointer-events:auto;cursor:pointer;width:158px;padding:13px 13px 15px;background:#161b24;
+    border:2px solid #2a3242;transition:.12s;position:relative}
+  .card:hover{transform:translateY(-4px);border-color:var(--gold);box-shadow:0 8px 22px rgba(0,0,0,.55)}
+  .card .ic{width:30px;height:30px;margin-bottom:8px;border-radius:3px;display:flex;align-items:center;
+    justify-content:center;font-size:16px;font-weight:700;color:#0d1014}
+  .card .nm{font-size:14px;color:var(--gold);font-weight:700;letter-spacing:.5px}
+  .card .ds{font-size:11.5px;color:#98a2b3;margin-top:5px;line-height:1.55}
+  .card .lv{position:absolute;right:9px;top:10px;font-size:10.5px;color:var(--dim);font-family:Consolas,monospace}
+  .legend{display:flex;gap:14px;flex-wrap:wrap;margin-top:8px;font-size:12.5px;color:#98a2b3}
+  .legend s{text-decoration:none;display:inline-flex;align-items:center;gap:5px}
+  .legend s i{width:9px;height:9px;display:inline-block}
+  #tip{position:absolute;left:50%;bottom:10px;transform:translateX(-50%);color:#4d5563;
+    font-size:11.5px;letter-spacing:.5px;white-space:nowrap}
+  #live{position:absolute;top:8px;left:50%;transform:translateX(-50%);display:none;gap:16px;
+    background:rgba(10,12,16,.86);padding:5px 15px;border:1px solid #2a3242;font-size:12.5px;white-space:nowrap}
+  #live i{font-style:normal;color:var(--dim);margin-right:4px}
+  #live b{font-weight:700;font-family:Consolas,monospace;color:var(--gold)}
+</style>
+</head>
+<body>
+<div id="wrap">
+<canvas id="cv" width="640" height="448"></canvas>
+<div id="ui">
+  <div id="live"></div>
+  <div id="tip">WASD / 方向键 移动　　J 射击　　Shift 翻滚　　E 开箱　　P 暂停</div>
+
+  <div class="panel" id="p0">
+    <h1>深渊回响<small>DUNGEON ECHO</small></h1>
+    <p>一层一层往下。每间房清空才开门，门后可能有<b>宝箱</b>。</p>
+    <p><b>你的三件事：</b><br>
+      <span class="k">WASD</span> 移动　·　<span class="k">J</span> 射击（自动瞄准最近敌人）<br>
+      <span class="k">Shift</span> <b>翻滚</b> —— 有无敌帧，且能穿过弹幕</p>
+    <hr>
+    <p><b>三条要紧规则：</b></p>
+    <p>· 清完一间房会掉<span style="color:var(--gold)">宝箱</span>。<b>按 E 开箱</b>，
+       弹出<b>三选一</b>升级。<br>
+       · 宝箱品质由<span style="color:var(--violet)">幸运</span>决定。幸运越高，越可能出红色武器。<br>
+       · <b>翻滚有冷却</b>。它比血量更耐操 —— 学会用它，别只会躲。</p>
+    <hr>
+    <p><b>敌人一眼认：</b></p>
+    <div class="legend">
+      <s><i style="background:#5ec8ff"></i>史莱姆 · 直线冲撞</s>
+      <s><i style="background:#ff9d4a"></i>蝙蝠 · 快速折线</s>
+      <s><i style="background:#a98cff"></i>法师 · 远程点射</s>
+      <s><i style="background:#ff5b6e"></i>石像 · 高血量慢走</s>
+    </div>
+    <hr>
+    <div class="row"><span class="btn" id="b0">下 潜</span></div>
+    <div class="note">原作是《元气骑士》。本作<b>玩法机制</b>照着做（机制不受版权保护），
+      但<b>角色 / 立绘 / 美术全部原创</b> —— 主角不是骑士，美术不是像素素材包。</div>
+  </div>
+
+  <div class="panel" id="p1" style="display:none">
+    <h1>暂 停<small>PAUSED</small></h1>
+    <div class="row"><span class="btn" id="b1">继 续</span></div>
+  </div>
+
+  <div class="panel" id="p2" style="display:none">
+    <h1>陨 落<small>YOU DIED</small></h1>
+    <p id="r2s"></p>
+    <div class="row"><span class="btn" id="b2">重 新 下 潜</span></div>
+  </div>
+
+  <div class="panel" id="p3" style="display:none">
+    <h1>出 坑<small>ESCAPED</small></h1>
+    <p id="r3s"></p>
+    <div class="row"><span class="btn" id="b3">再 来 一 局</span></div>
+  </div>
+
+  <!-- 升级三选一 -->
+  <div class="panel" id="p4" style="display:none;width:min(94vw,540px)">
+    <h1 style="font-size:22px">开 箱<small id="c4q">CHOOSE ONE</small></h1>
+    <p id="c4t" style="margin-bottom:4px"></p>
+    <div class="cards" id="c4c"></div>
+    <!-- ⚠️ 原来这里写死「按 1 2 3 也能选」，但宝箱品质决定选项数：
+           木箱/铜箱 1 个、银箱 2 个、金箱 3 个。
+           截图里只弹出 1 个选项，面板却提示按 1 2 3 —— 玩家按 2 3 没反应，
+           会以为键盘坏了。改成按实际数量渲染。 -->
+    <div class="note" id="c4k">按 <span class="k">1</span> 也能选</div>
+  </div>
+</div>
+</div>
+
+<script>
+"use strict";
+/* ==========================================================================
+   深渊回响 · 地牢回声
+   --------------------------------------------------------------------------
+   元气骑士型 Roguelite 的三根支柱：
+   1. 一房一清 —— 清场才开门，把「刷怪」变成「推进」而非「清场作业」
+   2. 开箱 → 三选一 —— 每次强化都是一次有意义的抉择，不是被动加数值
+   3. 翻滚无敌帧 —— 玩家的血量可以很少，但操作容错必须高
+
+   美术为原创：像素几何体 + 青绿/橙黄配色，非任何现有 IP 素材。
+   ========================================================================== */
+
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+const W = 640, H = 448;
+
+/* ---- 地图：TILE=32，一屏 20×14 格 ---- */
+const T = 32, COLS = 20, ROWS = 14;
+const WT = 1, WALL = 1, FLOOR = 0, DOOR = 2;
+
+const rnd  = (a, b) => a + Math.random() * (b - a);
+const rndi = (a, b) => Math.floor(rnd(a, b + 1));
+const pick = a => a[Math.floor(Math.random() * a.length)];
+const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+const TAU = Math.PI * 2;
+const dist = (a, b, c, d) => Math.hypot(a - c, b - d);
+
+/* 配色 */
+const C = {
+  hero:'#3ddc97', hero2:'#2bb87c', heroDark:'#1c7a52',
+  gold:'#ffc94a', blood:'#ff5b6e', violet:'#a98cff', azure:'#5ec8ff',
+  orange:'#ff9d4a', white:'#e8ecf2', dim:'#78808f',
+  slime:'#5ec8ff', bat:'#ff9d4a', mage:'#a98cff', statue:'#ff5b6e',
+  // ⚠️ 第二轮调色：第一版地板提到 #252d3b 之后仍然和墙分不开。
+  //   根本原因是**视觉直觉反了** —— 通常墙比地暗，但这里墙是亮的（#3a4557），
+  //   于是"亮的一圈 = 墙"很难一眼看出来。
+  //   → 这次把地板明显提亮（比墙还亮一档），墙反而压暗加深，
+  //     让"墙=深色不可走、地面=浅色可走"符合直觉。
+  wall:'#232a36', wallHi:'#39445a', floorA:'#3d4759', floorB:'#434e61',
+};
+
+/* ==========================================================================
+   升级池 —— 每次开箱从这里抽 3 个
+   --------------------------------------------------------------------------
+   分两类：
+     武器 = 改弹道（数量/形态/穿透）
+     被动 = 改属性（攻速/暴击/回血/幸运/移速/翻滚冷却）
+   同名升级有等级，满级后自动从池里剔除 —— 否则玩家会一直刷到已满的属性。
+   ========================================================================== */
+const UPG = [
+  // ── 武器 ──
+  { id:'w1', kind:'weapon', name:'裂空双枪', icon:'双', col:'#5ec8ff', max:1,
+    desc:'弹道 +1，改为双发平行射击',
+    apply(p){ p.shots += 1; p.spread += 0.10; } },
+  { id:'w2', kind:'weapon', name:'三叉散射', icon:'散', col:'#ff9d4a', max:1,
+    desc:'弹道 +1，改为三发扇形',
+    apply(p){ p.shots += 1; p.spread += 0.34; } },
+  { id:'w3', kind:'weapon', name:'穿甲弹', icon:'穿', col:'#a98cff', max:3,
+    desc:'子弹可多穿透 1 个敌人，伤害 -8%',
+    apply(p){ p.pierce += 1; p.dmg *= 0.92; } },
+  { id:'w4', kind:'weapon', name:'重弹', icon:'重', col:'#ffc94a', max:3,
+    desc:'伤害 +35%，但射速 -15%',
+    apply(p){ p.dmg *= 1.35; p.cd *= 1.15; } },
+  { id:'w5', kind:'weapon', name:'散射霰', icon:'霰', col:'#ff5b6e', max:2,
+    desc:'弹速 +25%，弹道 +1',
+    apply(p){ p.spd *= 1.25; p.shots += 1; } },
+  { id:'w6', kind:'weapon', name:'回旋镖', icon:'旋', col:'#3ddc97', max:1,
+    desc:'子弹飞出后返回，射程翻倍',
+    apply(p){ p.boomerang = true; p.range *= 2; } },
+  { id:'w7', kind:'weapon', name:'爆裂弹', icon:'爆', col:'#ff9d4a', max:2,
+    desc:'子弹命中时小范围爆炸',
+    apply(p){ p.blast += 1; } },
+
+  // ── 被动 ──
+  { id:'p1', kind:'passive', name:'急速', icon:'速', col:'#5ec8ff', max:5,
+    desc:'射速 +18%',
+    apply(p){ p.cd *= 0.82; } },
+  { id:'p2', kind:'passive', name:'锋锐', icon:'锐', col:'#ff5b6e', max:5,
+    desc:'伤害 +22%',
+    apply(p){ p.dmg *= 1.22; } },
+  { id:'p3', kind:'passive', name:'迅捷', icon:'捷', col:'#3ddc97', max:4,
+    desc:'移动速度 +12%',
+    apply(p){ p.spd *= 1.12; } },
+  { id:'p4', kind:'passive', name:'幸运', icon:'运', col:'#ffc94a', max:5,
+    desc:'幸运 +1（提高红武与高额掉落概率）',
+    apply(p){ p.fortune += 1; } },
+  { id:'p5', kind:'passive', name:'吸血', icon:'吸', col:'#ff5b6e', max:3,
+    desc:'命中回复 0.4 生命',
+    apply(p){ p.lifesteal += 0.4; } },
+  { id:'p6', kind:'passive', name:'翻滚大师', icon:'滚', col:'#a98cff', max:3,
+    desc:'翻滚冷却 -25%，无敌帧 +3',
+    apply(p){ p.rollCd *= 0.75; p.rollIfr += 3; } },
+  { id:'p7', kind:'passive', name:'坚韧', icon:'韧', col:'#ffc94a', max:4,
+    desc:'最大生命 +1，并回满该格',
+    apply(p){ p.maxHp += 1; p.hp = Math.min(p.maxHp, p.hp + 1); } },
+  { id:'p8', kind:'passive', name:'暴击', icon:'暴', col:'#ffc94a', max:5,
+    desc:'暴击率 +8%，暴击伤害 +0.3',
+    apply(p){ p.crit += 0.08; p.critDmg += 0.3; } },
+  { id:'p9', kind:'passive', name:'磁力', icon:'磁', col:'#5ec8ff', max:2,
+    desc:'拾取范围 +60%，额外生命值掉落 +25%',
+    apply(p){ p.magnet *= 1.6; p.heartChance += 0.25; } },
+];
+
+/* ==========================================================================
+   状态
+   ========================================================================== */
+let P = {};
+let run, pl, map, bullets, ebullets, enemies, chests, drops, parts, texts, bossRef;
+// ⚠️ 这里原本还声明了模块级 `depth`，但它**从未被赋值**，
+//   而代码里有两处读它（genFloor / spawnRoom）→ NaN 传播 → 开局崩溃。
+//   深度统一放在 run.depth，已从声明列表里移除。
+let rooms, curRoom, clearedRooms, pendingUpgrade;
+let raf = 0, lastTs = 0, loopOn = true;
+
+function newRun() {
+  run = {
+    scene: 'title', over: false, paused: false, choosing: false,
+    t: 0, frame: 0, depth: 1, gold: 0, kills: 0, chestsOpened: 0,
+    redWeapons: 0, shake: 0, hint: null, hintT: 0, log: [],
+  };
+  pl = {
+    x: W / 2, y: H / 2, r: 10, hp: 3, maxHp: 3,
+    spd: 2.6, dmg: 1, cd: 13, shootT: 0, shots: 1, spread: 0,
+    pierce: 0, blast: 0, lifesteal: 0, crit: 0, critDmg: 2,
+    fortune: 0, magnet: 42, heartChance: 0.06,
+    rollT: 0, rollCd: 90, rollIfr: 22, rolling: 0, face: 0,
+    bulletSpd: 7.2, range: 340, boomerang: false,
+    levels: {}, goldMul: 1,
+  };
+  bullets = []; ebullets = []; enemies = []; chests = [];
+  drops = []; parts = []; texts = []; bossRef = null;
+  genFloor();
+  placeInRoom(0);
+}
+
+/* ==========================================================================
+   地图生成
+   --------------------------------------------------------------------------
+   「一房一清」的地牢：每个房间 16×10 格（网格 20×14），四周墙，底部中间一个门。
+   ⚠️ 这里原来写的是「6×5 格」—— 那是第一版的尺寸。房间放大到 16×10 之后
+      注释没跟着改，于是文档和代码对不上（代码里 w:16, h:10）。
+   房间序号靠右的箭头串联；走到门边即进入下一间（需要已清空）。
+   ========================================================================== */
+function genFloor() {
+  rooms = [];
+  // ⚠️ 原来读的是模块级 `depth`（第 222 行声明，从未赋值 → undefined），
+  //   而真正的深度存在 run.depth 里。
+  //   → Math.floor(undefined / 2) = NaN，循环 `i < NaN` 一次都不跑
+  //   → rooms 是空数组 → placeInRoom 里 rooms[0] 是 undefined
+  //   → 一进游戏就崩，**这个游戏从未真正跑起来过**。
+  //   诊断证据：运行时 rooms.length === 0，而 map.length === 14 正常。
+  const n = 5 + Math.min(4, Math.floor((run.depth || 1) / 2));
+  for (let i = 0; i < n; i++) {
+    rooms.push({
+      i, cleared: false, visited: false,
+      isBoss: (i === n - 1),
+      // 房间内部格子数：地图 20×14 格，房间占 16×10（四周留 2 格墙），
+      // 视觉上才像"一间房"。原来只给 6×5 格 = 192×160px，
+      // 在 640×448 的地图里只占 1/9 —— 截图上一眼看过去几乎全是墙。
+      w: 16, h: 10,          // 房间内部格子数
+      x0: 2, y0: 2,          // 左上角格子坐标
+      spawned: false,
+    });
+  }
+  // 第 5 个房间当 Boss 房
+  if (rooms.length >= 5) rooms[4].isBoss = true;
+  rooms.forEach(r => r.cleared = false);
+  map = [];
+  for (let y = 0; y < ROWS; y++) map.push(new Array(COLS).fill(WALL));
+}
+
+function roomRect(i) {
+  const r = rooms[i];
+  if (!r) return { x: 0, y: 0, w: 16 * T, h: 10 * T, x0: 2, y0: 2,
+                   gw: 16, gh: 10, cx: 10 * T, cy: 7 * T };
+  // ⚠️ 这里原来只返回 {x, y, w, h, cx, cy}（像素），
+  //    而 placeInRoom / spawnRoom 等调用方读的是**格子坐标** r.x0 / r.y0 ——
+  //    两套命名对不上，`g.x0` 是 undefined → 一进游戏就 TypeError，
+  //    游戏从未真正跑起来过（判据在 start() 那一步就崩了）。
+  // 修：两套命名都给出，格子坐标直接透传，像素坐标由格子换算。
+  return {
+    x: r.x0 * T, y: r.y0 * T,
+    w: r.w * T, h: r.h * T,
+    x0: r.x0, y0: r.y0, gw: r.w, gh: r.h,     // 格子坐标
+    cx: (r.x0 + r.w / 2) * T,
+    cy: (r.y0 + r.h / 2) * T,
+  };
+}
+
+function placeInRoom(i) {
+  curRoom = i;
+  const g = roomRect(i);
+  // 只显示当前房间（元气骑士就是单屏滚动，不做整层大地图）
+  map = [];
+  for (let y = 0; y < ROWS; y++) map.push(new Array(COLS).fill(WALL));
+  // ⚠️ 这里必须用**格子**坐标：g.y0 / g.x0 是格子，g.gh / g.gw 也是格子。
+  //   原来写的是 g.h（像素）—— 两种单位混用，地图会画错一整层。
+  for (let y = g.y0 + 1; y < g.y0 + g.gh - 1; y++)
+    for (let x = g.x0 + 1; x < g.x0 + g.gw - 1; x++)
+      map[y][x] = FLOOR;
+  // 门：底部中间一格
+  const dx = g.x0 + (g.gw >> 1);
+  map[g.y0 + g.gh - 1][dx] = DOOR;
+  pl.x = g.cx; pl.y = g.cy;
+  rooms[i].visited = true;
+  if (!rooms[i].spawned) spawnRoom(i);
+}
+
+/** 在当前房间刷怪 */
+function spawnRoom(i) {
+  const r = rooms[i], g = roomRect(i);
+  r.spawned = true;
+  // ⚠️ 同上：depth 必须读 run.depth，不能读模块级那个 undefined
+  const lv = run.depth || 1;
+  if (r.isBoss) {
+    spawnBoss(g.cx, g.y0 * T + 56, lv);
+    return;
+  }
+  const cnt = Math.min(9, 3 + Math.floor(lv * 0.9) + rndi(0, 1));
+  for (let k = 0; k < cnt; k++) {
+    const kind = lv <= 1 ? pick(['slime', 'slime', 'bat'])
+               : lv <= 3 ? pick(['slime', 'bat', 'bat', 'mage'])
+                         : pick(['bat', 'mage', 'statue', 'mage']);
+    // 出生点离玩家至少 100px，避免一进房就贴脸
+    let x, y, tries = 0;
+    do {
+      x = rnd(g.x + 28, g.x + g.w - 28);
+      y = rnd(g.y + 28, g.y + g.h - 28);
+      tries++;
+    } while (dist(x, y, pl.x, pl.y) < 100 && tries < 20);
+    spawnEnemy(kind, x, y, lv);
+  }
+}
+
+function spawnEnemy(kind, x, y, lv) {
+  const base = {
+    slime: { hp: 2, spd: 1.15, r: 12, dmg: 1, col: C.slime, score: 12 },
+    bat:   { hp: 1.4, spd: 2.5, r: 9,  dmg: 1, col: C.bat, score: 18 },
+    mage:  { hp: 2, spd: 0.75, r: 11, dmg: 1, col: C.mage, score: 25 },
+    statue:{ hp: 6.5, spd: 0.6, r: 15, dmg: 1.5, col: C.statue, score: 40 },
+  }[kind];
+  const e = {
+    kind, x, y, r: base.r,
+    hp: base.hp * (1 + lv * 0.28), maxHp: base.hp * (1 + lv * 0.28),
+    spd: base.spd * (1 + lv * 0.05), dmg: base.dmg, col: base.col,
+    score: base.score, t: 0, fireT: rnd(20, 70), flash: 0,
+    knock: 0, kx: 0, ky: 0, alive: true, boss: false,
+  };
+  enemies.push(e);
+  return e;
+}
+
+function spawnBoss(x, y, lv) {
+  const hp = 40 + lv * 26;
+  const b = {
+    kind: 'boss', x, y, r: 26,
+    hp, maxHp: hp, spd: 0.75 + lv * 0.05, dmg: 2,
+    col: C.blood, score: 300, t: 0, fireT: 60, flash: 0,
+    knock: 0, kx: 0, ky: 0, alive: true, boss: true,
+    phase: 1, rage: false, mode: 'move',
+  };
+  enemies.push(b);
+  bossRef = b;
+  run.hint = 'BOSS 降临'; run.hintT = 100;
+}
+
+/* ==========================================================================
+   宝箱
+   --------------------------------------------------------------------------
+   品质由幸运值决定 —— 这是「开箱爽感」的核心数值化：
+     白 普通 / 蓝 稀有 / 紫 史诗 / 红 传说
+   用户明确要「注重宝箱」，所以这里把宝箱做成房间里的一等公民：
+   每次清场必掉，且品质可见，玩家进门前就知道能期待什么。
+   ========================================================================== */
+function chestTier(fortune) {
+  // 权重随幸运变化；fortune 每 +1 大约把红/紫权重提一档
+  const w = [
+    { k: 'white',  name: '木箱', p: Math.max(8, 46 - fortune * 9),  n: 1, col: '#c9b98f' },
+    { k: 'blue',   name: '铜箱', p: Math.max(10, 30 + fortune * 1),  n: 1, col: '#5ec8ff' },
+    { k: 'purple', name: '银箱', p: Math.max(4, 12 + fortune * 3.5), n: 2, col: '#a98cff' },
+    { k: 'red',    name: '金箱', p: Math.max(0.6, 2 + fortune * 1.6), n: 3, col: '#ffc94a' },
+  ];
+  const total = w.reduce((a, b) => a + b.p, 0);
+  let r = Math.random() * total;
+  for (const x of w) { r -= x.p; if (r <= 0) return x; }
+  return w[0];
+}
+
+function dropChest(x, y) {
+  const t = chestTier(pl.fortune);
+  chests.push({ x, y, r: 13, tier: t, opened: false, t: 0, bob: Math.random() * TAU });
+  run.hint = '出现 ' + t.name + '！'; run.hintT = 70;
+}
+
+function openChest(ch) {
+  if (ch.opened) return;
+  ch.opened = true;
+  run.chestsOpened++;
+  run.gold += { white: 20, blue: 60, purple: 150, red: 420 }[ch.tier.k] || 20;
+  burst(ch.x, ch.y, 26, ch.tier.col, 4.2, .7);
+  run.shake = 6;
+  // 红箱直接给一件红武（额外一层奖励）
+  if (ch.tier.k === 'red') {
+    run.redWeapons++;
+    run.gold += 200;
+  }
+  const opts = rollUpgrades(ch.tier.n);
+  if (opts.length) pendingUpgrade = { opts, tier: ch.tier };
+  else run.hint = '这个箱子里没有可提升的东西';
+}
+
+/** 抽 N 个可升级项；全满级时返回空 → 提示玩家「没得提升了」 */
+function rollUpgrades(n) {
+  const pool = UPG.filter(u => (pl.levels[u.id] || 0) < u.max);
+  const out = [];
+  const bag = pool.slice();
+  while (out.length < Math.min(n, bag.length)) {
+    // 红箱权重偏向武器（更爽）
+    let idx;
+    if (chestTierBias !== 'red') idx = rndi(0, bag.length - 1);
+    else {
+      let wsum = bag.reduce((a, u, i) => a + (u.kind === 'weapon' ? 3 : 1), 0);
+      let r = Math.random() * wsum;
+      idx = bag.length - 1;
+      for (let i = 0; i < bag.length; i++) {
+        r -= (bag[i].kind === 'weapon' ? 3 : 1);
+        if (r <= 0) { idx = i; break; }
+      }
+    }
+    out.push(bag.splice(idx, 1)[0]);
+  }
+  return out;
+}
+let chestTierBias = 'white';
+
+function takeUpgrade(u) {
+  u.apply(pl);
+  pl.levels[u.id] = (pl.levels[u.id] || 0) + 1;
+  pendingUpgrade = null;
+  run.hint = '获得 ' + u.name;
+  run.hintT = 80;
+}
+
+/* ==========================================================================
+   更新
+   ========================================================================== */
+function update(dt) {
+  run.t += dt; run.frame++;
+  if (run.hintT > 0) run.hintT -= dt;
+  if (run.shake > 0) run.shake *= 0.86;
+
+  movePlayer(dt);
+  updateBullets(dt);
+  updateEBullets(dt);
+  updateEnemies(dt);
+  updateChests(dt);
+  updateDrops(dt);
+  updateParts(dt);
+  checkRoomState(dt);
+
+  // 开箱后自动弹三选一。
+  //
+  // ⚠️⚠️ 这里原来是**一个独立的 requestAnimationFrame 循环**（pollUpgrade），
+  //   原注释写的是「在 update 末尾轮询，避免开箱逻辑散落」，但实现成了自己的 rAF。
+  //   两个后果：
+  //     ① **freeze() 停不掉它** —— freeze 只 cancel 主 raf。于是无头测试里
+  //        实际存在两个时钟：测试用 step() 推进游戏，pollUpgrade 按真实帧率
+  //        在外面把 run.choosing 翻成 true。而 step() 的守卫里有 !run.choosing，
+  //        一旦被抢先，后面所有 step() 全部空转 ——
+  //        症状就是「判据随机失败」，实测『按键触发翻滚』时好时坏。
+  //     ② 它不检查 run.paused，暂停中也可能突然弹出面板。
+  //   折进 update() 之后：时钟只剩一个，暂停/选牌期间自然不轮询，
+  //   而且测试的 step() 也能确定性地驱动它。
+  //   （update() 本身已被 `scene==='play' && !paused && !over && !choosing` 守住，
+  //     所以这里不必重复判这些条件。）
+  if (pendingUpgrade) showUpgrade(pendingUpgrade);
+}
+
+function movePlayer(dt) {
+  let ax = 0, ay = 0;
+  if (P['a'] || P['ArrowLeft'])  ax -= 1;
+  if (P['d'] || P['ArrowRight']) ax += 1;
+  if (P['w'] || P['ArrowUp'])    ay -= 1;
+  if (P['s'] || P['ArrowDown'])  ay += 1;
+  if (ax && ay) { ax *= .7071; ay *= .7071; }
+  if (ax || ay) pl.face = Math.atan2(ay, ax);
+
+  // 翻滚：无敌帧 + 短暂高速
+  if (P['Shift'] && pl.rollT <= 0 && (ax || ay)) {
+    pl.rolling = 16; pl.rollT = pl.rollCd;
+    pl.rx = ax * 5.2; pl.ry = ay * 5.2;
+    burst(pl.x, pl.y, 8, C.violet, 3, .35);
+  }
+  if (pl.rolling > 0) {
+    pl.rolling -= dt;
+    pl.x += pl.rx * dt; pl.y += pl.ry * dt;
+    if (Math.random() < .5) burst(pl.x, pl.y, 1, C.violet, 1.5, .25);
+  } else {
+    pl.x += ax * pl.spd * dt;
+    pl.y += ay * pl.spd * dt;
+  }
+  if (pl.rollT > 0) pl.rollT -= dt;
+
+  // 碰撞墙：把角色夹在 FLOOR 格内
+  pl.x = clamp(pl.x, 24, W - 24);
+  pl.y = clamp(pl.y, 24, H - 24);
+  if (!isFloor(pl.x + Math.sign(pl.rx || ax || 0) * pl.r, pl.y)) pl.x -= ax * pl.spd * dt;
+  if (!isFloor(pl.x, pl.y + Math.sign(pl.ry || ay || 0) * pl.r)) pl.y -= ay * pl.spd * dt;
+
+  // 射击（按住连发）
+  pl.shootT -= dt;
+  if ((P['j'] || P['z']) && pl.shootT <= 0) {
+    pl.shootT = pl.cd;
+    fire();
+  }
+}
+
+function isFloor(x, y) {
+  const cx = Math.floor(x / T), cy = Math.floor(y / T);
+  if (cx < 0 || cy < 0 || cx >= COLS || cy >= ROWS) return false;
+  return map[cy][cx] !== WALL;
+}
+
+/** 自动瞄准：元气骑士的射击是「自动对准最近敌人」，玩家只管走位 */
+function fire() {
+  let best = null, bd = 1e9;
+  for (const e of enemies) {
+    if (!e.alive) continue;
+    const d = dist(pl.x, pl.y, e.x, e.y);
+    if (d < bd) { bd = d; best = e; }
+  }
+  const base = best ? Math.atan2(best.y - pl.y, best.x - pl.x) : pl.face;
+  const n = pl.shots;
+  for (let i = 0; i < n; i++) {
+    // 多发时以中间为主，左右对称展开；spread 大就是扇形，小就是平行
+    const off = n === 1 ? 0 : (i - (n - 1) / 2) * pl.spread;
+    const a = base + off;
+    bullets.push({
+      x: pl.x + Math.cos(a) * 12, y: pl.y + Math.sin(a) * 12,
+      vx: Math.cos(a) * pl.bulletSpd, vy: Math.sin(a) * pl.bulletSpd,
+      r: 4, dmg: pl.dmg, pierce: pl.pierce, blast: pl.blast,
+      hitSet: new Set(), back: false, age: 0, maxAge: pl.range / pl.bulletSpd,
+      // ⚠️⚠️ alive 必须为 true —— 第 571 行是 bullets = bullets.filter(b => b.alive)
+      //    这个对象**原先没写 alive**，undefined 是假值 → 子弹在生成当帧就被过滤掉。
+      //    症状：玩家开枪后一发都留不下（场上恒为 0 颗弹），游戏实际完全无法射击。
+      //    而其它判据（进房刷怪/宝箱/升级/翻滚/门禁）都不经过子弹循环，所以全绿 ——
+      //    **这个游戏从未真正被验证过射击**。是逐帧采样诊断把它挖出来的。
+      alive: true,
+    });
+  }
+  burst(pl.x + Math.cos(base) * 14, pl.y + Math.sin(base) * 14, 2, C.white, 2.6, .16);
+}
+
+function updateBullets(dt) {
+  for (const b of bullets) {
+    b.age += dt;
+    if (b.back) {
+      // 回旋镖：返回玩家
+      const a = Math.atan2(pl.y - b.y, pl.x - b.x);
+      b.vx = Math.cos(a) * pl.bulletSpd;
+      b.vy = Math.sin(a) * pl.bulletSpd;
+      if (dist(b.x, b.y, pl.x, pl.y) < 16) b.alive = false;
+    }
+    b.x += b.vx * dt; b.y += b.vy * dt;
+    if (b.x < 0 || b.x > W || b.y < 0 || b.y > H || b.age > b.maxAge * 2) b.alive = false;
+
+    for (const e of enemies) {
+      if (!e.alive || b.hitSet.has(e)) continue;
+      if (dist(b.x, b.y, e.x, e.y) < e.r + b.r) {
+        b.hitSet.add(e);
+        // 暴击
+        let dmg = b.dmg;
+        let crit = false;
+        if (Math.random() < pl.crit) { dmg *= pl.critDmg; crit = true; }
+        damageEnemy(e, dmg, crit);
+        if (pl.lifesteal > 0 && pl.hp < pl.maxHp) {
+          pl.hp = Math.min(pl.maxHp, pl.hp + pl.lifesteal);
+          burst(b.x, b.y, 1, C.blood, 2, .3);
+        }
+        // 爆裂
+        if (b.blast > 0) doBlast(b.x, b.y, b.blast, dmg * 0.6);
+        if (b.pierce > 0) { b.pierce--; }
+        else { b.alive = false; break; }
+      }
+    }
+  }
+  bullets = bullets.filter(b => b.alive);
+}
+
+function doBlast(x, y, lvl, dmg) {
+  const R = 26 + lvl * 13;
+  burst(x, y, 12 + lvl * 6, C.orange, 5, .4);
+  run.shake = Math.max(run.shake, 3);
+  for (const e of enemies) {
+    if (e.alive && dist(x, y, e.x, e.y) < R + e.r) damageEnemy(e, dmg, false);
+  }
+}
+
+function updateEBullets(dt) {
+  const px = pl.x, py = pl.y;
+  for (const b of ebullets) {
+    b.x += b.vx * dt; b.y += b.vy * dt; b.t += dt;
+    if (b.x < 0 || b.x > W || b.y < 0 || b.y > H) { b.alive = false; continue; }
+    // 翻滚无敌帧：这就是翻滚的价值
+    if (pl.rolling > 0) continue;
+    if (dist(b.x, b.y, px, py) < pl.r * 0.62 + b.r) {
+      b.alive = false;
+      hurtPlayer(b.dmg || 1);
+    }
+  }
+  ebullets = ebullets.filter(b => b.alive);
+}
+
+function updateEnemies(dt) {
+  for (const e of enemies) {
+    if (!e.alive) continue;
+    e.t += dt;
+    if (e.flash > 0) e.flash -= dt;
+
+    // 击退
+    if (e.knock > 0) {
+      e.knock -= dt;
+      e.x += e.kx * dt; e.y += e.ky * dt;
+      e.x = clamp(e.x, 20, W - 20); e.y = clamp(e.y, 20, H - 20);
+      continue;
+    }
+
+    const a = Math.atan2(pl.y - e.y, pl.x - e.x);
+    if (e.boss) {
+      // Boss 三阶段：接近 → 环射 → 扇形 + 冲刺
+      e.fireT -= dt;
+      if (e.mode === 'move') {
+        // 缓慢横向游走
+        e.x += Math.sin(e.t * .022) * 1.3 * dt;
+        e.y = clamp(e.y + Math.sin(e.t * .04) * .5 * dt, 50, H - 120);
+        if (e.fireT <= 0) { e.mode = 'attack'; e.fireT = 90; }
+      } else if (e.mode === 'attack') {
+        // 阶段 1 环射 / 阶段 2+ 扇形+环
+        if (e.fireT <= 0) {
+          e.fireT = e.rage ? 44 : 64;
+          if (e.phase === 1) {
+            for (let i = 0; i < 12; i++)
+              ebullets.push(mkEBullet(e.x, e.y, i * TAU / 12 + e.t * .2, 1.7, C.blood, 5));
+          } else {
+            for (let i = -3; i <= 3; i++)
+              ebullets.push(mkEBullet(e.x, e.y, a + i * .17, 3.1, C.orange, 5));
+            if (e.rage) for (let i = 0; i < 10; i++)
+              ebullets.push(mkEBullet(e.x, e.y, i * TAU / 10 - e.t * .25, 1.4, C.violet, 4));
+          }
+        }
+        if (e.fireT < 40) { e.mode = 'move'; e.fireT = e.rage ? 40 : 70; }
+      }
+      // 阶段转换
+      const r = e.hp / e.maxHp;
+      if (!e.rage && r <= .5) {
+        e.rage = true; e.phase = 2;
+        run.hint = 'BOSS 狂暴！'; run.hintT = 90;
+        run.shake = 10;
+        burst(e.x, e.y, 40, C.blood, 6, .8);
+      }
+    } else if (e.kind === 'slime') {
+      // 直线冲撞：慢，可预测 → 教学怪
+      e.x += Math.cos(a) * e.spd * dt;
+      e.y += Math.sin(a) * e.spd * dt;
+      // 撞墙反弹
+      if (!isFloor(e.x + Math.cos(a) * e.r, e.y)) { e.bounce = true; }
+      if (!isFloor(e.x, e.y + Math.sin(a) * e.r)) { e.bounce = true; }
+      if (e.bounce) { e.fireT = 1; e.bounce = false; e.t += 0; e.flip = (e.flip || 0) + Math.PI; }
+    } else if (e.kind === 'bat') {
+      // 快速折线：正弦摆动，难以直接瞄准
+      e.x += Math.cos(a + Math.sin(e.t * .18) * .9) * e.spd * dt;
+      e.y += Math.sin(a + Math.sin(e.t * .18) * .9) * e.spd * dt;
+    } else if (e.kind === 'mage') {
+      // 远程点射：保持距离
+      const d = dist(e.x, e.y, pl.x, pl.y);
+      const want = d < 110 ? -1 : d > 170 ? 1 : 0;
+      e.x += Math.cos(a) * e.spd * want * dt;
+      e.y += Math.sin(a) * e.spd * want * dt;
+      e.fireT -= dt;
+      if (e.fireT <= 0) {
+        e.fireT = 84;
+        ebullets.push(mkEBullet(e.x, e.y, a, 2.4, C.violet, 5, 1));
+        // 三连点
+        for (let i = 1; i <= 2; i++)
+          ebullets.push(Object.assign(mkEBullet(e.x, e.y, a, 2.4, C.violet, 5, 1),
+            { delay: i * 9 }));
+      }
+    } else if (e.kind === 'statue') {
+      // 高血量慢走，接触伤害高
+      e.x += Math.cos(a) * e.spd * dt;
+      e.y += Math.sin(a) * e.spd * dt;
+      // 撞墙就停
+      if (!isFloor(e.x + Math.cos(a) * e.r, e.y) || !isFloor(e.x, e.y + Math.sin(a) * e.r)) {
+        e.x -= Math.cos(a) * e.spd * dt; e.y -= Math.sin(a) * e.spd * dt;
+        e.x += Math.cos(a + 1.6) * e.spd * dt;
+        e.y += Math.sin(a + 1.6) * e.spd * dt;
+      }
+    }
+    e.x = clamp(e.x, 20, W - 20); e.y = clamp(e.y, 20, H - 20);
+
+    // 接触伤害（滚动中无敌）
+    if (pl.rolling > 0) continue;
+    if (dist(e.x, e.y, pl.x, pl.y) < e.r + pl.r * 0.62) hurtPlayer(e.dmg);
+  }
+  enemies = enemies.filter(e => e.alive);
+}
+
+function mkEBullet(x, y, a, spd, col, r, dmg) {
+  return { x, y, vx: Math.cos(a) * spd, vy: Math.sin(a) * spd,
+           r, col, dmg: dmg || 1, delay: 0, t: 0, alive: true };
+}
+
+function damageEnemy(e, dmg, crit) {
+  e.hp -= dmg; e.flash = 3;
+  const a = Math.atan2(e.y - pl.y, e.x - pl.x);
+  // 击退：让「打」有手感，不只是数字减少
+  e.knock = 3.5; e.kx = Math.cos(a) * 3; e.ky = Math.sin(a) * 3;
+  burst(e.x, e.y, crit ? 8 : 3, crit ? C.gold : C.white, crit ? 4 : 2.6, .22);
+  if (crit) texts.push({ x: e.x, y: e.y - 10, t: 0, life: 34, text: Math.round(dmg), col: C.gold });
+  if (e.hp <= 0) killEnemy(e);
+}
+
+function killEnemy(e) {
+  e.alive = false;
+  run.kills++;
+  run.gold += e.score;
+  burst(e.x, e.y, e.boss ? 60 : 14, e.boss ? C.gold : e.col, e.boss ? 7 : 4, e.boss ? .9 : .4);
+  run.shake = Math.max(run.shake, e.boss ? 14 : 3);
+  // 掉心 / 掉钱
+  if (Math.random() < pl.heartChance)
+    drops.push({ x: e.x, y: e.y, kind: 'heart', t: 0, vy: -1.2, alive: true });
+    // ⚠️ 同 bullets：第 782 行是 drops.filter(d => d.alive)，
+    //   对象必须显式 alive: true，否则掉落物在生成当帧就被清掉（回血物永远吃不到）
+  if (Math.random() < 0.25)
+    drops.push({ x: e.x, y: e.y, kind: 'coin', t: 0, vy: -1.2, v: rndi(3, 9), alive: true });
+  if (e.boss) {
+    run.gold += 300;
+    dropChest(e.x, e.y);
+    dropChest(e.x - 40, e.y + 20);
+    bossRef = null;
+  }
+}
+
+function hurtPlayer(d) {
+  if (pl.rolling > 0 || pl.deadT > 0) return;
+  pl.hp -= d;
+  pl.deadT = 46;          // 短暂无敌，避免一帧内被多发弹幕连杀
+  run.shake = 8;
+  burst(pl.x, pl.y, 14, C.blood, 4, .4);
+  if (pl.hp <= 0) { pl.hp = 0; gameOver(); }
+}
+
+function updateChests(dt) {
+  for (const ch of chests) {
+    ch.t += dt; ch.bob += 0.05;
+    ch.x = clamp(ch.x, 40, W - 40);
+    ch.y = clamp(ch.y, 40, H - 40);
+    if (!ch.opened && dist(ch.x, ch.y, pl.x, pl.y) < pl.r + ch.r + 6) {
+      // 走近自动开 —— 元气骑士就是这个交互
+      chestTierBias = ch.tier.k;
+      openChest(ch);
+      chestTierBias = 'white';
+    }
+  }
+}
+
+function updateDrops(dt) {
+  for (const d of drops) {
+    d.t += dt;
+    d.y += d.vy * dt;
+    d.vy *= 0.96;
+    // 磁力吸附
+    const dd = dist(d.x, d.y, pl.x, pl.y);
+    if (dd < pl.magnet) {
+      const a = Math.atan2(pl.y - d.y, pl.x - d.x);
+      const pull = (1 - dd / pl.magnet) * 5;
+      d.x += Math.cos(a) * pull * dt;
+      d.y += Math.sin(a) * pull * dt;
+    }
+    if (dd < 18) {
+      d.alive = false;
+      if (d.kind === 'heart') {
+        if (pl.hp < pl.maxHp) { pl.hp++; run.hint = '回复 1 点生命'; run.hintT = 50; }
+        else run.gold += 40;
+      } else run.gold += d.v;
+    }
+  }
+  drops = drops.filter(d => d.alive);
+}
+
+function updateParts(dt) {
+  for (const p of parts) {
+    p.t += dt;
+    p.x += p.vx * dt; p.y += p.vy * dt;
+    p.vx *= .92; p.vy *= .92;
+  }
+  parts = parts.filter(p => p.t < p.life);
+  for (const t of texts) t.t += dt;
+  texts = texts.filter(t => t.t < t.life);
+}
+
+/** 房间状态机：清场 → 掉箱 → 走到门 → 进下一间 */
+function checkRoomState(dt) {
+  const r = rooms[curRoom];
+  if (!r.cleared) {
+    if (!enemies.length) {
+      r.cleared = true;
+      clearedRooms++;
+      // 清理敌弹 + 掉箱：给玩家喘息，也让「一房一清」有明确反馈
+      ebullets.length = 0;
+      const g = roomRect(curRoom);
+      const n = r.isBoss ? 2 : (Math.random() < 0.3 + pl.fortune * 0.06 ? 2 : 1);
+      for (let i = 0; i < n; i++)
+        dropChest(g.cx + rnd(-60, 60), g.cy + rnd(-40, 40));
+      run.hint = '房间清空 · 宝箱出现'; run.hintT = 90;
+    }
+    return;
+  }
+  // 已清空：走到门 → 下一间；最后一间 → 出坑
+  const g = roomRect(curRoom);
+  // 格子坐标统一用 gw/gh，别混用像素的 w/h（详见 roomRect 处的注释）
+  const dx = g.x0 + (g.gw >> 1);
+  const doorX = dx * T + T / 2, doorY = (g.y0 + g.gh - 1) * T + T / 2;
+  if (dist(pl.x, pl.y, doorX, doorY) < 22) {
+    if (curRoom >= rooms.length - 1) { escape(); return; }
+    placeInRoom(curRoom + 1);
+    run.hint = `第 ${run.depth} 层 · 房间 ${curRoom + 1}`;
+    run.hintT = 70;
+  }
+}
+
+function burst(x, y, n, col, spd, life) {
+  for (let i = 0; i < n; i++) {
+    const a = Math.random() * TAU, s = spd * rnd(.4, 1.3);
+    parts.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s,
+                 t: 0, life: life * rnd(.7, 1.3), col, sz: rnd(1.5, 3.4) });
+  }
+  if (parts.length > 800) parts.splice(0, parts.length - 800);
+}
+
+function gameOver() {
+  run.over = true;
+  showPanel('p2');
+  document.getElementById('r2s').innerHTML =
+    `倒在第 <b>${run.depth}</b> 层 · 第 <b>${curRoom + 1}</b> 间房。<br><br>` +
+    `击杀 <b>${run.kills}</b>　·　开箱 <b>${run.chestsOpened}</b> 个<br>` +
+    `金币 <b>${run.gold}</b>　·　红武 <b>${run.redWeapons}</b> 件<br>` +
+    `幸运 <b>${pl.fortune}</b>　·　伤害 <b>${pl.dmg.toFixed(2)}</b>`;
+}
+
+function escape() {
+  run.over = true;
+  showPanel('p3');
+  document.getElementById('r3s').innerHTML =
+    `你在第 <b>${run.depth}</b> 层出坑了。<br><br>` +
+    `击杀 <b>${run.kills}</b>　·　开箱 <b>${run.chestsOpened}</b> 个<br>` +
+    `金币 <b>${run.gold}</b>　·　红武 <b>${run.redWeapons}</b> 件<br>` +
+    `累计升级 <b>${Object.values(pl.levels).reduce((a, b) => a + b, 0)}</b> 次` +
+    `<br><br><span style="color:var(--dim);font-size:12px">深度分：${run.depth} 层 · ` +
+    `${run.chestsOpened} 箱 · ${run.gold} 金</span>`;
+}
+
+/* ==========================================================================
+   绘制
+   ========================================================================== */
+function draw() {
+  const sx = run.shake > .4 ? rnd(-run.shake, run.shake) : 0;
+  const sy = run.shake > .4 ? rnd(-run.shake, run.shake) : 0;
+  ctx.save();
+  ctx.translate(sx, sy);
+
+  drawFloor();
+  drawDoors();
+  drawDrops();
+  drawChests();
+  drawBullets();
+  drawEnemies();
+  drawPlayer();
+  drawParts();
+  ctx.restore();
+
+  drawHUD();
+  if (run.hintT > 0) {
+    ctx.save();
+    ctx.globalAlpha = Math.min(1, run.hintT / 20);
+    ctx.fillStyle = C.gold;
+    ctx.font = 'bold 15px "Microsoft YaHei",sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(run.hint, W / 2, 34);
+    ctx.restore();
+  }
+}
+
+function drawFloor() {
+  // 地板棋盘 + 砖纹
+  for (let cy = 0; cy < ROWS; cy++) {
+    for (let cx = 0; cx < COLS; cx++) {
+      const t = map[cy][cx];
+      const x = cx * T, y = cy * T;
+      if (t === WALL) {
+        ctx.fillStyle = C.wall;
+        ctx.fillRect(x, y, T, T);
+        // 砖缝
+        ctx.fillStyle = 'rgba(0,0,0,.22)';
+        ctx.fillRect(x, y + T - 3, T, 3);
+        ctx.fillRect(x + T - 3, y, 3, T);
+        ctx.fillStyle = C.wallHi;
+        ctx.fillRect(x + 2, y + 2, T - 6, 3);
+      } else {
+        ctx.fillStyle = (cx + cy) % 2 ? C.floorA : C.floorB;
+        ctx.fillRect(x, y, T, T);
+      }
+    }
+  }
+  // 中央暗角，让房间更「地下」（强度从 .45 降到 .28 —— 见配色处注释）
+  const g = ctx.createRadialGradient(W / 2, H / 2, 60, W / 2, H / 2, 380);
+  g.addColorStop(0, 'rgba(0,0,0,0)');
+  g.addColorStop(1, 'rgba(0,0,0,.28)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, W, H);
+}
+
+function drawDoors() {
+  const r = rooms[curRoom];
+  if (!r || !r.cleared) return;
+  const g = roomRect(curRoom);
+  // 直接用 r（房间数据本身）拿格子尺寸，别绕 roomRect 的两套命名
+  const dx = r.x0 + (r.w >> 1);
+  const x = dx * T, y = (r.y0 + r.h - 1) * T;
+  // 亮起的门 = 「可以走了」，这是唯一的方向提示
+  const pulse = 0.5 + 0.5 * Math.sin(run.t * 0.14);
+  ctx.fillStyle = `rgba(61,220,151,${(0.22 + pulse * 0.35).toFixed(3)})`;
+  ctx.fillRect(x + 2, y + 2, T - 4, T - 4);
+  ctx.strokeStyle = C.hero; ctx.lineWidth = 2;
+  ctx.strokeRect(x + 3, y + 3, T - 6, T - 6);
+  ctx.fillStyle = C.hero;
+  ctx.font = 'bold 16px Consolas,monospace';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText('▼', x + T / 2, y + T / 2);
+  ctx.textBaseline = 'alphabetic';
+}
+
+function drawPlayer() {
+  const x = pl.x, y = pl.y;
+  const blink = pl.deadT > 0 && Math.floor(pl.deadT / 5) % 2 === 0;
+  if (blink) return;
+  ctx.save();
+  ctx.translate(x, y);
+
+  // 翻滚残影
+  if (pl.rolling > 0) {
+    ctx.globalAlpha = .3;
+    ctx.fillStyle = C.violet;
+    ctx.beginPath(); ctx.arc(0, 0, pl.r + 3, 0, TAU); ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+
+  // 影子
+  ctx.globalAlpha = .3; ctx.fillStyle = '#000';
+  ctx.beginPath(); ctx.ellipse(0, pl.r * .7, pl.r * .8, pl.r * .38, 0, 0, TAU); ctx.fill();
+  ctx.globalAlpha = 1;
+
+  ctx.rotate(pl.face + Math.PI / 2);
+  // 身体：原创「掘金者」造型 —— 圆角方体 + 护目镜灯
+  ctx.fillStyle = pl.rolling > 0 ? C.violet : C.hero;
+  ctx.strokeStyle = C.heroDark; ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(-pl.r * .75, -pl.r * .5);
+  ctx.lineTo(pl.r * .75, -pl.r * .5);
+  ctx.lineTo(pl.r, pl.r * .55);
+  ctx.lineTo(-pl.r, pl.r * .55);
+  ctx.closePath();
+  ctx.fill(); ctx.stroke();
+  // 头灯
+  ctx.fillStyle = C.gold;
+  ctx.beginPath(); ctx.arc(0, -pl.r * .2, 3, 0, TAU); ctx.fill();
+  ctx.restore();
+
+  // 翻滚冷却环
+  if (pl.rollT > 0) {
+    const k = 1 - pl.rollT / pl.rollCd;
+    ctx.save();
+    ctx.strokeStyle = C.violet; ctx.lineWidth = 2;
+    ctx.globalAlpha = .5;
+    ctx.beginPath();
+    ctx.arc(x, y, pl.r + 6, -Math.PI / 2, -Math.PI / 2 + TAU * k);
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+
+function drawEnemies() {
+  for (const e of enemies) {
+    ctx.save();
+    ctx.translate(e.x, e.y);
+    const col = e.flash > 0 ? C.white : e.col;
+    ctx.globalAlpha = .22; ctx.fillStyle = e.col;
+    ctx.beginPath(); ctx.arc(0, 0, e.r * 1.7, 0, TAU); ctx.fill();
+    ctx.globalAlpha = 1;
+
+    if (e.kind === 'slime') {
+      // 果冻：随呼吸缩放
+      const sq = 1 + Math.sin(e.t * .18) * .12;
+      ctx.scale(sq, 1 / sq);
+      ctx.fillStyle = col;
+      ctx.beginPath();
+      ctx.arc(0, 0, e.r, Math.PI, 0);
+      ctx.lineTo(e.r, e.r * .5); ctx.lineTo(-e.r, e.r * .5);
+      ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#0d1014';
+      ctx.fillRect(-e.r * .45, -e.r * .25, 3, 4);
+      ctx.fillRect(e.r * .15, -e.r * .25, 3, 4);
+    } else if (e.kind === 'bat') {
+      const f = Math.sin(e.t * .3) > 0 ? 1 : -1;
+      ctx.fillStyle = col;
+      // 翅膀
+      ctx.beginPath();
+      ctx.moveTo(0, 0); ctx.lineTo(-e.r * 1.7 * f, -e.r * .6);
+      ctx.lineTo(-e.r * 1.2 * f, e.r * .5); ctx.closePath(); ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(0, 0); ctx.lineTo(e.r * 1.7 * f, -e.r * .6);
+      ctx.lineTo(e.r * 1.2 * f, e.r * .5); ctx.closePath(); ctx.fill();
+      // 身体
+      ctx.fillStyle = col;
+      ctx.beginPath(); ctx.ellipse(0, 0, e.r * .7, e.r * .8, 0, 0, TAU); ctx.fill();
+      ctx.fillStyle = '#0d1014';
+      ctx.fillRect(-e.r * .35, -e.r * .2, 2.5, 3);
+      ctx.fillRect(e.r * .1, -e.r * .2, 2.5, 3);
+    } else if (e.kind === 'mage') {
+      ctx.fillStyle = col;
+      ctx.beginPath();
+      ctx.moveTo(0, -e.r); ctx.lineTo(e.r * .9, e.r * .8);
+      ctx.lineTo(-e.r * .9, e.r * .8); ctx.closePath(); ctx.fill();
+      // 法杖灯
+      ctx.fillStyle = C.violet;
+      ctx.beginPath(); ctx.arc(0, -e.r - 2, 3.4, 0, TAU); ctx.fill();
+      ctx.fillStyle = '#0d1014';
+      ctx.fillRect(-e.r * .3, -e.r * .2, 3, 4);
+    } else if (e.kind === 'statue') {
+      ctx.fillStyle = col;
+      ctx.fillRect(-e.r * .7, -e.r * .8, e.r * 1.4, e.r * 1.6);
+      ctx.fillStyle = '#0d1014';
+      ctx.fillRect(-e.r * .45, -e.r * .35, 4, 5);
+      ctx.fillRect(e.r * .1, -e.r * .35, 4, 5);
+      ctx.fillStyle = C.white;
+      ctx.globalAlpha = .35;
+      ctx.fillRect(-e.r * .7, -e.r * .8, e.r * 1.4, 4);
+      ctx.globalAlpha = 1;
+    } else if (e.boss) {
+      // Boss：六角核心 + 旋转环
+      ctx.rotate(e.t * .012);
+      ctx.strokeStyle = e.rage ? C.orange : C.blood;
+      ctx.lineWidth = 3;
+      ctx.globalAlpha = .7;
+      ctx.beginPath(); ctx.arc(0, 0, e.r * 1.4, 0, TAU); ctx.stroke();
+      ctx.beginPath(); ctx.arc(0, 0, e.r * 1.75, e.t * .03, e.t * .03 + 2.2); ctx.stroke();
+      ctx.globalAlpha = 1;
+      ctx.rotate(-e.t * .012);
+      ctx.fillStyle = col;
+      ctx.beginPath();
+      for (let i = 0; i < 6; i++) {
+        const a = i * TAU / 6;
+        ctx.lineTo(Math.cos(a) * e.r, Math.sin(a) * e.r);
+      }
+      ctx.closePath(); ctx.fill();
+      ctx.fillStyle = C.white;
+      ctx.beginPath(); ctx.arc(0, 0, e.r * .42, 0, TAU); ctx.fill();
+      ctx.fillStyle = '#0d1014';
+      ctx.fillRect(-e.r * .32, -e.r * .1, 5, 7);
+      ctx.fillRect(e.r * .06, -e.r * .1, 5, 7);
+    }
+    // 血条
+    if (!e.boss && e.hp < e.maxHp) {
+      const w = e.r * 1.6, pct = Math.max(0, e.hp / e.maxHp);
+      ctx.globalAlpha = .85;
+      ctx.fillStyle = 'rgba(0,0,0,.6)';
+      ctx.fillRect(-w / 2, -e.r - 9, w, 3);
+      ctx.fillStyle = C.blood;
+      ctx.fillRect(-w / 2, -e.r - 9, w * pct, 3);
+    }
+    ctx.restore();
+  }
+  // Boss 大血条在 HUD 画，这里不重复
+}
+
+function drawBullets() {
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  for (const b of bullets) {
+    ctx.globalAlpha = .4;
+    ctx.fillStyle = C.azure;
+    ctx.beginPath(); ctx.arc(b.x, b.y, b.r * 2.2, 0, TAU); ctx.fill();
+  }
+  ctx.globalCompositeOperation = 'source-over';
+  for (const b of bullets) {
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = C.white;
+    ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, TAU); ctx.fill();
+  }
+  ctx.restore();
+}
+
+function drawEBullets() {
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  for (const b of ebullets) {
+    if (b.delay > 0) continue;
+    ctx.globalAlpha = .45;
+    ctx.fillStyle = b.col;
+    ctx.beginPath(); ctx.arc(b.x, b.y, b.r * 2.4, 0, TAU); ctx.fill();
+  }
+  ctx.globalCompositeOperation = 'source-over';
+  for (const b of ebullets) {
+    if (b.delay > 0) continue;
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = b.col;
+    ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, TAU); ctx.fill();
+    ctx.fillStyle = C.white;
+    ctx.beginPath(); ctx.arc(b.x, b.y, b.r * .45, 0, TAU); ctx.fill();
+  }
+  ctx.restore();
+}
+
+function drawChests() {
+  for (const ch of chests) {
+    const bob = Math.sin(ch.bob) * 1.5;
+    ctx.save();
+    ctx.translate(ch.x, ch.y + bob);
+    if (ch.opened) {
+      ctx.globalAlpha = .5;
+      ctx.strokeStyle = ch.tier.col; ctx.lineWidth = 2;
+      ctx.strokeRect(-ch.r, -ch.r * .7, ch.r * 2, ch.r * 1.4);
+      ctx.restore();
+      continue;
+    }
+    // 光柱：品质越高级光柱越亮
+    const g = ctx.createLinearGradient(0, -ch.r * 3, 0, ch.r);
+    g.addColorStop(0, 'rgba(0,0,0,0)');
+    g.addColorStop(1, ch.tier.col);
+    ctx.globalAlpha = .30;
+    ctx.fillStyle = g;
+    ctx.fillRect(-ch.r * .7, -ch.r * 3, ch.r * 1.4, ch.r * 3.6);
+    ctx.globalAlpha = 1;
+    // 箱体
+    ctx.fillStyle = ch.tier.col;
+    ctx.strokeStyle = '#0d1014'; ctx.lineWidth = 2;
+    ctx.fillRect(-ch.r, -ch.r * .55, ch.r * 2, ch.r * 1.1);
+    ctx.strokeRect(-ch.r, -ch.r * .55, ch.r * 2, ch.r * 1.1);
+    // 箱盖
+    ctx.fillStyle = '#0d1014';
+    ctx.fillRect(-ch.r, -ch.r * .55, ch.r * 2, 3);
+    // 锁
+    ctx.fillStyle = C.gold;
+    ctx.fillRect(-2.5, -ch.r * .55, 5, 7);
+    ctx.restore();
+  }
+}
+
+function drawDrops() {
+  for (const d of drops) {
+    const bob = Math.sin(d.t * .18) * 1.4;
+    ctx.save();
+    ctx.translate(d.x, d.y + bob);
+    if (d.kind === 'heart') {
+      ctx.fillStyle = C.blood;
+      ctx.beginPath();
+      ctx.moveTo(0, 5);
+      ctx.bezierCurveTo(-7, -1, -4, -7, 0, -3);
+      ctx.bezierCurveTo(4, -7, 7, -1, 0, 5);
+      ctx.fill();
+    } else {
+      ctx.fillStyle = C.gold;
+      ctx.beginPath(); ctx.arc(0, 0, 4.5, 0, TAU); ctx.fill();
+      ctx.fillStyle = '#0d1014';
+      ctx.fillRect(-4.5, -1, 9, 2);
+    }
+    ctx.restore();
+  }
+}
+
+function drawParts() {
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  for (const p of parts) {
+    const k = 1 - p.t / p.life;
+    ctx.globalAlpha = Math.max(0, k) * .85;
+    ctx.fillStyle = p.col;
+    const s = p.sz * (0.4 + k * 0.6);
+    ctx.fillRect(p.x - s, p.y - s, s * 2, s * 2);
+  }
+  ctx.restore();
+  ctx.save();
+  ctx.textAlign = 'center';
+  for (const t of texts) {
+    ctx.globalAlpha = Math.max(0, 1 - t.t / t.life);
+    ctx.fillStyle = t.col;
+    ctx.font = 'bold 13px Consolas,monospace';
+    ctx.fillText(t.text, t.x, t.y - t.t * .5);
+  }
+  ctx.restore();
+}
+
+function drawHUD() {
+  ctx.save();
+  ctx.textBaseline = 'top';
+  // 生命
+  ctx.fillStyle = '#0a0c10cc';
+  ctx.fillRect(6, 6, 118, 22);
+  ctx.fillStyle = C.dim;
+  ctx.font = '9px Consolas,monospace';
+  ctx.fillText('HP', 12, 10);
+  for (let i = 0; i < pl.maxHp; i++) {
+    const on = i < pl.hp;
+    ctx.fillStyle = on ? C.blood : 'rgba(255,91,110,.2)';
+    ctx.fillRect(28 + i * 13, 12, 10, 10);
+  }
+  // 金币 / 深度
+  ctx.fillStyle = C.dim;
+  ctx.font = '10px Consolas,monospace';
+  ctx.fillText('金币 ' + run.gold, 10, 34);
+  ctx.fillText('深度 ' + run.depth + ' 层', 10, 48);
+  ctx.fillText('房间 ' + (curRoom + 1) + '/' + rooms.length, 10, 62);
+  ctx.fillStyle = C.violet;
+  ctx.fillText('幸运 ' + pl.fortune, 10, 76);
+
+  // 已获升级
+  ctx.textAlign = 'right';
+  ctx.fillStyle = C.dim;
+  ctx.font = '9px Consolas,monospace';
+  ctx.fillText('BUILD', W - 10, 8);
+  ctx.textAlign = 'left';
+  let yy = 22;
+  const ids = Object.keys(pl.levels);
+  for (const id of ids.slice(0, 7)) {
+    const u = UPG.find(x => x.id === id);
+    if (!u) continue;
+    ctx.fillStyle = u.col;
+    ctx.fillRect(W - 66, yy, 8, 8);
+    ctx.fillStyle = C.dim;
+    ctx.font = '9px "Microsoft YaHei",sans-serif';
+    ctx.fillText(u.name + ' ' + pl.levels[id], W - 54, yy - 1);
+    yy += 12;
+  }
+
+  // Boss 血条
+  if (bossRef && bossRef.alive) {
+    const b = bossRef;
+    ctx.fillStyle = 'rgba(0,0,0,.55)';
+    ctx.fillRect(W / 2 - 130, 8, 260, 9);
+    ctx.fillStyle = b.rage ? C.orange : C.blood;
+    ctx.fillRect(W / 2 - 130, 8, 260 * Math.max(0, b.hp / b.maxHp), 9);
+    ctx.fillStyle = C.dim;
+    ctx.font = '9px Consolas,monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('BOSS  ' + Math.ceil(Math.max(0, b.hp)) + ' / ' + Math.round(b.maxHp), W / 2, 20);
+  }
+  ctx.restore();
+}
+
+/* ==========================================================================
+   三选一面板
+   ========================================================================== */
+function showUpgrade(pending) {
+  if (!pending) return;
+  run.choosing = true;
+  const box = document.getElementById('c4c');
+  document.getElementById('c4t').innerHTML =
+    `开出一个 <b style="color:${pending.tier.col}">${pending.tier.name}</b>。选一个带走 —— ` +
+    `红箱更容易出<b>武器</b>，蓝白箱更多<b>被动</b>。`;
+  box.innerHTML = '';
+  pending.opts.forEach((u, i) => {
+    const lv = pl.levels[u.id] || 0;
+    const d = document.createElement('div');
+    d.className = 'card';
+    d.innerHTML =
+      `<div class="lv">${lv > 0 ? 'Lv' + lv + '→' + (lv + 1) : '新'}</div>` +
+      `<div class="ic" style="background:${u.col}">${u.icon}</div>` +
+      `<div class="nm">${u.name}</div>` +
+      `<div class="ds">${u.desc}</div>`;
+    d.onclick = () => { takeUpgrade(u); hideUpgrade(); };
+    box.appendChild(d);
+  });
+  // 快捷键提示按**实际选项数**渲染：木箱/铜箱只有 1 个，提示却写着「按 1 2 3」，
+  // 玩家按 2 3 没反应会以为键盘坏了。
+  document.getElementById('c4k').innerHTML =
+    '按 ' + pending.opts.map((_, i) => `<span class="k">${i + 1}</span>`).join(' ') + ' 也能选';
+  showPanel('p4');
+}
+function hideUpgrade() {
+  run.choosing = false;
+  showPanel(null);
+}
+
+/* ==========================================================================
+   主循环 / 输入 / 面板
+   ========================================================================== */
+function frame(ts) {
+  // ⚠️ 冻结时必须真的停下 rAF，不能只是「不更新」。
+  //    页面自己的动画循环会和测试的 step() 赛跑 —— 玩家在原地挨打、
+  //    掉光生命后 run.over=true，之后 step() 全部空转，
+  //    所有判据都读出一片「游戏没反应」的假象。
+  if (!loopOn) { raf = 0; return; }
+  raf = requestAnimationFrame(frame);
+  if (!lastTs) lastTs = ts;
+  let dt = (ts - lastTs) / 16.6667;
+  lastTs = ts;
+  dt = clamp(dt, 0, 3);
+  if (run.scene === 'play' && !run.paused && !run.over && !run.choosing) update(dt);
+  if (run.scene !== 'title') { draw(); }
+  else drawIdle();
+  tickLive();
+}
+
+/** 标题页：让主角在演示房间里走位 + 打靶，不至于死板 */
+function drawIdle() {
+  run.t += 1;
+  ctx.fillStyle = '#0d1014';
+  ctx.fillRect(0, 0, W, H);
+  // 演示墙
+  for (let cy = 0; cy < ROWS; cy++)
+    for (let cx = 0; cx < COLS; cx++) {
+      const edge = cx === 0 || cy === 0 || cx === COLS - 1 || cy === ROWS - 1;
+      ctx.fillStyle = edge ? C.wall : ((cx + cy) % 2 ? C.floorA : C.floorB);
+      ctx.fillRect(cx * T, cy * T, T, T);
+      if (edge) { ctx.fillStyle = C.wallHi; ctx.fillRect(cx * T + 2, cy * T + 2, T - 6, 3); }
+    }
+  // 一圈靶子
+  if (!run._demo) {
+    run._demo = [];
+    for (let i = 0; i < 7; i++)
+      run._demo.push({ x: W / 2 + Math.cos(i * TAU / 7) * 105,
+                       y: H / 2 + Math.sin(i * TAU / 7) * 70, t: 0, col: pick([C.slime, C.bat, C.mage]) });
+  }
+  for (const e of run._demo) {
+    e.t += 1;
+    ctx.save();
+    ctx.translate(e.x, e.y);
+    ctx.fillStyle = e.col;
+    ctx.globalAlpha = .8;
+    ctx.beginPath(); ctx.arc(0, 0, 10, 0, TAU); ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = '#0d1014';
+    ctx.fillRect(-4, -2, 3, 4); ctx.fillRect(1, -2, 3, 4);
+    ctx.restore();
+  }
+  // 主角绕圈
+  const a = run.t * .022;
+  const px = W / 2 + Math.cos(a) * 105, py = H / 2 + Math.sin(a) * 70;
+  ctx.save();
+  ctx.translate(px, py);
+  ctx.fillStyle = C.hero; ctx.strokeStyle = C.heroDark; ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(-7, -5); ctx.lineTo(7, -5); ctx.lineTo(9, 5); ctx.lineTo(-9, 5);
+  ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = C.gold;
+  ctx.beginPath(); ctx.arc(0, -2, 3, 0, TAU); ctx.fill();
+  ctx.restore();
+  // 假子弹
+  ctx.globalCompositeOperation = 'lighter';
+  for (let i = 0; i < 10; i++) {
+    const ang = a + i * .63, r = ((run.t * 2 + i * 17) % 150);
+    ctx.globalAlpha = .5;
+    ctx.fillStyle = C.azure;
+    ctx.beginPath(); ctx.arc(px + Math.cos(ang) * r, py + Math.sin(ang) * r, 3, 0, TAU); ctx.fill();
+  }
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.globalAlpha = 1;
+}
+
+function fit() {
+  const s = Math.min(innerWidth / W, innerHeight / H, 1.15);
+  cv.style.width = (W * s) + 'px';
+  cv.style.height = (H * s) + 'px';
+}
+addEventListener('resize', fit);
+
+const KEYS = {
+  a:'a', d:'d', w:'w', s:'s',
+  ArrowLeft:'a', ArrowRight:'d', ArrowUp:'w', ArrowDown:'s',
+  j:'j', J:'j', z:'z', Z:'z', Shift:'Shift',
+};
+addEventListener('keydown', e => {
+  const k = KEYS[e.key];
+  if (k) { P[k] = true; e.preventDefault(); }
+  if (e.key === 'p' || e.key === 'P') togglePause();
+  if (e.key === 'e' || e.key === 'E') tryOpenNearest();
+  // 三选一快捷键
+  if (run.choosing && pendingUpgrade) {
+    const i = { '1': 0, '2': 1, '3': 2 }[e.key];
+    if (i != null && pendingUpgrade.opts[i]) {
+      takeUpgrade(pendingUpgrade.opts[i]); hideUpgrade();
+    }
+  }
+});
+addEventListener('keyup', e => {
+  const k = KEYS[e.key];
+  if (k) { P[k] = false; e.preventDefault(); }
+  if (e.key === 'Shift') P['Shift'] = false;   // 松开才能再滚
+});
+
+function tryOpenNearest() {
+  if (run.choosing) return;
+  let best = null, bd = 1e9;
+  for (const ch of chests) {
+    if (ch.opened) continue;
+    const d = dist(ch.x, ch.y, pl.x, pl.y);
+    if (d < bd) { bd = d; best = ch; }
+  }
+  // magnet 范围内手动开箱；够不到就提示
+  if (best && bd < pl.magnet + 24) {
+    chestTierBias = best.tier.k;
+    openChest(best);
+    chestTierBias = 'white';
+  } else if (best) {
+    run.hint = '走近宝箱才能开'; run.hintT = 50;
+  }
+}
+
+function togglePause() {
+  if (run.scene !== 'play' || run.over || run.choosing) return;
+  run.paused = !run.paused;
+  showPanel(run.paused ? 'p1' : null);
+}
+
+function showPanel(id) {
+  ['p0', 'p1', 'p2', 'p3', 'p4'].forEach(p => {
+    const el = document.getElementById(p);
+    if (el) el.style.display = (p === id) ? '' : 'none';
+  });
+  document.getElementById('tip').style.display = (id && id !== 'p4') ? 'none' : '';
+}
+
+function start() {
+  cancelAnimationFrame(raf);
+  newRun();
+  run.scene = 'play';
+  pl.deadT = 0;
+  // ⚠️ 必须清掉上一局的待选升级：pendingUpgrade 是模块级变量，
+  //   重开一局时若残留，新局第一帧就会弹出上一把没选完的面板。
+  pendingUpgrade = null;
+  chestTierBias = 'white';
+  showPanel(null);
+  lastTs = 0;
+  loopOn = true;
+  raf = requestAnimationFrame(frame);
+}
+
+document.getElementById('b0').onclick = start;
+document.getElementById('b1').onclick = togglePause;
+document.getElementById('b2').onclick = start;
+document.getElementById('b3').onclick = start;
+
+/* 开箱后自动弹三选一 —— 已折进 update() 末尾，见那里的注释。
+   这里原本是一个独立的 requestAnimationFrame 循环，会绕开 freeze()，
+   让无头测试里的 step() 与真实帧率赛跑（判据随机失败的真因）。 */
+
+function tickLive() {
+  const el = document.getElementById('live');
+  if (run.scene !== 'play') { el.style.display = 'none'; return; }
+  el.style.display = 'flex';
+  el.innerHTML =
+    `<span><i>层</i><b>${run.depth}</b></span>` +
+    `<span><i>房</i><b>${curRoom + 1}/${rooms.length}</b></span>` +
+    `<span><i>怪</i><b>${enemies.length}</b></span>` +
+    `<span><i>箱</i><b>${chests.filter(c => !c.opened).length}</b></span>` +
+    `<span><i>HP</i><b>${pl.hp}/${pl.maxHp}</b></span>` +
+    `<span><i>幸运</i><b>${pl.fortune}</b></span>` +
+    `<span><i>金币</i><b>${run.gold}</b></span>`;
+}
+
+/* ==========================================================================
+   测试接口
+   ========================================================================== */
+window.__SK = {
+  get run() { return run; },
+  get pl() { return pl; },
+  get enemies() { return enemies; },
+  get chests() { return chests; },
+  get bullets() { return bullets; },
+  get ebullets() { return ebullets; },
+  get drops() { return drops; },
+  get rooms() { return rooms; },
+  get curRoom() { return curRoom; },
+  get pendingUpgrade() { return pendingUpgrade; },
+  UPG, C,
+  start,
+  step(n) { for (let i = 0; i < (n || 60); i++)
+              if (run.scene === 'play' && !run.paused && !run.over && !run.choosing) update(1); },
+  key(k, v) { P[k] = v; },
+  /**
+   * 冻结/恢复自带动画循环，让 step() 成为唯一时钟。
+   *
+   * ⚠️ 同样的坑：页面 rAF 与测试 step() 赛跑 → 玩家原地挨打 → HP 归零 →
+   *    run.over=true → step() 全空转 → 判据读到一片「没反应」的假象。
+   */
+  freeze() { loopOn = false; cancelAnimationFrame(raf); raf = 0; },
+  unfreeze() { if (!raf) { loopOn = true; lastTs = 0; raf = requestAnimationFrame(frame); } },
+  warp(x, y) { pl.x = x; pl.y = y; },
+  setHp(n) { pl.hp = n; pl.deadT = 0; },
+  invuln() { pl.deadT = 9999; },
+  /** 清空当前房间的敌人（跳过刷怪阶段，专测宝箱/升级链路） */
+  clearRoom() { enemies.forEach(e => { e.alive = false; }); enemies.length = 0; },
+  /** 手动造箱 */
+  mkChest(tier) {
+    const t = tier === 'red'    ? { k:'red', name:'金箱', col:C.gold, n:3 }
+            : tier === 'purple' ? { k:'purple', name:'银箱', col:C.violet, n:2 }
+            : tier === 'blue'   ? { k:'blue', name:'铜箱', col:C.azure, n:1 }
+            : { k:'white', name:'木箱', col:'#c9b98f', n:1 };
+    const ch = { x: pl.x + 20, y: pl.y, r: 13, tier: t, opened: false, t: 0, bob: 0 };
+    chests.push(ch);
+    return ch;
+  },
+  /** 拿到升级选项但不弹面板（测试用） */
+  rollOpts(n) { chestTierBias = 'white'; return rollUpgrades(n || 3).map(u => u.id); },
+  take(u) { takeUpgrade(typeof u === 'string' ? UPG.find(x => x.id === u) : u); },
+  chestTier,
+  hurtPlayer, openChest, dropChest, rollUpgrades,
+  tryOpenNearest,   // 补导出：「按 E 开箱」这条键位原来没人验过
+  /**
+   * 关掉三选一面板（等价于玩家选完/点掉）。
+   * 判据需要它：很多链路会被「箱子走近自动开 → 弹面板」意外打断 ——
+   * run.choosing 一旦为 true，step() 就整段空转，读出来像游戏坏了。
+   * 而 pendingUpgrade 是模块级私有变量，测试只能通过这里复位。
+   */
+  hideUpgrade,
+  getHud() { return { hp: pl.hp, maxHp: pl.maxHp, dmg: +pl.dmg.toFixed(3), cd: +pl.cd.toFixed(2),
+                      fortune: pl.fortune, power: +(pl.dmg * pl.shots).toFixed(2) }; },
+};
+
+/* ---- 启动 ---- */
+newRun();
+run.scene = 'title';
+fit();
+raf = requestAnimationFrame(frame);
+</script>
+</body>
+</html>

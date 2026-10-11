@@ -1,0 +1,1790 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<title>星轨防线 v2 · 缝合版</title>
+<style>
+  :root{
+    --void:#05070f; --deep:#0a1024; --panel:#0a0e20;
+    --cyan:#5fe0ff; --gold:#ffd76e; --rose:#ff6b9d; --violet:#b98cff;
+    --jade:#6effc0; --orange:#ff9d4a; --paper:#e9edff; --dim:#6a7196;
+    --line:#232a4e;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0;height:100%;overflow:hidden;background:var(--void);
+    font-family:"Microsoft YaHei","PingFang SC",sans-serif;color:var(--paper)}
+  #wrap{position:relative;width:100%;height:100%;display:flex;align-items:center;justify-content:center}
+  canvas{display:block;background:#05070f;box-shadow:0 0 70px rgba(40,90,220,.2);touch-action:none}
+  #ui{position:absolute;inset:0;pointer-events:none;font-size:13px;line-height:1.6}
+  .panel{position:absolute;pointer-events:auto;background:rgba(8,11,28,.96);
+    border:1px solid var(--line);padding:22px 28px;max-width:min(94vw,620px);
+    box-shadow:0 0 46px rgba(0,0,0,.85)}
+  .panel h1{margin:0 0 3px;font-size:27px;letter-spacing:4px;color:var(--gold);font-weight:500}
+  .panel h1 small{display:block;font-size:11px;letter-spacing:2px;color:var(--dim);margin-top:5px}
+  .panel p{color:#b9c1e0;font-size:13.5px;margin:8px 0}
+  .panel b{color:var(--paper)}
+  .panel .k{display:inline-block;min-width:19px;padding:1px 6px;margin:0 2px;background:#161c38;
+    border:1px solid #39406e;border-radius:3px;font-family:Consolas,monospace;font-size:11.5px;color:var(--cyan)}
+  .panel hr{border:0;border-top:1px solid var(--line);margin:14px 0}
+  .btn{display:inline-block;margin-top:14px;padding:11px 30px;cursor:pointer;
+    background:linear-gradient(180deg,#1e2748,#111731);border:1px solid var(--gold);
+    color:var(--gold);font-size:16px;letter-spacing:3px;font-family:inherit;transition:.15s;font-weight:500}
+  .btn:hover{background:linear-gradient(180deg,#2b3762,#182048);box-shadow:0 0 20px rgba(255,215,110,.28)}
+  .btn.sm{padding:7px 16px;font-size:13px;margin:0;letter-spacing:1px}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  .note{font-size:12px;color:var(--dim);margin-top:11px;line-height:1.75}
+  /* 缝合来源标记 */
+  .src{display:inline-block;padding:1px 7px;border-radius:2px;font-size:11px;margin:0 3px}
+  .s1{background:#3a2a1a;color:#ffb27a;border:1px solid #6b4a2a}   /* 符箓灵弹 */
+  .s2{background:#1a2a3a;color:#7ad4ff;border:1px solid #2a4a6b}   /* 东方弹幕 */
+  .s3{background:#1a3a2a;color:#7dffb8;border:1px solid #2a6b4a}   /* 元气骑士 */
+  .cards{display:flex;gap:10px;flex-wrap:wrap;margin-top:8px}
+  .card{pointer-events:auto;cursor:pointer;width:164px;padding:12px;background:#12172a;
+    border:1px solid #2a3156;transition:.12s;position:relative}
+  .card:hover{transform:translateY(-4px);border-color:var(--gold);box-shadow:0 8px 22px rgba(0,0,0,.6)}
+  .card .ic{width:28px;height:28px;margin-bottom:7px;border-radius:3px;display:flex;align-items:center;
+    justify-content:center;font-size:15px;font-weight:500;color:#05070f}
+  .card .nm{font-size:13.5px;color:var(--gold);font-weight:500}
+  .card .ds{font-size:11.5px;color:#939bbc;margin-top:4px;line-height:1.5}
+  .card .lv{position:absolute;right:8px;top:9px;font-size:10.5px;color:var(--dim);font-family:Consolas,monospace}
+  #tip{position:absolute;left:50%;bottom:10px;transform:translateX(-50%);color:#4a5075;
+    font-size:11.5px;letter-spacing:.5px;white-space:nowrap}
+  #live{position:absolute;top:8px;left:50%;transform:translateX(-50%);display:none;gap:16px;
+    background:rgba(8,11,28,.86);padding:5px 15px;border:1px solid var(--line);font-size:12.5px;white-space:nowrap}
+  #live i{font-style:normal;color:var(--dim);margin-right:4px}
+  #live b{font-weight:500;font-family:Consolas,monospace;color:var(--gold)}
+  .leg{display:flex;align-items:center;gap:9px;margin:4px 0;font-size:13px;color:#b9c1e0}
+  .leg i{width:11px;height:11px;border-radius:50%;flex:none;font-style:normal}
+</style>
+</head>
+<body>
+<div id="wrap">
+<canvas id="cv" width="720" height="480"></canvas>
+<div id="ui">
+  <div id="live"></div>
+  <!-- ⚠️ 这行提示原来写的是「Z 射击　X 主武器　C 副武器　Shift 翻滚　E 补给舱」——
+       五处里错了四处：
+         · 主武器其实是 Z（X 是副武器），
+         · C 键在原代码里根本没绑定（炸弹当时挤在 X 上），
+         · 补给舱是**靠近自动开**（22px 内磁力吸附），没有 E 这个键，
+         · Shift 同时承担「翻滚」和「精确低速」两件事，只写一个会误导。
+       提示与实际不符比没有提示更糟：玩家会以为键盘坏了。 -->
+  <div id="tip">← → ↑ ↓ 移动　Z 主武器　X 副武器　C 炸弹　Shift 翻滚 / 精确　P 暂停</div>
+
+  <div class="panel" id="p0">
+    <h1>星轨防线 v2<small>缝合版 · STARCALL V2</small></h1>
+    <p>四款游戏缝在一起的一版太空射击。每条规则都标了<b>来源</b> ——
+       这样你能一眼看出哪些是缝合、哪些是原创。</p>
+    <hr>
+    <p><b>四条缝合进来的规则：</b></p>
+    <p>· <span class="src s1">符箓</span><b>护盾有朝向</b>。敌舰头上一面盾，只从<b>背面</b>命中才有 ×2.5 伤害。
+       打不打得动，取决于你绕不绕得过去。<br>
+       · <span class="src s2">东方</span><b>你的判定点极小</b>，而且<b>擦弹加分</b>。
+       从弹幕边上蹭过去不但不掉血，还有分。<br>
+       · <span class="src s3">元气</span><b>翻滚有无敌帧</b>。别只会躲，该翻就翻。<br>
+       · <span class="src s2 s3">东方+元气</span><b>补给舱给三选一</b>，每关 Boss 打掉必掉一个。</p>
+    <hr>
+    <p><b>刻意没缝进来的：</b><br>
+       <span class="src s1">符箓</span><b>双控反向联动</b>（←→ 走位 / ↑↓ 炮台）。
+       它和「双武器自动瞄准」直接冲突 —— 只能留一个。<br>
+       <span class="src s3">元气</span><b>房间门禁</b>。改成房间制就不是太空射击了。</p>
+    <hr>
+    <p><b>弹色即语义</b>：</p>
+    <div class="leg"><i style="background:#ff4d5e"></i>红 · 快速瞄准弹，最该躲的</div>
+    <div class="leg"><i style="background:#4da6ff"></i>蓝 · 慢速环绕弹，可以慢慢走位</div>
+    <div class="leg"><i style="background:#ffd23d"></i>黄 · 大型弹，会分裂</div>
+    <div class="leg"><i style="background:#b98cff"></i>紫 · 光柱，先躲再说</div>
+    <hr>
+    <p><b>操作：</b><br>
+      <span class="k">←</span><span class="k">→</span><span class="k">↑</span><span class="k">↓</span> 移动　
+      <span class="k">Z</span> 主武器（按住连发）　
+      <span class="k">X</span> 副武器<br>
+      <span class="k">C</span> 炸弹（清屏 + 一段无敌）　
+      <span class="k">Shift</span> 翻滚（有无敌帧）/ 按住进入精确低速<br>
+      <b>补给舱不用按键</b> —— 走近 78px 内会被磁力吸过来，22px 内自动打开并弹出三选一。</p>
+    <hr>
+    <div class="row"><span class="btn" id="b0">出 击</span></div>
+    <div class="note">美术与角色全部原创。符箓灵弹/东方/元气骑士的<b>玩法机制</b>是设计思路、不受版权保护；
+      但三款游戏的角色、立绘、素材一律没有复制。</div>
+  </div>
+
+  <div class="panel" id="p1" style="display:none">
+    <h1>暂 停<small>PAUSED</small></h1>
+    <div class="row"><span class="btn" id="b1">继 续</span></div>
+  </div>
+
+  <div class="panel" id="p2" style="display:none">
+    <h1>失 联<small>RUN OVER</small></h1>
+    <p id="r2s"></p>
+    <div class="row"><span class="btn" id="b2">再 来</span></div>
+  </div>
+
+  <div class="panel" id="p3" style="display:none">
+    <h1>守 住 了<small>ALL CLEAR</small></h1>
+    <p id="r3s"></p>
+    <div class="row"><span class="btn" id="b3">再 来</span></div>
+  </div>
+
+  <div class="panel" id="p4" style="display:none;width:min(94vw,580px)">
+    <h1 style="font-size:21px">补 给 舱<small id="c4q">CHOOSE ONE</small></h1>
+    <p id="c4t" style="margin-bottom:2px"></p>
+    <div class="cards" id="c4c"></div>
+    <div class="note" id="c4k">按 <span class="k">1</span> 也能选</div>
+  </div>
+</div>
+</div>
+
+<script>
+"use strict";
+/* ==========================================================================
+   星轨防线 v2 · 缝合版
+   --------------------------------------------------------------------------
+   这是把四款游戏的机制缝进同一个太空射击骨架里。四层缝合：
+
+     外壳   = 横版卷轴太空射击 + 双武器（主/副 + Alt-Fire）
+     输出层 = 护盾朝向 / 背击 ×2.5      ← 来自 符箓灵弹巧阵
+     Boss层 = 多阶段弹幕 + 限时符卡奖励  ← 来自 东方 Project
+     成长层 = 补给舱三选一 + 幸运值      ← 来自 元气骑士
+     防御层 = 小判定点 / 擦弹 / 翻滚无敌帧 ← 来自 东方 + 元气
+
+   刻意舍弃：双控反向联动（与双武器自动瞄准互斥）、房间门禁（与卷轴互斥）
+
+   美术全部原创。
+   ========================================================================== */
+
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+const W = 720, H = 480;
+
+/* ---- 弹色语义表：颜色即语义，玩家要能闭眼读弹 ---- */
+const SEM = {
+  red:    { core:'#fff2f3', edge:'#ff2f45', glow:'#ff6b78' },
+  blue:   { core:'#f0f8ff', edge:'#2f7fff', glow:'#6fb6ff' },
+  green:  { core:'#f0fff6', edge:'#19d67a', glow:'#5effa8' },
+  yellow: { core:'#fffaeb', edge:'#ffb800', glow:'#ffd23d' },
+  purple: { core:'#faf5ff', edge:'#8a3cff', glow:'#b98cff' },
+  white:  { core:'#ffffff', edge:'#a8b4ff', glow:'#dfe6ff' },
+};
+const COL = Object.assign({}, SEM, {
+  gold: SEM.yellow, cyan: SEM.white, jade: SEM.green, rose: SEM.red, violet: SEM.purple,
+});
+// 上线前自检：UI 用到的每个色名都要有 glow，否则下面全是 TypeError
+for (const _k in COL) if (!COL[_k] || !COL[_k].glow) throw new Error('COL.' + _k + ' 缺 glow');
+
+const rnd  = (a, b) => a + Math.random() * (b - a);
+const rndi = (a, b) => Math.floor(rnd(a, b + 1));
+const pick = a => a[Math.floor(Math.random() * a.length)];
+const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+const TAU = Math.PI * 2;
+/* 帧率常量：凡是「按秒写、按帧减」的时间量都必须经过它换算。
+   符箓灵弹版本就是漏了这层，符卡时限只有 0.67 秒 ——
+   而 HUD 照着显示「T 40s」，数字对得上、真实时长错，极具欺骗性。 */
+const FPS = 60;
+const ang2 = (a, b, c, d) => Math.atan2(d - c, b - a);
+
+/* 场地：右侧 96px 是 HUD */
+const FIELD_W = 624;
+
+/* ==========================================================================
+   状态
+   ========================================================================== */
+let P = {};
+let run, pl, bullets, ebullets, lasers, enemies, boss, crates, shots2;
+let parts, texts, stars, starBuf, loopOn = true;
+let raf = 0, lastTs = 0;
+
+function newRun() {
+  run = {
+    scene: 'title', over: false, paused: false, choosing: false,
+    noSpawn: false,   // 测试开关：关掉刷怪，隔离「弹幕伤害」与「敌人伤害」
+    score: 0, hi: +(localStorage.getItem('starline_v2_hi') || 0),
+    stage: 0, t: 0, frame: 0, shake: 0, flash: 0,
+    grazed: 0, cleared: 0, deaths: 0, cratesOpened: 0,
+    banner: null, bannerT: 0, hint: null, hintT: 0, waveT: 0, waveN: 0,
+  };
+  pl = {
+    x: 130, y: H / 2, vx: 0, vy: 0,
+    hitR: 4.5, grazeR: 26,       // 【东方】小判定点 + 擦弹半径
+    spd: 3.6, focusSpd: 1.4,
+    lives: 3, bombs: 3, bombsMax: 3, maxLives: 5,
+    power: 1.0, invuln: 0, dead: 0,
+    // 【元气】翻滚无敌帧
+    rollT: 0, rollCd: 82, rollIfr: 20, rolling: 0, rx: 0, ry: 0, grazeCount: 0,
+    // 双武器：主武器 + 副武器（外壳原有）
+    wpn: 0, altFire: 0,
+    // ⚠️ 这里原来还有一个 `fortune: 0`，但**没有任何代码读它** ——
+    //   「幸运」升级加的是 WS.fortune（crateTier 读的也是 WS.fortune），
+    //   这个玩家侧的同名字段只会让人以为幸运存在玩家身上。已删。
+    // ⚠️ 升级等级表 —— 原来**漏了初始化**！
+    //    rollUpgrades() 第 909 行读 pl.levels[u.id]，第 1512 行写 pl.levels[u.id]。
+    //    没有初始化的后果：任何时候打开补给舱都会崩
+    //    （"Cannot read properties of undefined"），
+    //    而这一切测试都没覆盖到 —— **开箱链路从未被真正跑过**。
+    levels: {},
+  };
+  bullets = []; ebullets = []; lasers = []; enemies = []; boss = null;
+  crates = []; shots2 = []; parts = []; texts = [];
+  makeStars();
+  nextStage();
+}
+
+/* ==========================================================================
+   背景星空（预渲染两层，离屏滚动）
+   ========================================================================== */
+function makeStars() {
+  starBuf = [];
+  const mk = (n, sz, al) => {
+    const c = document.createElement('canvas');
+    c.width = FIELD_W; c.height = H;
+    const g = c.getContext('2d');
+    for (let i = 0; i < n; i++) {
+      g.fillStyle = `rgba(215,228,255,${(al * (0.35 + Math.random() * 0.65)).toFixed(3)})`;
+      g.beginPath();
+      g.arc(Math.random() * FIELD_W, Math.random() * H, sz * (0.5 + Math.random()), 0, TAU);
+      g.fill();
+    }
+    return c;
+  };
+  starBuf.push({ c: mk(70, 0.9, .3), sp: 0.30, y: 0 });
+  starBuf.push({ c: mk(34, 1.6, .55), sp: 0.85, y: 0 });
+  starBuf.push({ c: mk(9, 2.4, .9), sp: 1.9, y: 0 });
+}
+
+/* ==========================================================================
+   升级池（补给舱三选一）—— 武器改弹道，被动改属性
+   ========================================================================== */
+/* ⚠️⚠️ apply 的签名是 apply(w, p)：w = 武器/全局数值表 WS，p = 玩家对象 pl。
+   这里曾经**全部写成 apply(p) 而 takeUpgrade 传的是 WS**，
+   于是凡是「本该改玩家属性」的条目全都改到了一个没人读的字段上：
+
+     p3 迅捷  写 WS.spd        → 真正读的是 pl.spd(第 580 行)      ❌ 完全无效
+     p5 扩容  写 WS.maxLives   → 真正读的是 pl.maxLives(第 948 行)  ❌ 完全无效
+     p6 翻滚  写 WS.rollCd     → 真正读的是 pl.rollCd(第 571 行)    ❌ 完全无效
+     p7 擦弹  写 WS.grazeR     → 真正读的是 pl.grazeR(第 743 行)    ⚠️ 半径无效、加分有效
+     p8 重装  写 WS.hitR       → 真正读的是 pl.hitR(第 737 行)      ⚠️ 判定点惩罚无效
+
+   症状：玩家选了升级、面板也显示了 Lv+1，但**数值一点没变** ——
+   而且升到"满级"后该条目就从池里消失了，等于永久丢掉了这个选项。
+   「选完真的变强了」这条判据之所以没能抓到，是因为它只验了 p2(锋锐)，
+   而 p2 恰好是写对了对象的那一类。
+   → 修法：签名显式区分两个对象，谁该改谁一目了然。 */
+const UPG = [
+  { id:'w1', kind:'weapon', name:'双联主炮', icon:'双', col:'#5fe0ff', max:1,
+    desc:'主武器 +1 弹道，伤害 -8%', apply(w){ w.shots1 += 1; w.dmg1 *= .92; } },
+  { id:'w2', kind:'weapon', name:'散射副炮', icon:'散', col:'#ff9d4a', max:1,
+    desc:'副武器弹道 +1，改为扇形', apply(w){ w.shots2 += 1; w.spread2 += .22; } },
+  { id:'w3', kind:'weapon', name:'穿甲弹', icon:'穿', col:'#b98cff', max:3,
+    desc:'子弹多穿透 1 个敌人', apply(w){ w.pierce += 1; } },
+  { id:'w4', kind:'weapon', name:'重弹', icon:'重', col:'#ffd76e', max:3,
+    desc:'两武器伤害 +30%，射速 -12%', apply(w){ w.dmg1 *= 1.3; w.dmg2 *= 1.3; w.cd *= 1.12; } },
+  { id:'w5', kind:'weapon', name:'加速', icon:'速', col:'#6effc0', max:3,
+    desc:'弹速 +22%', apply(w){ w.bspd *= 1.22; } },
+  { id:'w6', kind:'weapon', name:'追踪弹', icon:'追', col:'#6effc0', max:1,
+    desc:'副武器改为微追踪', apply(w){ w.homing += 1; } },
+
+  { id:'p1', kind:'passive', name:'急速', icon:'速', col:'#5fe0ff', max:5,
+    desc:'射速 +16%', apply(w){ w.cd *= 0.84; } },
+  { id:'p2', kind:'passive', name:'锋锐', icon:'锐', col:'#ff6b9d', max:5,
+    desc:'伤害 +20%', apply(w){ w.dmg1 *= 1.2; w.dmg2 *= 1.2; } },
+  { id:'p3', kind:'passive', name:'迅捷', icon:'捷', col:'#6effc0', max:4,
+    desc:'移动速度 +11%', apply(w, p){ p.spd *= 1.11; } },
+  { id:'p4', kind:'passive', name:'幸运', icon:'运', col:'#ffd76e', max:5,
+    desc:'幸运 +1（提高红色补给舱概率）', apply(w){ w.fortune += 1; } },
+  { id:'p5', kind:'passive', name:'扩容', icon:'扩', col:'#ffd76e', max:3,
+    desc:'残机上限 +1 并补满', apply(w, p){ p.maxLives += 1; p.lives = Math.min(p.maxLives, p.lives + 1); } },
+  { id:'p6', kind:'passive', name:'翻滚大师', icon:'滚', col:'#b98cff', max:3,
+    desc:'翻滚冷却 -25%，无敌帧 +3', apply(w, p){ p.rollCd *= .75; p.rollIfr += 3; } },
+  { id:'p7', kind:'passive', name:'擦弹术', icon:'擦', col:'#6effc0', max:3,
+    desc:'擦弹半径 +8，擦弹加分翻倍', apply(w, p){ p.grazeR += 8; w.grazeMul *= 2; } },
+  { id:'p8', kind:'passive', name:'重装', icon:'装', col:'#ff6b9d', max:3,
+    desc:'火力上限 +0.6，判定点 +1px（权衡）', apply(w, p){ w.powerMax += 0.6; p.hitR += 1; } },
+];
+
+function weaponStats() {
+  return {
+    dmg1: 1.0, dmg2: 0.75, cd: 12, bspd: 8.2,
+    shots1: 1, shots2: 1, spread1: 0.10, spread2: 0.0,
+    pierce: 0, homing: 0, fortune: 0,
+    powerMax: 4.0, grazeMul: 1,
+  };
+}
+let WS = weaponStats();
+
+/* ==========================================================================
+   关卡 / Boss 符卡
+   ========================================================================== */
+const STAGES = [
+  {
+    name: '碎星群', sub: 'SECTOR 01', tint: '#080c20',
+    cards: [
+      { name:'符卡「初式·散射阵列」', sub:'FIRST — SPREAD ARRAY', hp:170, time:40, move:'sway',
+        init(b){ b.pa = 0; },
+        run(b, dt){
+          b.pa += 0.021 * dt; b.patT -= dt;
+          if (b.patT <= 0) {
+            b.patT = 74;
+            PAT.ring(b.x, b.y, 14, 1.6, { c:'blue', r:6 });
+            PAT.aimed(b.x, b.y, 3, 3.3, .20, { c:'red', r:5, shape:'rice' });
+          }
+        } },
+      { name:'符卡「终式·流星落」', sub:'LAST — METEOR FALL', hp:230, time:45, move:'drift',
+        init(b){ b.pa = 0; },
+        run(b, dt){
+          b.pa += 0.042 * dt; b.patT -= dt;
+          if (b.patT <= 0) {
+            b.patT = 56;
+            for (let i = 0; i < 3; i++)
+              bullets.push(mkBullet(b.x + rnd(-70, 70), b.y, Math.PI/2 + (i-1)*.5 + rnd(-.1,.1),
+                0.95, { c:'yellow', r:12, shape:'big', accel:.085,
+                        split:{ n:8, spd:2.6, c:'yellow', r:6 } }));
+          }
+          if (b.pn++ % 3 === 0)
+            PAT.spiral(b.x, b.y, 4, 1.9, { c:'green', off: b.pa, spin:6 });
+        } },
+    ],
+  },
+  {
+    name: '铁壁舰队', sub: 'SECTOR 02', tint: '#0a0a24',
+    cards: [
+      { name:'符卡「盾阵推进」', sub:'SHIELD WALL ADVANCE', hp:260, time:42, move:'drift',
+        init(b){ b.pa = 0; b.gapDir = 1; },
+        run(b, dt){
+          b.pa += 0.016 * dt; b.patT -= dt;
+          if (b.patT <= 0) {
+            b.patT = 58;
+            // 【符箓】盾墙带缺口 —— 缺口位置会移动，必须读懂节奏才能穿
+            const gap = FIELD_W/2 + Math.sin(b.pa * 2.1) * 150;
+            PAT.wall(-10, 2.6, gap, 92, { c:'purple', r:7, jitter:true });
+          }
+          if (b.pn++ % 5 === 0)
+            PAT.aimed(b.x, b.y, 5, 3.0, .15, { c:'red', r:5, shape:'rice' });
+        } },
+      { name:'符卡「双螺旋」', sub:'TWIN HELIX', hp:300, time:45, move:'sway',
+        init(b){ b.pa = 0; b.pa2 = 0.5; },
+        run(b, dt){
+          b.pa += 0.030 * dt; b.pa2 -= 0.026 * dt; b.patT -= dt;
+          if (b.patT <= 0) {
+            b.patT = 66;
+            PAT.spiral(b.x, b.y, 3, 2.2, { c:'green', off:b.pa,  spin: 7 });
+            PAT.spiral(b.x, b.y, 3, 2.2, { c:'blue',  off:b.pa2, spin:-7 });
+          }
+          if (b.pn++ % 4 === 0)
+            PAT.aimed(b.x, b.y, 3, 3.8, .13, { c:'red', r:5, shape:'rice' });
+        } },
+    ],
+  },
+  {
+    name: '虚空母舰', sub: 'SECTOR 03', tint: '#180a2e',
+    cards: [
+      { name:'符卡「乱数风暴」', sub:'CHAOS STORM', hp:270, time:40, move:'drift',
+        init(b){ b.pa = 0; },
+        run(b, dt){
+          b.pa += 0.026 * dt; b.patT -= dt;
+          if (b.patT <= 0) {
+            b.patT = 46;
+            for (let i = 0; i < 12; i++)
+              bullets.push(mkBullet(b.x, b.y, Math.random()*TAU, rnd(1.5,3.6),
+                { c: pick(['red','blue','green']), r:6 }));
+            bullets.push(mkBullet(b.x, b.y, Math.PI/2 + rnd(-.3,.3), 1.0,
+              { c:'yellow', r:13, shape:'big', delay:18,
+                split:{ n:10, spd:2.8, c:'yellow', r:5 } }));
+          }
+        } },
+      { name:'终符「轨道崩塌」', sub:'FINAL — ORBIT COLLAPSE', hp:400, time:60, move:'sway',
+        init(b){ b.pa = 0; b.pa2 = 0; },
+        run(b, dt){
+          b.pa += 0.038 * dt; b.pa2 -= 0.019 * dt; b.patT -= dt;
+          if (b.patT <= 0) {
+            b.patT = 32;
+            mkLaser(b.x + rnd(-90, 90), 0, Math.PI/2, H, 16, { c:'purple', warn:30, life:30 });
+          }
+          if (b.pn++ % 2 === 0) {
+            PAT.spiral(b.x, b.y, 4, 2.4, { c:'green', off:b.pa,  spin: 8 });
+            PAT.spiral(b.x, b.y, 4, 2.1, { c:'blue',  off:b.pa2, spin:-8 });
+          }
+          if (b.pn++ % 11 === 5)
+            PAT.aimed(b.x, b.y, 7, 4.1, .12, { c:'red', r:5, shape:'rice' });
+        } },
+    ],
+  },
+];
+
+function nextStage() {
+  run.stage++;
+  if (run.stage > STAGES.length) { run.stage = STAGES.length; stageClear(); return; }
+  run.waveT = 320; run.waveN = 0;
+  ebullets.length = 0; lasers.length = 0; enemies.length = 0; bullets.length = 0;
+  setBanner(STAGES[run.stage - 1].name, STAGES[run.stage - 1].sub, COL.gold.glow, 130);
+}
+
+function spawnBoss() {
+  const s = STAGES[run.stage];
+  boss = {
+    x: FIELD_W - 140, y: -60, sy: H / 2, is: s, cards: s.cards, ci: -1,
+    t: 0, state: 'enter', stateT: 0, card: null, cardHp: 0,
+    flash: 0, rot: 0, patT: 0, pn: 0,
+    shieldAng: Math.PI, shieldRot: 0,   // 【符箓】Boss 也有护盾朝向
+  };
+  setBanner(s.name, s.sub, COL.gold.glow, 130);
+}
+
+function startCard() {
+  const b = boss;
+  b.ci++;
+  if (b.ci >= b.cards.length) { b.state = 'dying'; b.stateT = 0; return; }
+  // ⚠️ 必须复制，不能引用 STAGES 里的常量对象。
+  //    timeLeft 是运行时状态；挂在共享对象上会导致
+  //    ① 跳下一张卡时不重置 → 符卡奖励算成 0
+  //    ② 重开一局后带着上一局残值 → 越打越难
+  const src = b.cards[b.ci];
+  const c = Object.assign({}, src);
+  // ⚠️ 时间单位：c.time 是「秒」，而 timeLeft 每帧减 1（dt=1）。
+  //    不换算的话 time:40 的实际时限只有 40 帧 ≈ 0.67 秒，
+  //    玩家根本来不及打掉任何一张符卡（HUD 还会照着显示「T 40s」骗人）。
+  c.timeSec = c.time;
+  c.timeLeft = c.time * FPS;
+  b.card = c; b.cardHp = c.hp;
+  b.state = 'declare'; b.stateT = 0;
+  b.t = 0; b.patT = 0; b.pn = 0;
+  if (c.init) c.init(b);
+  bullets.length = 0; lasers.length = 0;   // 换卡清场，给喘息
+  setBanner('符卡', '', COL.gold.glow, 110);
+}
+
+function setBanner(main, sub, col, life) {
+  run.banner = { main, sub, col: col || COL.gold.glow };
+  run.bannerT = life || 100;
+}
+
+/* ==========================================================================
+   弹幕
+   ========================================================================== */
+function mkBullet(x, y, ang, spd, o = {}) {
+  return {
+    x, y, vx: Math.cos(ang)*spd, vy: Math.sin(ang)*spd,
+    r: o.r || 6, c: COL[o.c || 'blue'],
+    shape: o.shape || 'ball',
+    rot: o.rot != null ? o.rot : ang + Math.PI/2,
+    spin: o.spin || 0, delay: o.delay || 0, accel: o.accel || 0,
+    age: 0, grazed: false, alive: true, split: o.split || null,
+  };
+}
+
+const PAT = {
+  ring(x, y, n, spd, o = {}) {
+    const off = o.off != null ? o.off : Math.random() * TAU;
+    for (let i = 0; i < n; i++)
+      bullets.push(mkBullet(x, y, off + i * TAU / n, spd, o));
+  },
+  aimed(x, y, n, spd, spread, o = {}) {
+    const base = ang2(x, y, pl.x, pl.y);
+    for (let i = 0; i < n; i++)
+      bullets.push(mkBullet(x, y, base + (i - (n-1)/2) * spread, spd, o));
+  },
+  wall(y, spd, gapX, gapW, o = {}) {
+    const step = o.step || 24;
+    for (let x = 14; x < FIELD_W - 10; x += step) {
+      if (Math.abs(x - gapX) < gapW / 2) continue;
+      bullets.push(mkBullet(x + (o.jitter ? rnd(-4,4) : 0), y, Math.PI/2 + rnd(-.04,.04),
+        spd, Object.assign({ r:7, shape:'ball' }, o)));
+    }
+  },
+  spiral(x, y, arms, spd, o = {}) {
+    for (let i = 0; i < arms; i++)
+      bullets.push(mkBullet(x, y, i * TAU / arms, spd,
+        Object.assign({ r:6, shape:'rice', spin:6 }, o)));
+  },
+};
+
+function mkLaser(x, y, ang, len, w, o = {}) {
+  lasers.push({ x, y, ang, len, w,
+    warn: o.warn || 44, life: o.life || 44, t: 0, done: false,
+    col: COL[o.c || 'purple'] });
+}
+
+/* ==========================================================================
+   敌人
+   --------------------------------------------------------------------------
+   每台敌舰都有 shieldAng / shieldRot ——【符箓缝合 #1】
+   护盾朝向：弹丸与护盾法线反向命中 = 背击 = ×2.5 伤害
+   ========================================================================== */
+function mkEnemy(x, y, o = {}) {
+  const e = Object.assign({
+    x, y, r: 17, hp: 20, t: 0, alive: true, flash: 0,
+    score: 200, knock: 0, kx: 0, ky: 0,
+    shieldAng: rnd(0, TAU), shieldRot: 0, shieldSpin: 0,
+    kind: 'cruiser',
+  }, o);
+  e.maxHp = e.hp;
+  return e;
+}
+
+function updateWaves(dt) {
+  run.waveT -= dt;
+  if (run.waveT > 0) return;
+  run.waveT = 250;
+  run.waveN++;
+  const lv = run.stage;
+  if (run.waveN > 5) { spawnBoss(); return; }
+
+  // 一排带盾的巡洋舰从右侧推进 —— 护盾朝向不同，必须逐个读
+  const cnt = 3 + lv;
+  for (let i = 0; i < cnt; i++) {
+    const y = 60 + i * (H - 120) / Math.max(1, cnt - 1);
+    enemies.push(mkEnemy(FIELD_W + 30, y, {
+      hp: 22 + lv * 9, r: 16, score: 220 + lv * 40,
+      kind: 'cruiser',
+      shieldAng: rnd(0, TAU), shieldRot: 0, shieldSpin: rnd(-.012, .012),
+      move(e) {
+        e.x -= (1.5 + lv * .22) * dt;
+        if (e.x < 200) e.shieldAng = Math.PI / 2 + Math.sin(e.t * .03) * 1.1; // 面向左
+      },
+      fire(e) {
+        e.patT -= dt;
+        if (e.patT <= 0) {
+          e.patT = 80;
+          PAT.aimed(e.x, e.y, 3, 2.9, .19, { c:'red', r:5, shape:'rice' });
+        }
+      },
+    }));
+  }
+  // 护卫：快速小艇，无盾
+  for (let i = 0; i < 2; i++)
+    enemies.push(mkEnemy(FIELD_W + 60, rnd(50, H - 50), {
+      hp: 10 + lv * 3, r: 11, score: 140, kind: 'dart', shieldSpin: 0,
+      move(e) { e.x -= (3.1 + lv * .3) * dt; e.y += Math.sin(e.t * .05) * 1.2 * dt; },
+      fire(e) {
+        e.patT -= dt;
+        if (e.patT <= 0) { e.patT = 100; PAT.aimed(e.x, e.y, 1, 2.5, 0, { c:'red', r:5 }); }
+      },
+    }));
+}
+
+/* ==========================================================================
+   更新
+   ========================================================================== */
+function update(dt) {
+  run.t += dt; run.frame++;
+  if (run.bannerT > 0) run.bannerT -= dt;
+  if (run.hintT > 0) run.hintT -= dt;
+  if (run.shake > 0) run.shake *= .88;
+  if (run.flash > 0) run.flash -= dt * 3;
+
+  movePlayer(dt);
+  // noSpawn 是给测试用的开关：测「弹会不会碰到玩家」这类单点判定时，
+  // 必须关掉刷怪，否则敌人造成的伤害和弹幕伤害混在一起，
+  // 判据就读出「弹在正中心却没掉命」这种自相矛盾的结果。
+  if (!boss && !run.noSpawn) updateWaves(dt);
+  updateBoss(dt);
+  updateEnemies(dt);
+  updateBullets(dt);
+  updateLasers(dt);
+  updateShots(dt);
+  updateCrates(dt);
+  updateParts(dt);
+  checkBomb();
+
+  // 开箱后自动弹三选一。
+  //
+  // ⚠️⚠️ 这里原来是一个**独立的 requestAnimationFrame 循环**（pollUpgrade），
+  //   而 freeze() 只 cancel 主 raf —— 于是无头测试里有两个时钟：
+  //   测试用 step() 推进游戏，pollUpgrade 按真实帧率在外面把 run.choosing 翻成 true。
+  //   一旦被它抢先，step() 的守卫（含 !run.choosing）让后面所有帧全部空转，
+  //   判据读出来就是「机制没反应」。元气版同一个写法已经实测导致过随机失败。
+  //   折进 update() 之后时钟只剩一个，暂停/选牌期间自然不轮询。
+  //   （update() 已被 `scene==='play' && !paused && !over && !choosing` 守住，故此处不重复判。）
+  if (pendingUpgrade) showUpgrade(pendingUpgrade);
+}
+
+/* ---- 玩家 ---- */
+function movePlayer(dt) {
+  if (pl.dead > 0) { pl.dead -= dt; return; }
+  let ax = 0, ay = 0;
+  if (P['ArrowLeft'])  ax -= 1;
+  if (P['ArrowRight']) ax += 1;
+  if (P['ArrowUp'])    ay -= 1;
+  if (P['ArrowDown'])  ay += 1;
+  if (ax && ay) { ax *= .7071; ay *= .7071; }
+
+  // 【元气缝合】翻滚：无敌帧 + 短时高速
+  if (P['Shift'] && pl.rollT <= 0 && (ax || ay)) {
+    pl.rolling = pl.rollIfr;
+    pl.rollT = pl.rollCd;
+    pl.rx = ax * 5.6; pl.ry = ay * 5.6;
+    burst(pl.x, pl.y, 8, COL.violet.glow, 3, .35);
+  }
+  if (pl.rolling > 0) {
+    pl.rolling -= dt;
+    pl.x += pl.rx * dt; pl.y += pl.ry * dt;
+    if (Math.random() < .5) burst(pl.x, pl.y, 1, COL.violet.glow, 1.5, .25);
+  } else {
+    const sp = P['Shift'] ? pl.focusSpd : pl.spd;
+    pl.x += ax * sp * dt; pl.y += ay * sp * dt;
+  }
+  if (pl.rollT > 0) pl.rollT -= dt;
+
+  pl.x = clamp(pl.x, 16, FIELD_W - 16);
+  pl.y = clamp(pl.y, 16, H - 16);
+  pl.vx = ax; pl.vy = ay;
+
+  // 双武器：主武器 Z 自动连发，副武器 X 单发（按住即连发）。
+  // ⚠️ 这里原先还有一条 `if (P['xup']) fireAlt(true)` —— 但 P['xup']
+  //   在**全文件里从来没有被赋值过**，是一条永远不会执行的死分支
+  //   （原注释说 Alt-Fire = Shift+方向，而 Shift 其实被「精确低速」占着）。
+  //   已删。追踪弹的 homing 现在只由 w6 提供，语义和描述一致了。
+  if (P['z']) { pl.altFire -= dt; if (pl.altFire <= 0) { pl.altFire = WS.cd; fireMain(); } }
+  if (P['x']) fireAlt();
+
+  if (pl.invuln > 0) pl.invuln -= dt;
+}
+
+/** 背击判定 ——【符箓缝合 #1】的几何核心
+ *  护盾法线 shieldAng 指向面朝方向。
+ *  弹丸 shotAng 与它反向 → 打在背面 → ×2.5
+ *  （初版注释把语义写反了，导致正面拿到 ×2.5；已修）
+ */
+function isFromBack(shotAng, shieldAng) {
+  let d = ((shotAng - shieldAng) % TAU + TAU) % TAU;
+  return d > Math.PI / 2 && d < Math.PI * 1.5;
+}
+
+function fireMain() {
+  const n = WS.shots1;
+  for (let i = 0; i < n; i++) {
+    const off = n === 1 ? 0 : (i - (n-1)/2) * WS.spread1;
+    shots2.push(mkShot(pl.x + 12, pl.y, off, WS.dmg1 * powerMul(),
+                       WS.bspd, WS.pierce, COL.cyan));
+  }
+  burst(pl.x + 14, pl.y, 1, COL.cyan.glow, 2.2, .2);
+}
+
+function fireAlt(homing) {
+  const n = WS.shots2;
+  for (let i = 0; i < n; i++) {
+    const off = n === 1 ? 0 : (i - (n-1)/2) * WS.spread2;
+    shots2.push(mkShot(pl.x + 8, pl.y, off, WS.dmg2 * powerMul(),
+                       WS.bspd * .92, WS.pierce, COL.jade,
+                       (homing || WS.homing > 0) ? 1 : 0));
+  }
+  burst(pl.x + 10, pl.y, 2, COL.jade.glow, 2.6, .22);
+}
+
+function powerMul() { return 0.7 + pl.power / WS.powerMax * 0.6; }
+
+function mkShot(x, y, off, dmg, spd, pierce, col, homing) {
+  return { x, y, vx: Math.cos(off) * spd, vy: Math.sin(off) * spd,
+           r: 4, dmg, pierce, col, homing: homing || 0,
+           hitSet: new Set(), age: 0, alive: true };
+}
+
+/* ---- Boss ---- */
+function updateBoss(dt) {
+  const b = boss;
+  if (!b) return;
+  b.t += dt; b.stateT += dt;
+  b.rot += .005 * dt;
+  b.shieldRot += .014 * dt;
+  const s = b.is;
+
+  if (b.state === 'enter') {
+    b.x += (s.x || (FIELD_W - 140) - b.x) * 0.04 * dt;
+    b.y += (H / 2 - b.y) * 0.04 * dt;
+    if (Math.abs(b.y - H/2) < 1) { b.y = H/2; startCard(); }
+    return;
+  }
+  if (b.state === 'declare') {
+    if (b.stateT > 88) { b.state = 'fight'; b.stateT = 0; }
+    return;
+  }
+  if (b.state === 'fight') {
+    const m = b.card.move;
+    const bx = FIELD_W - 140;
+    if (m === 'sway')   b.x = bx + Math.sin(b.t * .015) * 78;
+    else if (m === 'drift') b.x = bx + Math.sin(b.t * .009) * 96;
+    else b.x += Math.sin(b.t * .02) * 1.2 * dt;
+    b.x = clamp(b.x, FIELD_W - 240, FIELD_W - 70);
+    b.y = H/2 + Math.sin(b.t * .012) * (H/2 - 70);
+    b.card.run(b, dt);
+    b.pn++;
+    b.card.timeLeft -= dt;
+    if (b.card.timeLeft <= 0) {
+      clearBulletsToItem();
+      showFloat(b.x, b.y - 34, '符卡超时', COL.violet.glow);
+      b.state = 'next'; b.stateT = 0;
+    }
+    return;
+  }
+  if (b.state === 'next') { if (b.stateT > 40) startCard(); return; }
+  if (b.state === 'dying') {
+    b.x -= 1.2 * dt;
+    if (b.stateT % 7 < 1)
+      burst(b.x + rnd(-34, 34), b.y + rnd(-26, 26), 3, COL.gold.glow, 4.5, .5);
+    if (b.stateT > 120) {
+      // 【元气缝合】Boss 掉补给舱 —— 玩家必须冒着残余弹幕过去拿
+      dropCrate(b.x, b.y, 'red');
+      dropCrate(b.x - 46, b.y + 24);
+      boss = null;
+      nextStage();
+    }
+  }
+}
+
+function clearBulletsToItem() {
+  for (const b of bullets) if (Math.random() < .14) dropPickup(b.x, b.y);
+  bullets.length = 0; lasers.length = 0;
+  burst(FIELD_W/2, H/2, 24, COL.cyan.glow, 6, .55);
+  run.flash = .5;
+}
+
+function updateEnemies(dt) {
+  for (const e of enemies) {
+    if (!e.alive) continue;
+    e.t += dt;
+    if (e.flash > 0) e.flash -= dt;
+    if (e.shieldSpin) e.shieldRot += e.shieldSpin * dt;
+    if (e.knock > 0) {
+      e.knock -= dt;
+      e.x += e.kx * dt; e.y += e.ky * dt;
+      e.x = clamp(e.x, 14, FIELD_W - 14);
+      e.y = clamp(e.y, 14, H - 14);
+      continue;
+    }
+    if (e.move) e.move(e, dt);
+    if (e.fire) e.fire(e, dt);
+    if (e.x < -70 || e.x > W + 70 || e.y < -70 || e.y > H + 70) e.alive = false;
+  }
+  enemies = enemies.filter(e => e.alive);
+}
+
+function updateBullets(dt) {
+  const px = pl.x, py = pl.y;
+  for (const b of bullets) {
+    if (!b.alive) continue;
+    if (b.delay > 0) { b.delay -= dt; continue; }
+    b.age += dt;
+    if (b.accel) {
+      const sp = Math.hypot(b.vx, b.vy) + b.accel * dt;
+      const a = Math.atan2(b.vy, b.vx);
+      b.vx = Math.cos(a) * sp; b.vy = Math.sin(a) * sp;
+    }
+    b.x += b.vx * dt; b.y += b.vy * dt;
+    if (b.spin) b.rot += b.spin * dt;
+
+    if (b.x < -50 || b.x > FIELD_W + 50 || b.y < -70 || b.y > H + 70) {
+      if (b.split && b.age > 30) doSplit(b);
+      b.alive = false; continue;
+    }
+    // 翻滚无敌帧优先于所有判定
+    if (pl.dead > 0 || pl.invuln > 0 || pl.rolling > 0) continue;
+
+    const d = Math.hypot(b.x - px, b.y - py);
+    if (d < b.r + pl.hitR) {
+      hitPlayer();
+      if (b.split) doSplit(b);
+      b.alive = false; continue;
+    }
+    // 【东方缝合 #2】擦弹：贴脸但没碰到 → 加分 + 攒火力
+    if (!b.grazed && d < b.r + pl.grazeR) {
+      b.grazed = true;
+      run.grazed++; pl.grazeCount++;
+      run.score += 130 * WS.grazeMul;
+      if (pl.power < WS.powerMax) pl.power = Math.min(WS.powerMax, pl.power + .006);
+      burst(b.x, b.y, 1, COL.jade.glow, 2.6, .26);
+      if (pl.grazeCount >= 100) {
+        pl.grazeCount = 0;
+        showFloat(px, py - 34, 'GRAZE ×100', COL.jade.glow);
+        pl.power = Math.min(WS.powerMax, pl.power + .14);
+      }
+    }
+  }
+  bullets = bullets.filter(b => b.alive);
+}
+
+function doSplit(b) {
+  for (let i = 0; i < b.split.n; i++)
+    bullets.push(mkBullet(b.x, b.y, i * TAU / b.split.n + rnd(0,.3), b.split.spd,
+      { c: b.split.c, r: b.split.r }));
+  burst(b.x, b.y, 8, COL.yellow.glow, 3.4, .3);
+}
+
+function updateLasers(dt) {
+  for (const L of lasers) {
+    L.t += dt;
+    if (pl.dead > 0 || pl.invuln > 0 || pl.rolling > 0) continue;
+    if (L.t < L.warn) continue;
+    if (L.t > L.warn + L.life) { L.done = true; continue; }
+    const dx = pl.x - L.x, dy = pl.y - L.y;
+    const ca = Math.cos(L.ang), sa = Math.sin(L.ang);
+    const along = dx * ca + dy * sa;
+    const perp = Math.abs(-dx * sa + dy * ca);
+    if (along > -10 && along < L.len && perp < L.w/2 + pl.hitR) hitPlayer();
+  }
+  lasers = lasers.filter(L => !L.done);
+}
+
+/* ---- 玩家子弹 ---- */
+function updateShots(dt) {
+  for (const s of shots2) {
+    // 追踪弹：轻微朝最近敌人修正
+    if (s.homing > 0) {
+      let best = null, bd = 1e9;
+      const T = boss && boss.state === 'fight' ? boss : null;
+      if (T) bd = Math.hypot(T.x - s.x, T.y - s.y);
+      for (const e of enemies) {
+        if (!e.alive) continue;
+        const d = Math.hypot(e.x - s.x, e.y - s.y);
+        if (d < bd) { bd = d; best = e; }
+      }
+      if (best || T) {
+        const t = best || T;
+        const cur = Math.atan2(s.vy, s.vx);
+        const want = Math.atan2(t.y - s.y, t.x - s.x);
+        let diff = ((want - cur + Math.PI*3) % TAU) - Math.PI;
+        const sp = Math.hypot(s.vx, s.vy);
+        const nc = cur + clamp(diff, -.05, .05);
+        s.vx = Math.cos(nc) * sp; s.vy = Math.sin(nc) * sp;
+      }
+    }
+    s.x += s.vx * dt; s.y += s.vy * dt; s.age += dt;
+    if (s.x < -20 || s.x > W + 20 || s.y < -20 || s.y > H + 20 || s.age > 160) {
+      s.alive = false; continue;
+    }
+    if (boss && boss.state === 'fight') {
+      if (Math.hypot(s.x - boss.x, s.y - boss.y) < 30 + s.r) {
+        damageBoss(s, boss); s.alive = false;
+      }
+    }
+    for (const e of enemies) {
+      if (!e.alive || s.hitSet.has(e)) continue;
+      if (Math.hypot(s.x - e.x, s.y - e.y) < e.r + s.r) {
+        s.hitSet.add(e);
+        damageEnemy(e, s);
+        if (s.pierce > 0) { s.pierce--; } else { s.alive = false; break; }
+      }
+    }
+  }
+  shots2 = shots2.filter(s => s.alive);
+}
+
+function damageEnemy(e, s) {
+  // 【符箓缝合 #1】护盾朝向决定这一发是正面还是背击
+  const shotAng = Math.atan2(s.vy, s.vx);
+  const fromBack = isFromBack(shotAng, e.shieldAng + e.shieldRot);
+  const mul = fromBack ? 2.5 : 1.0;
+  const dmg = s.dmg * mul;
+  e.hp -= dmg; e.flash = 4;
+  burst(s.x, s.y, fromBack ? 9 : 3, fromBack ? COL.gold.glow : COL.cyan.glow,
+        fromBack ? 4 : 2.6, .22);
+  if (fromBack) {
+    showFloat(e.x, e.y - 12, '背击', COL.gold.glow);
+    run.score += 60;
+    e.knock = 3.5;
+    const a = shotAng;
+    e.kx = Math.cos(a) * 3.4; e.ky = Math.sin(a) * 3.4;
+  }
+  if (e.hp <= 0) killEnemy(e);
+}
+
+function killEnemy(e) {
+  e.alive = false;
+  run.score += e.score;
+  burst(e.x, e.y, 16, COL.cyan.glow, 4.4, .4);
+  run.shake = Math.max(run.shake, 3.5);
+  for (let i = 0; i < 6; i++) dropPickup(e.x, e.y);
+  if (Math.random() < .22) dropPickup(e.x, e.y, 'bomb');
+  if (Math.random() < .07) dropPickup(e.x, e.y, 'life');
+}
+
+function damageBoss(s, b) {
+  const shotAng = Math.atan2(s.vy, s.vx);
+  const fromBack = isFromBack(shotAng, b.shieldAng + b.shieldRot);
+  b.cardHp -= s.dmg * (fromBack ? 2.5 : 1.0);
+  b.flash = 3;
+  burst(s.x, s.y, fromBack ? 9 : 2, fromBack ? COL.gold.glow : COL.cyan.glow,
+        fromBack ? 4 : 2.6, .22);
+  if (fromBack) { run.score += 80; showFloat(b.x, b.y - 40, '背击', COL.gold.glow); }
+  if (b.cardHp <= 0) {
+    // 【东方缝合 #3】符卡击破 → 按剩余时间比例给奖励
+    // timeLeft 是帧，分母也要用帧总量
+    const totalF = (b.card.timeSec || b.card.time) * FPS;
+    const bonus = Math.round(180000 * (b.card.timeLeft / totalF)) + 70000;
+    run.score += bonus;
+    run.cleared++;
+    setBanner('符卡击破', `+${bonus.toLocaleString()}`, COL.gold.glow, 120);
+    burst(b.x, b.y, 44, COL.gold.glow, 6, .85);
+    run.flash = .8; run.shake = 9;
+    for (let i = 0; i < 8; i++) dropPickup(b.x + rnd(-34, 34), b.y + rnd(-18, 18));
+    b.state = 'next'; b.stateT = 0;
+  }
+}
+
+/* ---- 【元气缝合 #3】补给舱：幸运决定品质 ---- */
+function crateTier(fortune) {
+  const w = [
+    { k:'white',  name:'补给舱', p: Math.max(10, 52 - fortune * 9),  n:1, col:'#c9b98f' },
+    { k:'blue',   name:'扩容舱', p: Math.max(10, 28 + fortune * 1),  n:1, col:'#5fe0ff' },
+    { k:'purple', name:'强化舱', p: Math.max(4, 11 + fortune * 3.2), n:2, col:'#b98cff' },
+    // ⚠️ 这一行原来写的是 ' overclock 舱'（前导空格 + 中英混排）。
+    //   dropCrate(x, y, 'red') 那条路径会被下面的覆盖改成中文，
+    //   但**随机抽到红舱**时走的就是这个默认值 →
+    //   面板会显示「开出一个  overclock 舱。」。统一成中文。
+    { k:'red',    name:'超频舱', p: Math.max(0.5, 1.5 + fortune * 1.5), n:3, col:'#ffd76e' },
+  ];
+  const total = w.reduce((a, b) => a + b.p, 0);
+  let r = Math.random() * total;
+  for (const x of w) { r -= x.p; if (r <= 0) return x; }
+  return w[0];
+}
+
+function dropCrate(x, y, tier) {
+  // ⚠️ 原来第二个分支写的是 `crateTier(WS.fortune + pl.fortune * 0)` ——
+  //   那个 `* 0` 把 pl.fortune 抹成 0，而 pl.fortune 本身从没被任何升级写过
+  //   （幸运升级加的是 WS.fortune）。纯属死代码，去掉。
+  const t = tier ? crateTier(-99) : crateTier(WS.fortune);
+  if (tier === 'red') { t.k = 'red'; t.name = '超频舱'; t.n = 3; t.col = COL.gold.glow; t.p = 1; }
+  crates.push({ x: clamp(x, 30, FIELD_W - 30), y: clamp(y, 30, H - 30),
+                r: 14, tier: t, opened: false, t: 0, bob: Math.random() * TAU });
+}
+
+function dropPickup(x, y, kind) {
+  crates.push({ x: clamp(x, 12, FIELD_W - 12), y: clamp(y, 12, H - 12),
+                r: 7, kind: kind || 'point', opened: true, t: 0, vy: -1.4,
+                bob: Math.random() * TAU });
+}
+
+let pendingUpgrade = null;
+
+function openCrate(c) {
+  if (c.opened || c.kind) { collectPickup(c); return; }
+  c.opened = true;
+  run.cratesOpened++;
+  run.score += { white: 30000, blue: 80000, purple: 160000, red: 400000 }[c.tier.k] || 30000;
+  burst(c.x, c.y, 26, c.tier.col, 4.4, .7);
+  run.shake = 6;
+  const opts = rollUpgrades(c.tier.n, c.tier.k);
+  if (opts.length) { pendingUpgrade = { opts, tier: c.tier }; }
+  else run.hint = '没有可提升的项目了';
+}
+
+function rollUpgrades(n, tierK) {
+  const pool = UPG.filter(u => (pl.levels[u.id] || 0) < u.max);
+  const out = [], bag = pool.slice();
+  while (out.length < Math.min(n, bag.length)) {
+    let idx;
+    // 红/紫舱偏向武器，白/蓝舱偏向被动 —— 让品质影响开箱手感
+    const biasWeapon = tierK === 'red' || tierK === 'purple';
+    if (!biasWeapon) idx = rndi(0, bag.length - 1);
+    else {
+      let ws = bag.reduce((a, u) => a + (u.kind === 'weapon' ? 3 : 1), 0);
+      let r = Math.random() * ws;
+      idx = bag.length - 1;
+      for (let i = 0; i < bag.length; i++) {
+        r -= (bag[i].kind === 'weapon' ? 3 : 1);
+        if (r <= 0) { idx = i; break; }
+      }
+    }
+    out.push(bag.splice(idx, 1)[0]);
+  }
+  return out;
+}
+
+function collectPickup(c) {
+  if (c.kind === 'point') {
+    if (pl.power < WS.powerMax) pl.power = Math.min(WS.powerMax, pl.power + .04);
+    run.score += 400;
+  } else if (c.kind === 'bomb') {
+    if (pl.bombs < pl.bombsMax) { pl.bombs++; showFloat(pl.x, pl.y - 32, 'BOMB +1', COL.jade.glow); }
+    else run.score += 6000;
+  } else if (c.kind === 'life') {
+    if (pl.lives < pl.maxLives) { pl.lives++; showFloat(pl.x, pl.y - 32, '残机 +1', COL.rose.glow); }
+    else run.score += 30000;
+  }
+  c.gone = true;
+}
+
+function updateCrates(dt) {
+  for (const c of crates) {
+    c.t += dt; c.bob += .05;
+    if (c.vy) { c.y += c.vy * dt; c.vy *= .96; }
+    // 磁力吸附
+    if (!c.opened || c.kind) {
+      const dd = Math.hypot(c.x - pl.x, c.y - pl.y);
+      if (dd < 78) {
+        const a = Math.atan2(pl.y - c.y, pl.x - c.x);
+        const pull = (1 - dd / 78) * 4.6;
+        c.x += Math.cos(a) * pull * dt;
+        c.y += Math.sin(a) * pull * dt;
+      }
+      if (dd < 22) {
+        if (c.kind) { collectPickup(c); c.gone = true; continue; }
+        if (!c.opened) openCrate(c);
+      }
+    }
+    if (c.y > H + 30) c.gone = true;
+  }
+  crates = crates.filter(c => !c.gone);
+}
+
+/* ---- 炸弹 ---- */
+function checkBomb() {
+  // ⚠️ 炸弹原来也挂在 X 上，和「副武器」撞键：
+  //   同一帧先执行上面那句 fireAlt()，再执行这句 useBomb()，
+  //   于是「想放炸弹」永远会顺手打出一发副武器（反之亦然），
+  //   而且 X 按下后立刻被置 false，副武器实际只能单点、永远连发不了。
+  //   → 炸弹改到 C 键（开始面板的提示里本来就写着 C，是代码没跟上）。
+  if (P['c'] && pl.bombs > 0 && pl.dead <= 0) { P['c'] = false; pl.bombs--; useBomb(); }
+}
+
+function useBomb() {
+  run.flash = 1; run.shake = 10;
+  clearBulletsToItem();
+  lasers.length = 0;
+  if (boss && boss.state === 'fight') {
+    b_damageBossByBomb();
+  }
+  for (const e of enemies) {
+    if (!e.alive) continue;
+    e.hp -= 130; e.flash = 8;
+    if (e.hp <= 0) killEnemy(e);
+  }
+  pl.invuln = 190;
+  parts.push({ kind:'ring', x: pl.x, y: pl.y, t:0, life:44, max:660, col: COL.gold.glow });
+  setBanner('BOMB', '', COL.jade.glow, 46);
+}
+function b_damageBossByBomb() {
+  boss.cardHp -= 130;
+  if (boss.cardHp <= 0) {
+    // 与 damageBoss 同一单位换算（timeLeft 是帧）
+    const totalF = (boss.card.timeSec || boss.card.time) * FPS;
+    const bonus = Math.round(180000 * (boss.card.timeLeft / totalF)) + 70000;
+    run.score += bonus; run.cleared++;
+    setBanner('符卡击破', `+${bonus.toLocaleString()}`, COL.gold.glow, 120);
+    for (let i = 0; i < 8; i++) dropPickup(boss.x + rnd(-34,34), boss.y + rnd(-18,18));
+    boss.state = 'next'; boss.stateT = 0;
+  }
+}
+
+function hitPlayer() {
+  if (pl.invuln > 0 || pl.dead > 0 || pl.rolling > 0) return;
+  pl.lives--;
+  run.deaths++;
+  pl.power = 0;
+  pl.bombs = Math.max(0, pl.bombs - 1);
+  run.flash = 1; run.shake = 12;
+  burst(pl.x, pl.y, 26, COL.rose.glow, 5.5, .6);
+  // ⚠️ 这里原本写 `if (pl.lives < 0)` —— 与弹幕版**同一个 off-by-one**：
+  //   lives 从 1 减到 0 时 `0 < 0` 为假 → 游戏不结束。
+  //   症状极隐蔽：HUD 用 `Math.max(0, pl.lives)` 画残机图标，
+  //   于是屏幕上显示「残 0」，玩家却还能无限玩下去（掉命只在死亡瞬间闪一下）。
+  //   判据也抓不到 —— 26 项断言里没有任何一条走到「残机归零」这个边界。
+  //   修：`<= 0`，lives=3 意味着允许 3 次失机。
+  if (pl.lives <= 0) { gameOver(); return; }
+  pl.dead = 62;
+  pl.invuln = 0;
+  bullets.length = 0; lasers.length = 0;
+  pl.x = clamp(pl.x - rnd(60, 130), 30, FIELD_W - 30);
+  pl.y = clamp(pl.y + rnd(-60, 60), 30, H - 30);
+}
+
+function gameOver() {
+  run.over = true;
+  if (run.score > run.hi) { run.hi = run.score; localStorage.setItem('starline_v2_hi', run.hi); }
+  showPanel('p2');
+  document.getElementById('r2s').innerHTML =
+    `得分 <b>${run.score.toLocaleString()}</b>　·　最高 <b>${run.hi.toLocaleString()}</b><br>` +
+    `到达 <b>第 ${run.stage} 关 · ${STAGES[Math.min(run.stage-1, STAGES.length-1)].name}</b><br>` +
+    `擦弹 <b>${run.grazed.toLocaleString()}</b> 次　·　符卡击破 <b>${run.cleared}</b> 张<br>` +
+    `补给舱 <b>${run.cratesOpened}</b> 个　·　失机 <b>${run.deaths}</b> 次` +
+    (run.deaths === 0 ? '<br><span style="color:var(--jade)">无伤通关 —— 翻滚和擦弹都玩明白了。</span>' : '');
+}
+
+function stageClear() {
+  run.score += 400000;
+  if (run.score > run.hi) { run.hi = run.score; localStorage.setItem('starline_v2_hi', run.hi); }
+  showPanel('p3');
+  document.getElementById('r3s').innerHTML =
+    `三关守住了。<br><br>` +
+    `得分 <b>${run.score.toLocaleString()}</b>　·　擦弹 <b>${run.grazed.toLocaleString()}</b> 次<br>` +
+    `符卡击破 <b>${run.cleared}</b> 张　·　补给舱 <b>${run.cratesOpened}</b> 个<br>` +
+    `失机 <b>${run.deaths}</b> 次<br><br>` +
+    `<span style="color:var(--dim);font-size:12px">四层缝合：护盾朝向（符箓）· 判定点与擦弹（东方）· 翻滚无敌帧（元气）· 补给舱三选一（元气）</span>`;
+}
+
+/* ==========================================================================
+   粒子 / 飘字
+   ========================================================================== */
+function burst(x, y, n, col, spd, life) {
+  for (let i = 0; i < n; i++) {
+    const a = Math.random() * TAU, s = spd * rnd(.4, 1.3);
+    parts.push({ kind:'p', x, y, vx: Math.cos(a)*s, vy: Math.sin(a)*s,
+                 t:0, life: life * rnd(.7, 1.3), col });
+  }
+  if (parts.length > 900) parts.splice(0, parts.length - 900);
+}
+function showFloat(x, y, text, col) { parts.push({ kind:'f', x, y, t:0, life:80, text, col }); }
+
+function updateParts(dt) {
+  for (const p of parts) {
+    p.t += dt;
+    if (p.kind === 'p') { p.x += p.vx*dt; p.y += p.vy*dt; p.vx *= .93; p.vy *= .93; }
+    else if (p.kind === 'f') p.y -= .55 * dt;
+  }
+  parts = parts.filter(p => p.t < p.life);
+}
+
+/* ==========================================================================
+   绘制
+   ========================================================================== */
+function draw() {
+  const sx = run.shake > .4 ? rnd(-run.shake, run.shake) : 0;
+  const sy = run.shake > .4 ? rnd(-run.shake, run.shake) : 0;
+  ctx.save(); ctx.translate(sx, sy);
+
+  ctx.fillStyle = '#060812';
+  ctx.fillRect(-10, -10, W + 20, H + 20);
+  for (const s of starBuf) {
+    s.y = (s.y + s.sp) % H;
+    ctx.drawImage(s.c, 0, s.y);
+    if (s.y > 0) ctx.drawImage(s.c, 0, s.y - H);
+  }
+  // 网格地平线，给太空一点纵深
+  ctx.strokeStyle = 'rgba(90,140,255,.07)';
+  ctx.lineWidth = 1;
+  for (let y = 0; y < H; y += 40) { ctx.beginPath(); ctx.moveTo(0, y+.5); ctx.lineTo(FIELD_W, y+.5); ctx.stroke(); }
+
+  drawLasers(); drawCrates(); drawEnemies(); drawBoss();
+  drawBullets(); drawShots(); drawPlayer(); drawParts();
+  ctx.restore();
+  drawHUD();
+  drawBanner();
+  if (run.hintT > 0) {
+    ctx.save();
+    ctx.globalAlpha = Math.min(1, run.hintT / 20);
+    ctx.fillStyle = COL.gold.glow;
+    ctx.font = '14px "Microsoft YaHei",sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(run.hint, FIELD_W / 2, 30);
+    ctx.restore();
+  }
+  if (run.flash > 0) {
+    ctx.fillStyle = `rgba(255,255,255,${Math.min(.75, run.flash*.7).toFixed(3)})`;
+    ctx.fillRect(0, 0, W, H);
+  }
+}
+
+function drawBullets() {
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  for (const b of bullets) {
+    if (b.delay > 0) continue;
+    ctx.globalAlpha = .32 * Math.min(1, b.age / 6);
+    ctx.fillStyle = b.c.glow;
+    ctx.beginPath(); ctx.arc(b.x, b.y, b.r * 2.1, 0, TAU); ctx.fill();
+  }
+  ctx.globalCompositeOperation = 'source-over';
+  for (const b of bullets) {
+    if (b.delay > 0) continue;
+    ctx.save();
+    ctx.translate(b.x, b.y); ctx.rotate(b.rot);
+    ctx.globalAlpha = Math.min(1, b.age / 6);
+    if (b.shape === 'rice') {
+      ctx.fillStyle = b.c.edge;
+      ctx.beginPath(); ctx.ellipse(0, 0, b.r*.62, b.r*1.5, 0, 0, TAU); ctx.fill();
+      ctx.fillStyle = b.c.core;
+      ctx.beginPath(); ctx.ellipse(0, -b.r*.25, b.r*.26, b.r*.62, 0, 0, TAU); ctx.fill();
+    } else if (b.shape === 'big') {
+      ctx.fillStyle = b.c.edge;
+      ctx.beginPath(); ctx.arc(0,0,b.r,0,TAU); ctx.fill();
+      ctx.fillStyle = b.c.core;
+      ctx.beginPath(); ctx.arc(-b.r*.18, -b.r*.2, b.r*.46, 0, TAU); ctx.fill();
+    } else {
+      ctx.fillStyle = b.c.edge;
+      ctx.beginPath(); ctx.arc(0,0,b.r,0,TAU); ctx.fill();
+      ctx.fillStyle = b.c.core;
+      ctx.beginPath(); ctx.arc(-b.r*.22, -b.r*.24, b.r*.42, 0, TAU); ctx.fill();
+    }
+    ctx.restore();
+  }
+  ctx.restore();
+}
+
+function drawShots() {
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  for (const s of shots2) {
+    ctx.globalAlpha = .45; ctx.fillStyle = s.col.glow;
+    ctx.beginPath(); ctx.arc(s.x, s.y, s.r * 2.3, 0, TAU); ctx.fill();
+  }
+  ctx.globalCompositeOperation = 'source-over';
+  for (const s of shots2) {
+    ctx.globalAlpha = 1; ctx.fillStyle = s.col.core;
+    ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, TAU); ctx.fill();
+  }
+  ctx.restore();
+}
+
+function drawLasers() {
+  for (const L of lasers) {
+    ctx.save();
+    ctx.translate(L.x, L.y); ctx.rotate(L.ang);
+    const warning = L.t < L.warn;
+    if (warning) {
+      ctx.globalAlpha = .28 + .4 * Math.abs(Math.sin(L.t * .5));
+      ctx.strokeStyle = L.col.glow; ctx.lineWidth = 1.5;
+      ctx.setLineDash([7, 9]);
+      ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(L.len,0); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.globalAlpha = .55; ctx.fillStyle = L.col.edge;
+      ctx.beginPath(); ctx.arc(0, 0, L.w/2 * (0.4 + (L.t/L.warn)*0.6), 0, TAU); ctx.fill();
+    } else {
+      const k = Math.min(1, (L.t - L.warn) / 5);
+      const fade = Math.min(1, (L.warn + L.life - L.t) / 8);
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.globalAlpha = fade * .35; ctx.fillStyle = L.col.glow;
+      ctx.fillRect(0, -L.w, L.len, L.w * 2);
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.globalAlpha = fade; ctx.fillStyle = L.col.edge;
+      ctx.fillRect(0, -L.w/2 * k, L.len, L.w * k);
+      ctx.fillStyle = L.col.core;
+      ctx.fillRect(0, -L.w * .16 * k, L.len, L.w * .32 * k);
+      ctx.globalAlpha = fade * .5;
+      ctx.beginPath(); ctx.arc(L.len, 0, L.w * .7, 0, TAU); ctx.fill();
+    }
+    ctx.restore();
+  }
+}
+
+/** 敌舰：本体 + 明显的护盾弧线（玩家要能一眼看出盾朝哪） */
+function drawEnemies() {
+  for (const e of enemies) {
+    ctx.save();
+    ctx.translate(e.x, e.y);
+    const c = e.flash > 0 ? '#fff' : COL.white;
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = .18; ctx.fillStyle = COL.blue.glow;
+    ctx.beginPath(); ctx.arc(0, 0, e.r * 2.1, 0, TAU); ctx.fill();
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 1;
+    // 机体：朝左的箭头形
+    ctx.fillStyle = e.flash > 0 ? '#fff' : '#1b2246';
+    ctx.strokeStyle = COL.blue.edge; ctx.lineWidth = 1.8;
+    ctx.beginPath();
+    ctx.moveTo(e.r, 0); ctx.lineTo(-e.r*.7, -e.r*.75);
+    ctx.lineTo(-e.r*.35, 0); ctx.lineTo(-e.r*.7, e.r*.75);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = COL.blue.core;
+    ctx.beginPath(); ctx.arc(e.r*.1, 0, e.r*.22, 0, TAU); ctx.fill();
+    // 护盾弧：正对 shieldAng 的半圆，背面那侧是开口
+    const sa = e.shieldAng + e.shieldRot;
+    ctx.strokeStyle = COL.jade.glow; ctx.lineWidth = 3.5;
+    ctx.globalAlpha = .9;
+    ctx.beginPath(); ctx.arc(0, 0, e.r + 7, sa - 1.05, sa + 1.05); ctx.stroke();
+    ctx.globalAlpha = .18; ctx.lineWidth = 9;
+    ctx.beginPath(); ctx.arc(0, 0, e.r + 7, sa - 1.05, sa + 1.05); ctx.stroke();
+    ctx.globalAlpha = 1;
+    // 血条
+    if (e.hp < e.maxHp) {
+      const w = e.r * 1.8, pct = Math.max(0, e.hp / e.maxHp);
+      ctx.fillStyle = 'rgba(0,0,0,.6)';
+      ctx.fillRect(-w/2, -e.r - 13, w, 3);
+      ctx.fillStyle = COL.jade.glow;
+      ctx.fillRect(-w/2, -e.r - 13, w * pct, 3);
+    }
+    ctx.restore();
+  }
+}
+
+function drawBoss() {
+  const b = boss;
+  if (!b) return;
+  ctx.save();
+  ctx.translate(b.x, b.y);
+  ctx.rotate(b.rot);
+  const c = COL.violet;
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.globalAlpha = .22; ctx.fillStyle = c.glow;
+  ctx.beginPath(); ctx.arc(0, 0, 62, 0, TAU); ctx.fill();
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.globalAlpha = 1;
+  ctx.strokeStyle = c.edge; ctx.lineWidth = 2; ctx.globalAlpha = .6;
+  ctx.beginPath(); ctx.arc(0, 0, 40, 0, TAU); ctx.stroke();
+  ctx.globalAlpha = .35;
+  ctx.beginPath(); ctx.arc(0, 0, 52, .4, 2.4); ctx.stroke();
+  ctx.beginPath(); ctx.arc(0, 0, 52, 3.6, 5.6); ctx.stroke();
+  ctx.globalAlpha = 1;
+  ctx.rotate(-b.rot);
+  ctx.fillStyle = b.flash > 0 ? '#fff' : '#191f42';
+  ctx.strokeStyle = c.glow; ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  for (let i = 0; i < 6; i++) {
+    const a = i * TAU / 6;
+    ctx.lineTo(Math.cos(a) * 30, Math.sin(a) * 30);
+  }
+  ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = c.core;
+  ctx.beginPath(); ctx.arc(0, 0, 12, 0, TAU); ctx.fill();
+  ctx.restore();
+
+  // Boss 护盾弧（同样画在世界里，看得见朝向）
+  ctx.save();
+  ctx.translate(b.x, b.y);
+  const sa = b.shieldAng + b.shieldRot;
+  ctx.strokeStyle = COL.jade.glow; ctx.lineWidth = 5; ctx.globalAlpha = .9;
+  ctx.beginPath(); ctx.arc(0, 0, 38, sa - 1.0, sa + 1.0); ctx.stroke();
+  ctx.globalAlpha = .16; ctx.lineWidth = 14;
+  ctx.beginPath(); ctx.arc(0, 0, 38, sa - 1.0, sa + 1.0); ctx.stroke();
+  ctx.restore();
+}
+
+function drawPlayer() {
+  if (pl.dead > 0) return;
+  if (pl.invuln > 0 && Math.floor(pl.invuln / 4) % 2 === 0) return;
+  ctx.save();
+  ctx.translate(pl.x, pl.y);
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.globalAlpha = .20; ctx.fillStyle = COL.cyan.glow;
+  ctx.beginPath(); ctx.arc(0, 0, 22, 0, TAU); ctx.fill();
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.globalAlpha = 1;
+  // 机体：原创「巡卫」三角翼
+  ctx.fillStyle = pl.rolling > 0 ? COL.violet.glow : '#dff4ff';
+  ctx.strokeStyle = COL.cyan.edge; ctx.lineWidth = 1.6;
+  ctx.beginPath();
+  ctx.moveTo(14, 0); ctx.lineTo(-8, -9); ctx.lineTo(-4, 0); ctx.lineTo(-8, 9);
+  ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = COL.gold.glow;
+  ctx.beginPath(); ctx.arc(2, 0, 2.6, 0, TAU); ctx.fill();
+  ctx.restore();
+
+  // 【东方缝合】判定点：极小。Shift 精确模式时显形（比符箓版更直观）
+  if (P['Shift']) {
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = .3; ctx.fillStyle = COL.rose.glow;
+    ctx.beginPath(); ctx.arc(pl.x, pl.y, 8, 0, TAU); ctx.fill();
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = COL.rose.edge;
+    ctx.beginPath(); ctx.arc(pl.x, pl.y, pl.hitR, 0, TAU); ctx.fill();
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 1; ctx.globalAlpha = .7;
+    ctx.beginPath(); ctx.arc(pl.x, pl.y, pl.grazeR, 0, TAU); ctx.stroke();
+    ctx.restore();
+  }
+  // 翻滚冷却环
+  if (pl.rollT > 0) {
+    const k = 1 - pl.rollT / pl.rollCd;
+    ctx.save();
+    ctx.strokeStyle = COL.violet.glow; ctx.lineWidth = 2; ctx.globalAlpha = .55;
+    ctx.beginPath(); ctx.arc(pl.x, pl.y, 19, -Math.PI/2, -Math.PI/2 + TAU * k); ctx.stroke();
+    ctx.restore();
+  }
+}
+
+/** 补给舱 / 掉落物 */
+function drawCrates() {
+  for (const c of crates) {
+    if (c.kind) {
+      const bob = Math.sin(c.bob) * 1.4;
+      ctx.save(); ctx.translate(c.x, c.y + bob);
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.globalAlpha = .28; ctx.fillStyle = COL.cyan.glow;
+      ctx.beginPath(); ctx.arc(0, 0, 9, 0, TAU); ctx.fill();
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = c.kind === 'life' ? COL.rose.core : c.kind === 'bomb' ? COL.jade.core : COL.cyan.core;
+      ctx.beginPath();
+      for (let i = 0; i < 4; i++) {
+        const a = i * TAU/4 - Math.PI/2;
+        ctx.lineTo(Math.cos(a) * 6, Math.sin(a) * 6);
+      }
+      ctx.closePath(); ctx.fill();
+      ctx.restore();
+      continue;
+    }
+    const bob = Math.sin(c.bob) * 1.8;
+    ctx.save(); ctx.translate(c.x, c.y + bob);
+    if (c.opened) {
+      ctx.globalAlpha = .45; ctx.strokeStyle = c.tier.col; ctx.lineWidth = 2;
+      ctx.strokeRect(-c.r, -c.r*.7, c.r*2, c.r*1.4);
+      ctx.restore(); continue;
+    }
+    // 品质光柱：等级越高越亮
+    const g = ctx.createLinearGradient(0, -c.r*3.4, 0, c.r);
+    g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, c.tier.col);
+    ctx.globalAlpha = .30; ctx.fillStyle = g;
+    ctx.fillRect(-c.r*.7, -c.r*3.4, c.r*1.4, c.r*4);
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = c.tier.col;
+    ctx.strokeStyle = '#05070f'; ctx.lineWidth = 2;
+    ctx.fillRect(-c.r, -c.r*.55, c.r*2, c.r*1.1);
+    ctx.strokeRect(-c.r, -c.r*.55, c.r*2, c.r*1.1);
+    ctx.fillStyle = '#05070f';
+    ctx.fillRect(-c.r, -c.r*.55, c.r*2, 3);
+    ctx.fillStyle = COL.gold.glow;
+    ctx.fillRect(-2.5, -c.r*.55, 5, 7);
+    ctx.restore();
+  }
+}
+
+function drawParts() {
+  ctx.save();
+  for (const p of parts) {
+    const k = 1 - p.t / p.life;
+    if (p.kind === 'p') {
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.globalAlpha = Math.max(0, k) * .8; ctx.fillStyle = p.col;
+      ctx.beginPath(); ctx.arc(p.x, p.y, Math.max(.4, 2.6 * k), 0, TAU); ctx.fill();
+    } else if (p.kind === 'f') {
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.globalAlpha = Math.max(0, k);
+      ctx.fillStyle = p.col; ctx.font = 'bold 12px "Microsoft YaHei",sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(p.text, p.x, p.y);
+    } else if (p.kind === 'ring') {
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.globalAlpha = Math.max(0, k) * .7;
+      ctx.strokeStyle = p.col; ctx.lineWidth = 3 + 6 * k;
+      ctx.beginPath(); ctx.arc(p.x, p.y, (1 - k) * 330, 0, TAU); ctx.stroke();
+    }
+  }
+  ctx.restore();
+}
+
+function drawHUD() {
+  const x = FIELD_W + 8, w = W - FIELD_W - 8;
+  ctx.save();
+  ctx.fillStyle = 'rgba(6,8,22,.9)';
+  ctx.fillRect(FIELD_W + 1, 0, w - 1, H);
+  let y = 10;
+  const lab = t => { ctx.fillStyle = '#5c6296'; ctx.font = '9px Consolas,monospace';
+                     ctx.fillText(t, x, y); y += 11; };
+  const val = (t, c, sz) => { ctx.fillStyle = c; ctx.font = (sz||14)+'px Consolas,monospace';
+                              ctx.fillText(t, x, y); y += (sz||14) + 5; };
+
+  lab('SCORE'); val(run.score.toLocaleString(), COL.gold.glow, 13);
+  lab('HI'); val(Math.max(run.hi, run.score).toLocaleString(), '#8a90c4', 10);
+  y += 6;
+
+  // 残机
+  ctx.fillStyle = '#5c6296'; ctx.font = '9px Consolas,monospace';
+  ctx.fillText('LIVES', x, y); y += 12;
+  for (let i = 0; i < Math.max(0, pl.lives); i++) {
+    ctx.fillStyle = COL.rose.glow;
+    ctx.beginPath(); ctx.arc(x + 4 + i * 11, y + 4, 4, 0, TAU); ctx.fill();
+  }
+  y += 15;
+  // 炸弹
+  ctx.fillStyle = '#5c6296'; ctx.font = '9px Consolas,monospace';
+  ctx.fillText('BOMB', x, y); y += 12;
+  for (let i = 0; i < pl.bombsMax; i++) {
+    ctx.fillStyle = i < pl.bombs ? COL.jade.glow : 'rgba(255,255,255,.12)';
+    ctx.beginPath(); ctx.arc(x + 4 + i * 11, y + 4, 4, 0, TAU); ctx.fill();
+  }
+  y += 17;
+  // 火力
+  ctx.fillStyle = '#5c6296'; ctx.font = '9px Consolas,monospace';
+  ctx.fillText('POWER', x, y); y += 12;
+  const pw = pl.power / WS.powerMax;
+  ctx.fillStyle = 'rgba(255,255,255,.10)';
+  ctx.fillRect(x, y, w - 14, 7);
+  ctx.fillStyle = pw >= 1 ? COL.gold.glow : COL.cyan.glow;
+  ctx.fillRect(x, y, (w - 14) * pw, 7);
+  ctx.fillStyle = '#dfe6ff'; ctx.font = '9px Consolas,monospace';
+  ctx.fillText(pl.power.toFixed(2), x, y + 10);
+  y += 25;
+  // 擦弹 / 幸运 / 关卡
+  lab('GRAZE'); val(run.grazed.toLocaleString(), COL.jade.glow, 12);
+  lab('FORTUNE'); val(String(WS.fortune), COL.violet.glow, 12);
+  lab('SECTOR');
+  ctx.fillStyle = '#dfe6ff'; ctx.font = '11px Consolas,monospace';
+  ctx.fillText(Math.min(run.stage, STAGES.length) + ' / ' + STAGES.length, x, y); y += 20;
+
+  // Boss 符卡
+  if (boss) {
+    const bw = w - 14, by = H - 158;
+    ctx.fillStyle = '#5c6296'; ctx.font = '9px Consolas,monospace';
+    ctx.fillText('BOSS', x, by - 12);
+    ctx.fillStyle = 'rgba(255,255,255,.10)';
+    ctx.fillRect(x, by, bw, 8);
+    if (boss.state === 'fight' && boss.card) {
+      const pct = Math.max(0, boss.cardHp / boss.card.hp);
+      ctx.fillStyle = pct > .35 ? COL.gold.glow : COL.rose.glow;
+      ctx.fillRect(x, by, bw * pct, 8);
+      const tpF = (boss.card.timeSec || boss.card.time) * FPS;
+      const tp = Math.max(0, boss.card.timeLeft / tpF);
+      ctx.fillStyle = 'rgba(255,255,255,.16)';
+      ctx.fillRect(x, by + 10, bw, 3);
+      ctx.fillStyle = tp > .3 ? '#8a90c4' : COL.rose.edge;
+      ctx.fillRect(x, by + 10, bw * tp, 3);
+      ctx.fillStyle = '#dfe6ff'; ctx.font = '9px Consolas,monospace';
+      ctx.fillText('T ' + Math.ceil(boss.card.timeLeft / FPS) + 's', x, by + 16);
+      ctx.save();
+      ctx.translate(x + bw - 2, by + 30);
+      ctx.font = '10px "Microsoft YaHei",sans-serif';
+      ctx.fillStyle = COL.gold.glow;
+      for (let i = 0; i < boss.card.name.length; i++)
+        ctx.fillText(boss.card.name[i], 0, i * 11);
+      ctx.restore();
+    }
+    ctx.fillStyle = '#b9c1e0'; ctx.font = '9px "Microsoft YaHei",sans-serif';
+    ctx.fillText(boss.is.name, x, H - 26);
+  }
+  ctx.restore();
+}
+
+function drawBanner() {
+  if (run.bannerT <= 0) return;
+  const b = run.banner, k = Math.min(1, run.bannerT / 18);
+  ctx.save();
+  ctx.globalAlpha = k;
+  ctx.fillStyle = 'rgba(4,6,18,.72)';
+  ctx.fillRect(0, H/2 - 34, FIELD_W, 68);
+  ctx.strokeStyle = b.col; ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(0, H/2-34); ctx.lineTo(FIELD_W, H/2-34);
+  ctx.moveTo(0, H/2+34); ctx.lineTo(FIELD_W, H/2+34);
+  ctx.stroke();
+  ctx.textAlign = 'center';
+  ctx.fillStyle = b.col; ctx.font = '21px "Microsoft YaHei",sans-serif';
+  ctx.fillText(b.main, FIELD_W/2, H/2 - 12);
+  if (b.sub) { ctx.fillStyle = '#8a90c4'; ctx.font = '10px Consolas,monospace';
+               ctx.fillText(b.sub, FIELD_W/2, H/2 + 9); }
+  ctx.restore();
+}
+
+/* ==========================================================================
+   三选一面板
+   ========================================================================== */
+function showUpgrade(pend) {
+  if (!pend) return;
+  run.choosing = true;
+  document.getElementById('c4t').innerHTML =
+    `开出一个 <b style="color:${pend.tier.col}">${pend.tier.name}</b>。` +
+    `红/紫舱更容易出<b>武器</b>，白/蓝舱更多<b>被动</b>。`;
+  const box = document.getElementById('c4c');
+  box.innerHTML = '';
+  pend.opts.forEach((u, i) => {
+    const lv = pl.levels[u.id] || 0;
+    const d = document.createElement('div');
+    d.className = 'card';
+    d.innerHTML =
+      `<div class="lv">${lv > 0 ? 'Lv'+lv+'→'+(lv+1) : '新'}</div>` +
+      `<div class="ic" style="background:${u.col}">${u.icon}</div>` +
+      `<div class="nm">${u.name}</div>` +
+      `<div class="ds">${u.desc}</div>`;
+    d.onclick = () => { takeUpgrade(u); hideUpgrade(); };
+    box.appendChild(d);
+  });
+  // 快捷键提示按**实际选项数**渲染（和元气同病）：
+  // 原来写死「按 1 2 3」，但舱的品质决定给几个选项
+  // （红/紫 3 个、白/蓝 2 个）—— 截图里只有 2 个却提示按 3，
+  // 玩家按 3 没反应会以为键盘坏了。
+  document.getElementById('c4k').innerHTML =
+    '按 ' + pend.opts.map((_, i) => `<span class="k">${i + 1}</span>`).join(' ') + ' 也能选';
+  showPanel('p4');
+}
+function hideUpgrade() { run.choosing = false; showPanel(null); pendingUpgrade = null; }
+
+function takeUpgrade(u) {
+  // 两个对象都传进去：w = 武器/全局数值表，p = 玩家属性。
+  // 曾经只传 WS，导致改玩家属性的升级（迅捷/扩容/翻滚大师…）全部无效。
+  u.apply(WS, pl);
+  pl.levels[u.id] = (pl.levels[u.id] || 0) + 1;
+  run.hint = '获得 ' + u.name; run.hintT = 80;
+}
+
+/* ==========================================================================
+   主循环 / 输入 / 面板
+   ========================================================================== */
+function frame(ts) {
+  if (!loopOn) { raf = 0; return; }
+  raf = requestAnimationFrame(frame);
+  if (!lastTs) lastTs = ts;
+  let dt = (ts - lastTs) / 16.6667;
+  lastTs = ts;
+  dt = clamp(dt, 0, 3);
+  if (run.scene === 'play' && !run.paused && !run.over && !run.choosing) update(dt);
+  if (run.scene !== 'title') draw(); else drawIdle();
+  tickLive();
+}
+
+function drawIdle() {
+  run.t += 1;
+  ctx.fillStyle = '#060812';
+  ctx.fillRect(0, 0, W, H);
+  for (const s of starBuf) {
+    s.y = (s.y + s.sp) % H;
+    ctx.drawImage(s.c, 0, s.y);
+    if (s.y > 0) ctx.drawImage(s.c, 0, s.y - H);
+  }
+  // 一圈绕行的敌舰，各带一面盾 —— 直接展示「护盾朝向」这条缝合规则
+  if (!run._demo) {
+    run._demo = [];
+    for (let i = 0; i < 8; i++)
+      run._demo.push({ a: i * TAU / 8, r: 128, x: 0, y: 0, sh: rnd(0, TAU) });
+  }
+  for (const d of run._demo) {
+    const a = run.t * .016 + d.a;
+    d.x = FIELD_W/2 + Math.cos(a) * d.r;
+    d.y = H/2 + Math.sin(a) * d.r * .68;
+    ctx.save(); ctx.translate(d.x, d.y);
+    ctx.fillStyle = '#1b2246'; ctx.strokeStyle = COL.blue.edge; ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.moveTo(13, 0); ctx.lineTo(-7, -6); ctx.lineTo(-3, 0); ctx.lineTo(-7, 6);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+    const sa = d.sh + run.t * .02;
+    ctx.strokeStyle = COL.jade.glow; ctx.lineWidth = 3; ctx.globalAlpha = .85;
+    ctx.beginPath(); ctx.arc(0, 0, 13, sa - 1.05, sa + 1.05); ctx.stroke();
+    ctx.restore();
+  }
+  // 主角在中间绕小圈
+  const pa = run.t * .03;
+  const px = FIELD_W/2 + Math.cos(pa) * 46, py = H/2 + Math.sin(pa) * 30;
+  ctx.save(); ctx.translate(px, py);
+  ctx.fillStyle = '#dff4ff'; ctx.strokeStyle = COL.cyan.edge; ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(12, 0); ctx.lineTo(-7, -8); ctx.lineTo(-3, 0); ctx.lineTo(-7, 8);
+  ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.restore();
+}
+
+function fit() {
+  const s = Math.min(innerWidth / W, innerHeight / H, 1.15);
+  cv.style.width = (W * s) + 'px';
+  cv.style.height = (H * s) + 'px';
+}
+addEventListener('resize', fit);
+
+const KEYS = {
+  ArrowLeft:'ArrowLeft', ArrowRight:'ArrowRight', ArrowUp:'ArrowUp', ArrowDown:'ArrowDown',
+  z:'z', Z:'z', x:'x', X:'x', c:'c', C:'c', Shift:'Shift',
+};
+addEventListener('keydown', e => {
+  const k = KEYS[e.key];
+  if (k) { P[k] = true; e.preventDefault(); }
+  if (e.key === 'p' || e.key === 'P') togglePause();
+  if (run.choosing && pendingUpgrade) {
+    const i = { '1':0, '2':1, '3':2 }[e.key];
+    if (i != null && pendingUpgrade.opts[i]) { takeUpgrade(pendingUpgrade.opts[i]); hideUpgrade(); }
+  }
+});
+addEventListener('keyup', e => {
+  const k = KEYS[e.key];
+  if (k) { P[k] = false; e.preventDefault(); }
+  // 炸弹（C）只在按下那一帧触发，抬起时不需要额外处理 —— 'c' 已在 KEYS 里。
+});
+
+function togglePause() {
+  if (run.scene !== 'play' || run.over || run.choosing) return;
+  run.paused = !run.paused;
+  showPanel(run.paused ? 'p1' : null);
+}
+
+function showPanel(id) {
+  ['p0','p1','p2','p3','p4'].forEach(p => {
+    const el = document.getElementById(p);
+    if (el) el.style.display = (p === id) ? '' : 'none';
+  });
+  document.getElementById('tip').style.display = (id && id !== 'p4') ? 'none' : '';
+}
+
+function start() {
+  cancelAnimationFrame(raf);
+  WS = weaponStats();
+  newRun();
+  run.scene = 'play';
+  // ⚠️ 必须清掉上一局的待选升级：pendingUpgrade 是模块级变量，
+  //   重开一局时若残留，新局第一帧就会弹出上一把没选完的面板。
+  pendingUpgrade = null;
+  showPanel(null);
+  lastTs = 0; loopOn = true;
+  raf = requestAnimationFrame(frame);
+}
+
+document.getElementById('b0').onclick = start;
+document.getElementById('b1').onclick = togglePause;
+document.getElementById('b2').onclick = start;
+document.getElementById('b3').onclick = start;
+
+/* 开箱后自动弹三选一 —— 已折进 update() 末尾，见那里的注释。
+   这里原本是一个独立的 requestAnimationFrame 循环，会绕开 freeze()，
+   让无头测试里的 step() 与真实帧率赛跑。 */
+
+function tickLive() {
+  const el = document.getElementById('live');
+  if (run.scene !== 'play') { el.style.display = 'none'; return; }
+  el.style.display = 'flex';
+  el.innerHTML =
+    `<span><i>分</i><b>${run.score.toLocaleString()}</b></span>` +
+    `<span><i>关</i><b>${Math.min(run.stage,3)}/3</b></span>` +
+    `<span><i>擦</i><b>${run.grazed}</b></span>` +
+    `<span><i>火</i><b>${pl.power.toFixed(2)}</b></span>` +
+    `<span><i>残</i><b>${Math.max(0,pl.lives)}</b></span>` +
+    `<span><i>弹</i><b>${bullets.length}</b></span>` +
+    `<span><i>幸运</i><b>${WS.fortune}</b></span>` +
+    `<span><i>阶段</i><b>${boss ? (boss.card ? boss.card.name : boss.state) : '杂兵'}</b></span>`;
+}
+
+/* ==========================================================================
+   测试接口
+   ========================================================================== */
+window.__SL = {
+  get run() { return run; },
+  get pl() { return pl; },
+  get bullets() { return bullets; },
+  get enemies() { return enemies; },
+  get boss() { return boss; },
+  get crates() { return crates; },
+  get lasers() { return lasers; },
+  get pendingUpgrade() { return pendingUpgrade; },
+  get WS() { return WS; },
+  UPG, COL, STAGES, PAT,
+  start,
+  /**
+   * 冻结/恢复自带动画循环，让 step() 成为唯一时钟。
+   * ⚠️ 不加这个接口，页面 rAF 会和测试 step() 赛跑：
+   *    玩家原地挨打 → 掉光残机 → run.over=true → step() 全空转 →
+   *    判据全读成「游戏没反应」。症状像 bug，其实测试侧有两个时钟。
+   */
+  freeze() { loopOn = false; cancelAnimationFrame(raf); raf = 0; },
+  unfreeze() { if (!raf) { loopOn = true; lastTs = 0; raf = requestAnimationFrame(frame); } },
+  step(n) { for (let i = 0; i < (n||60); i++)
+              if (run.scene === 'play' && !run.paused && !run.over && !run.choosing) update(1); },
+  key(k, v) { P[k] = v; },
+  mkBullet, mkLaser, useBomb, hitPlayer, damageEnemy, damageBoss, mkShot,
+  isFromBack,                       // 背击判定的唯一真相来源，测试直接调它
+  weaponStats, rollUpgrades, crateTier,
+  /** 直接造一个带盾敌舰，用来测背击倍率 */
+  mkShielded(x, y, shieldAng) {
+    const e = mkEnemy(x, y, { hp: 9999, r: 17, shieldAng, shieldRot: 0, shieldSpin: 0 });
+    e.kind = 'test';
+    enemies.push(e);
+    return e;
+  },
+  /** 直接打一发看伤害多少（走完整伤害路径） */
+  hitWith(e, ang) {
+    const s = mkShot(e.x - 20, e.y, ang, 8, 1.0, 0, COL.white);
+    shots2.push(s);
+    const hp0 = e.hp;
+    updateShots(1);
+    return hp0 - e.hp;
+  },
+  gotoStage(n) {
+    run.stage = n - 1;
+    bullets.length = 0; lasers.length = 0; enemies.length = 0;
+    boss = null; nextStage(); run.waveT = 0; run.waveN = 99;
+  },
+  warp(x, y) { pl.x = x; pl.y = y; pl.invuln = 0; pl.dead = 0; },
+  invuln() { pl.invuln = 99999; },
+  clearRoom() { enemies.forEach(e => { e.alive = false; }); enemies.length = 0; },
+};
+
+/* ---- 启动 ---- */
+newRun();
+run.scene = 'title';
+fit();
+raf = requestAnimationFrame(frame);
+</script>
+</body>
+</html>

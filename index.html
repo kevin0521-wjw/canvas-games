@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>单文件 Canvas 游戏档案</title>
+<style>
+  :root{
+    --bg:#0a0c14; --panel:#131829; --line:#243049; --ink:#e6ebf7; --dim:#8892ad;
+    --gold:#ffc94a; --cyan:#5ec8ff; --jade:#3ddc97; --rose:#ff5b6e; --violet:#a98cff;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:"Segoe UI","Microsoft YaHei",system-ui,sans-serif;line-height:1.7}
+  .wrap{max-width:960px;margin:0 auto;padding:40px 22px 80px}
+  h1{font-size:30px;margin:0 0 6px;letter-spacing:2px;font-weight:600}
+  h1 small{display:block;font-size:12.5px;letter-spacing:3px;color:var(--dim);
+    font-weight:400;margin-top:8px}
+  h2{font-size:15px;letter-spacing:2px;color:var(--dim);font-weight:500;
+    margin:44px 0 14px;padding-bottom:8px;border-bottom:1px solid var(--line)}
+  .stats{display:flex;gap:26px;flex-wrap:wrap;margin:20px 0 0;font-size:13px;color:var(--dim)}
+  .stats b{display:block;font-size:22px;color:var(--gold);font-weight:600;
+    font-family:Consolas,monospace}
+  .grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fill,minmax(290px,1fr))}
+  .card{display:block;text-decoration:none;color:inherit;background:var(--panel);
+    border:1px solid var(--line);border-radius:8px;padding:16px 17px;
+    transition:.16s;position:relative}
+  .card:hover{transform:translateY(-3px);border-color:var(--gold);
+    box-shadow:0 10px 26px rgba(0,0,0,.5)}
+  .card .no{position:absolute;right:14px;top:12px;font-family:Consolas,monospace;
+    font-size:11.5px;color:var(--dim)}
+  .card h3{margin:0 0 3px;font-size:17px;color:var(--gold);font-weight:600}
+  .card h3 em{font-style:normal;font-size:11px;letter-spacing:1.5px;color:var(--dim);
+    margin-left:7px;font-family:Consolas,monospace}
+  .card p{margin:7px 0 0;font-size:13px;color:#b9c1d4}
+  .meta{margin-top:11px;display:flex;gap:14px;flex-wrap:wrap;font-size:11.5px;
+    color:var(--dim);font-family:Consolas,monospace}
+  .meta .ok{color:var(--jade)}
+  .meta .bad{color:var(--rose)}
+  .tl{list-style:none;padding:0;margin:0}
+  .tl li{position:relative;padding:0 0 20px 24px;border-left:1px solid var(--line);
+    margin-left:5px}
+  .tl li:last-child{border-left-color:transparent;padding-bottom:0}
+  .tl li::before{content:"";position:absolute;left:-5px;top:6px;width:9px;height:9px;
+    border-radius:50%;background:var(--line)}
+  .tl li.now::before{background:var(--gold);box-shadow:0 0 10px var(--gold)}
+  .tl .v{font-family:Consolas,monospace;color:var(--gold);font-size:13.5px}
+  .tl .d{color:var(--dim);font-size:12px;margin-left:9px;
+    font-family:Consolas,monospace}
+  .tl .cur{display:inline-block;margin-left:9px;font-size:10.5px;padding:1px 7px;
+    border:1px solid var(--gold);border-radius:2px;color:var(--gold)}
+  .tl .s{font-size:13.5px;color:#c3cadb;margin-top:5px}
+  .tl ul{margin:8px 0 0;padding-left:20px;font-size:13px;color:#aab3c8}
+  .tl ul li{border:0;padding:2px 0;margin:0}
+  .tl ul li::before{display:none}
+  .snap{font-size:12.5px;color:var(--dim);font-family:Consolas,monospace;
+    margin-top:10px;line-height:2}
+  .snap a{color:var(--cyan);text-decoration:none}
+  .snap a:hover{text-decoration:underline}
+  /* manifest 的内联标记渲染出来的行内样式 */
+  code{font-family:Consolas,"Cascadia Mono",monospace;font-size:12.5px;
+    background:rgba(94,200,255,.1);border:1px solid rgba(94,200,255,.22);
+    border-radius:3px;padding:.5px 5px;color:#9fdcff}
+  .ok{color:var(--jade)} .bad{color:var(--rose)}
+  strong{color:#fff;font-weight:600}
+  .warn{background:rgba(255,91,110,.08);border:1px solid rgba(255,91,110,.4);
+    border-radius:6px;padding:11px 14px;font-size:12.5px;color:#ffd4d9;margin-top:14px}
+  footer{margin-top:52px;padding-top:18px;border-top:1px solid var(--line);
+    font-size:12px;color:var(--dim)}
+  a{color:var(--cyan)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>单文件 Canvas 游戏档案
+    <small>FOUR SINGLE-FILE CANVAS GAMES · 零依赖 · 双击即玩</small></h1>
+
+  <div class="stats">
+    <div><b>4</b>款游戏</div>
+    <div><b>92</b>项断言</div>
+    <div><b>4/4</b>判据全绿</div>
+    <div><b>1</b>个历史快照</div>
+    <div><b style="font-size:15px;padding-top:6px">2026-10-12</b>最后更新</div>
+  </div>
+
+  
+
+  <h2>游戏（按交付顺序）</h2>
+  <div class="grid">
+      <a class="card" href="talisman-pinball/index.html">
+        <span class="no">#1</span>
+        <h3>符箓灵弹 · 巧阵<em>TALISMAN PINBALL</em></h3>
+        <p>底部行者走位 + 上方炮台反向联动。金符永不消失 —— 落到底线会自动飞回炮台，所以反弹是路线规划而不是保球操作。敌人头顶有盾向，从背后命中 ×2.5。</p>
+        <div class="meta">
+          <span>弹珠 × 塔防</span>
+          <span class="ok">15 / 15 断言</span>
+        </div>
+      </a>
+      <a class="card" href="touhou-danmaku/index.html">
+        <span class="no">#2</span>
+        <h3>星屑符咒 · 弹幕手记<em>DANMAKU NOTE</em></h3>
+        <p>判定点只有 3.5px，比看到的机体小得多。弹色即语义（红快 / 蓝慢 / 绿螺旋 / 黄分裂 / 紫光柱）。擦弹加分并攒力量，每关 Boss 有符卡，限时内打掉才有奖励。</p>
+        <div class="meta">
+          <span>纵版弹幕射击</span>
+          <span class="ok">22 / 22 断言</span>
+        </div>
+      </a>
+      <a class="card" href="soul-knight/index.html">
+        <span class="no">#3</span>
+        <h3>深渊回响<em>DUNGEON ECHO</em></h3>
+        <p>一房一清，清空才开门。清完掉宝箱，走近自动开（也可按 E），弹出三选一升级。翻滚有无敌帧 —— 血量可以很少，但操作容错必须高。</p>
+        <div class="meta">
+          <span>地牢 Roguelite</span>
+          <span class="ok">24 / 24 断言</span>
+        </div>
+      </a>
+      <a class="card" href="starlane-v2/index.html">
+        <span class="no">#4</span>
+        <h3>星轨防线 v2 · 缝合版<em>STARCALL V2</em></h3>
+        <p>把前三款的机制缝进同一套太空射击骨架：护盾朝向背击 ×2.5（符箓）、小判定点 + 擦弹（东方）、补给舱三选一 + 幸运（元气）、翻滚无敌帧（元气）。每条规则都标了来源。</p>
+        <div class="meta">
+          <span>横版太空射击</span>
+          <span class="ok">31 / 31 断言</span>
+        </div>
+      </a>
+  </div>
+
+  <h2>版本时间线（按时间正序）</h2>
+  <ul class="tl">
+      <li class="now">
+        <span class="v">v1.0.0</span><span class="d">2026-10-12</span><span class="cur">当前</span>
+        <div class="s">四款游戏全部跑到判据全绿，并做了一轮跨游戏缺陷扫描与修缮。这是本档案的<strong>第一个留档版本</strong> —— 此前 games/ 目录不在版本控制里，所以更早的状态没有快照可回填。</div>
+        <ul><li>四款游戏判据全绿（15 / 22 / 24 / 31 项）</li><li>★ starlane-v2：14 项升级里有 5 项写到了没人读的对象上 —— 选了升级数值却一点没变，而且升满后该条目还会从池里消失，等于永久丢掉一个选项</li><li>★ starlane-v2：残机归零不结束游戏（<code>lives &lt; 0</code> 应为 <code>&lt;= 0</code>），HUD 显示「残 0」却还能一直玩</li><li>★ starlane-v2：X 键同时绑了副武器和炸弹 —— 放炸弹会顺手打出一发副武器，且 X 按下即被置 false，副武器永远只能单点</li><li>★ 元气骑士 / starlane-v2：开箱弹面板用的是<strong>独立的 requestAnimationFrame 循环</strong>，<code>freeze()</code> 停不掉它 → 无头测试里有两个时钟，判据随机失败（元气版『按键触发翻滚』实测时好时坏）</li><li>★ 符箓灵弹：<code>tickLive</code> 是自续 rAF 链，每点一次「再来一局」就多一条，多条链同时往同一个 DOM 写</li><li>符箓灵弹：底部提示条写「空格 切换目标」，而空格实际是切换弹道；战符浮字显示的是累计上限而非本次增量</li><li>弹幕版：提示条只写「← → 移动」，漏了上下方向键（竖向弹幕游戏不能上下走是致命的）</li><li>元气版：注释里的房间尺寸停留在第一版的 6×5（实际已是 16×10）</li><li>starlane-v2：红色补给舱默认名是带前导空格的中英混排「 overclock 舱」；<code>pl.fortune * 0</code> 死代码；<code>P.xup</code> 死分支（Alt-Fire 永不触发）</li><li>新增 11 条判据，覆盖此前完全没被验证过的链路：升级池逐项有效性、残机归零、掉落物拾取、四方向移动、副武器命中、按 E 开箱</li><li>新增 <code>_syntaxcheck.js</code> 与 <code>_build_site.js</code>：前者先编译一遍所有 script 与判据（拦住模板字符串里混入反引号这类只会浪费一整轮回归的错误），后者生成本页</li></ul>
+      </li>
+  </ul>
+
+  <h2>历史快照</h2>
+  <p style="font-size:13px;color:var(--dim);margin-top:0">
+    每次改动完成后会把当时的完整版本复制一份到 <code>versions/&lt;日期&gt;/</code>，
+    所以旧版随时可回滚、可对比。快照只增不改。</p>
+  <div class="snap"><div style="margin-bottom:15px">📦 <b>2026-10-12</b>　<span style="color:var(--gold)">v1.0.0</span>　<div style="margin-top:3px"><a href="versions/2026-10-12/talisman-pinball/index.html">符箓灵弹 · 巧阵</a> <span class="ok">15 项</span>　·　<a href="versions/2026-10-12/touhou-danmaku/index.html">星屑符咒 · 弹幕手记</a> <span class="ok">22 项</span>　·　<a href="versions/2026-10-12/soul-knight/index.html">深渊回响</a> <span class="ok">24 项</span>　·　<a href="versions/2026-10-12/starlane-v2/index.html">星轨防线 v2 · 缝合版</a> <span class="ok">31 项</span></div></div></div>
+
+  <footer>
+    四款游戏都是单文件 HTML5 + Canvas 2D：零第三方库、零图片、零音频素材，飞船/角色/粒子/星空全部由代码实时绘制。&lt;br&gt;每款都配一套无头浏览器回归判据（headless Edge + CDP，真实浏览器里跑）。
+  </footer>
+</div>
+</body>
+</html>

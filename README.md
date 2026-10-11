@@ -46,6 +46,7 @@ _build_site.js              ← 用 manifest + _logs 生成 index.html
   verify/diag.js            ← 运行时诊断脚本（按模块变量名逐个 eval）
 
 versions/<日期>/<游戏>/       ← 历史快照，只增不改
+versions/<日期>/_logs/        ← 该版本的回归日志（证明"这一版当时验过、验了几项"）
 _logs/<游戏>.log             ← 最近一次回归的完整输出（首页上的断言数从这里读）
 ```
 
@@ -84,11 +85,13 @@ cd <游戏目录> && node verify/smoke.js index.html __SL
 `index.html` 是唯一源文件，改一次就覆盖一次。所以每次改完跑：
 
 ```bash
-node _snapshot.js          # 复制到 versions/<今天>/
-node _build_site.js        # 首页的「历史快照」区会自动列出
+node _snapshot.js          # 源码 + 判据 + **当次回归日志** → versions/<今天>/
+node _build_site.js        # 首页的「历史快照」区会自动列出，并带上那一版的断言数
 ```
 
 快照只增不改，随时能回滚或对比「昨天那版还能跑、今天这版反而崩了」。
+日志跟版本一起走是刻意的：只留源码的话，半年后你只知道「当时长这样」，
+不知道「当时到底验过没有」。
 
 ## 许可
 

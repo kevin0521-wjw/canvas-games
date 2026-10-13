@@ -1,0 +1,40 @@
+【逐步】start → gotoStage(1) → 每 30 帧采样一次 boss 状态
+  {"时刻":"start 后","scene":"play","paused":false,"over":false,"choosing":false,"stage":1,"boss":false,"note":"step() 只在 scene==play 时推进"}
+  {"时刻":"gotoStage(1) 后","scene":"play","stage":1,"boss":false,"bstate":null,"bci":null,"by":null}
+  {"时刻":"第30帧","scene":"play","over":false,"choosing":false,"boss":false,"bstate":null,"bci":null,"bcardHp":null,"timeLeft":null,"cards":null}
+  {"时刻":"第60帧","scene":"play","over":false,"choosing":false,"boss":false,"bstate":null,"bci":null,"bcardHp":null,"timeLeft":null,"cards":null}
+  {"时刻":"第90帧","scene":"play","over":false,"choosing":false,"boss":false,"bstate":null,"bci":null,"bcardHp":null,"timeLeft":null,"cards":null}
+  {"时刻":"第120帧","scene":"play","over":false,"choosing":false,"boss":false,"bstate":null,"bci":null,"bcardHp":null,"timeLeft":null,"cards":null}
+  {"时刻":"第150帧","scene":"play","over":false,"choosing":false,"boss":false,"bstate":null,"bci":null,"bcardHp":null,"timeLeft":null,"cards":null}
+  {"时刻":"第180帧","scene":"play","over":false,"choosing":false,"boss":false,"bstate":null,"bci":null,"bcardHp":null,"timeLeft":null,"cards":null}
+  {"时刻":"第210帧","scene":"play","over":false,"choosing":false,"boss":false,"bstate":null,"bci":null,"bcardHp":null,"timeLeft":null,"cards":null}
+  {"时刻":"第240帧","scene":"play","over":false,"choosing":false,"boss":false,"bstate":null,"bci":null,"bcardHp":null,"timeLeft":null,"cards":null}
+  {"时刻":"第270帧","scene":"play","over":false,"choosing":false,"boss":false,"bstate":null,"bci":null,"bcardHp":null,"timeLeft":null,"cards":null}
+  {"时刻":"第300帧","scene":"play","over":false,"choosing":false,"boss":false,"bstate":null,"bci":null,"bcardHp":null,"timeLeft":null,"cards":null}
+  {"时刻":"第330帧","scene":"play","over":false,"choosing":false,"boss":false,"bstate":null,"bci":null,"bcardHp":null,"timeLeft":null,"cards":null}
+  {"时刻":"第360帧","scene":"play","over":false,"choosing":false,"boss":false,"bstate":null,"bci":null,"bcardHp":null,"timeLeft":null,"cards":null}
+  {"时刻":"第390帧","scene":"play","over":false,"choosing":false,"boss":false,"bstate":null,"bci":null,"bcardHp":null,"timeLeft":null,"cards":null}
+  {"时刻":"第420帧","scene":"play","over":false,"choosing":false,"boss":false,"bstate":null,"bci":null,"bcardHp":null,"timeLeft":null,"cards":null}
+  {"时刻":"第450帧","scene":"play","over":false,"choosing":false,"boss":false,"bstate":null,"bci":null,"bcardHp":null,"timeLeft":null,"cards":null}
+  {"时刻":"第480帧","scene":"play","over":false,"choosing":false,"boss":false,"bstate":null,"bci":null,"bcardHp":null,"timeLeft":null,"cards":null}
+  {"时刻":"第510帧","scene":"play","over":false,"choosing":false,"boss":false,"bstate":null,"bci":null,"bcardHp":null,"timeLeft":null,"cards":null}
+  {"时刻":"第540帧","scene":"play","over":false,"choosing":false,"boss":false,"bstate":null,"bci":null,"bcardHp":null,"timeLeft":null,"cards":null}
+  {"时刻":"第570帧","scene":"play","over":false,"choosing":false,"boss":false,"bstate":null,"bci":null,"bcardHp":null,"timeLeft":null,"cards":null}
+  {"时刻":"第600帧","scene":"play","over":false,"choosing":false,"boss":false,"bstate":null,"bci":null,"bcardHp":null,"timeLeft":null,"cards":null}
+
+【卡结构】STAGES 各有多少张符卡 + 每张的 hp/time
+  第1关 碎星群（2 张）
+    · 符卡「初式·散射阵列」 hp=150 time=45
+    · 符卡「终式·流星落」 hp=200 time=50
+  第2关 铁壁舰队（2 张）
+    · 符卡「盾阵推进」 hp=225 time=46
+    · 符卡「双螺旋」 hp=260 time=50
+  第3关 虚空母舰（2 张）
+    · 符卡「乱数风暴」 hp=240 time=44
+    · 终符「轨道崩塌」 hp=340 time=66
+
+【run 字段实测】探针用到的那些名字真的存在吗
+  {"cleared":0,"cratesOpened":0,"grazed":0,"deaths":0,"noSpawn":true,"score":0,"stage":1,"bossKeys":"(无 boss)"}
+
+未捕获异常：（无）
+EXIT=0

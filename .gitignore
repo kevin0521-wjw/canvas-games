@@ -3,6 +3,25 @@
 **/_smoke.png
 **/_smoke-*.png
 
+# ⚠️ 平衡性探针（_tools/）自己的 profile 目录同理。
+#   这些脚本用的是「Node fs 兜底删」而不是外部命令 —— 而本机 fs 删除被
+#   safe-delete 垫片接管，单文件 565ms，一个 profile 几百个文件就是几分钟，
+#   所以脚本退出后经常留下残骸。
+#   （判据脚本那边已经改成外部命令优先 + 点火即忘，这批探针还没跟上。）
+**/_bal3prof/
+**/_balprof/
+**/_btnprof/
+**/_aidprof/
+**/_aimanyprof/
+**/_ddiagprof/
+**/_statediagprof/
+**/_teardownprof/
+
+# ⚠️ _tools/ 跑出来的 .log/.json 不入库：
+#   人工归档过的证据放 _reports/（进仓库），这里只留最新一次的原始产物。
+_tools/*.log
+_tools/*.json
+
 # ⚠️ _logs/ 故意**不**忽略：
 #   它是「这一版到底验没验、验了几项」的证据，versions/<日期>/_logs/ 会跟着快照
 #   一起留档；而且顶层 _build_site.js 靠它把断言数填进档案页 —— 不入库的话，

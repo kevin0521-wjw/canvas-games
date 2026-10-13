@@ -1,0 +1,23 @@
+【逐步】start → gotoStage(1) → 每 30 帧采样一次 boss 状态
+  {"时刻":"start 后","scene":"play","paused":false,"over":false,"choosing":false,"stage":1,"boss":false,"note":"step() 只在 scene==play 时推进"}
+  {"时刻":"gotoStage(1) 后","scene":"play","stage":1,"boss":true,"bstate":"enter","bci":-1,"by":-60}
+  {"时刻":"第30帧","scene":"play","over":false,"choosing":false,"boss":true,"bstate":"enter","bci":-1,"bcardHp":0,"timeLeft":null,"cards":2}
+  {"时刻":"第60帧","scene":"play","over":false,"choosing":false,"boss":true,"bstate":"enter","bci":-1,"bcardHp":0,"timeLeft":null,"cards":2}
+  {"时刻":"第90帧","scene":"play","over":false,"choosing":false,"boss":true,"bstate":"enter","bci":-1,"bcardHp":0,"timeLeft":null,"cards":2}
+  {"时刻":"第120帧","scene":"play","over":false,"choosing":false,"boss":true,"bstate":"enter","bci":-1,"bcardHp":0,"timeLeft":null,"cards":2}
+  {"时刻":"第150帧","scene":"play","over":false,"choosing":false,"boss":true,"bstate":"declare","bci":0,"bcardHp":150,"timeLeft":2700,"cards":2}
+  {"时刻":"第180帧","scene":"play","over":false,"choosing":false,"boss":true,"bstate":"declare","bci":0,"bcardHp":150,"timeLeft":2700,"cards":2}
+  {"时刻":"第210帧","scene":"play","over":false,"choosing":false,"boss":true,"bstate":"declare","bci":0,"bcardHp":150,"timeLeft":2700,"cards":2}
+
+【卡结构】STAGES 各有多少张符卡 + 每张的 hp/time
+  第1关 碎星群（2 张）
+    · 符卡「初式·散射阵列」 hp=150 time=45
+    · 符卡「终式·流星落」 hp=200 time=50
+  第2关 铁壁舰队（2 张）
+    · 符卡「盾阵推进」 hp=225 time=46
+    · 符卡「双螺旋」 hp=260 time=50
+  第3关 虚空母舰（2 张）
+    · 符卡「乱数风暴」 hp=240 time=44
+    · 终符「轨道崩塌」 hp=340 time=66
+
+【run 字段实测】探针用到的那些名字真的存在吗

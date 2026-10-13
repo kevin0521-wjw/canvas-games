@@ -1,0 +1,38 @@
+【诊断】hp=1 敌人 + 999 伤害子弹，逐帧看它到底发生什么
+  {"帧":0,"scene":"play","over":false,"choosing":false,"note":"step() 只在 scene==play && !over && !choosing 时推进"}
+  {"帧":0,"敌hp":1,"maxHp":1,"敌r":17,"alive":true,"enemies数组":1,"分数":0}
+  {"帧":1,"敌hp":1,"alive":true,"弹数":0,"新弹初速":"—","分数":0,"未开箱舱":0}
+  {"帧":2,"敌hp":1,"alive":true,"弹数":0,"新弹初速":"—","分数":0,"未开箱舱":0}
+  {"帧":3,"敌hp":1,"alive":true,"弹数":0,"新弹初速":"—","分数":0,"未开箱舱":0}
+  {"帧":4,"敌hp":1,"alive":true,"弹数":0,"新弹初速":"—","分数":0,"未开箱舱":0}
+  {"帧":5,"敌hp":1,"alive":true,"弹数":0,"新弹初速":"—","分数":0,"未开箱舱":0}
+  {"帧":6,"敌hp":1,"alive":true,"弹数":0,"新弹初速":"—","分数":0,"未开箱舱":0}
+  {"帧":7,"敌hp":1,"alive":true,"弹数":0,"新弹初速":"—","分数":0,"未开箱舱":0}
+  {"帧":8,"敌hp":1,"alive":true,"弹数":0,"新弹初速":"—","分数":0,"未开箱舱":0}
+  {"帧":9,"敌hp":1,"alive":true,"弹数":0,"新弹初速":"—","分数":0,"未开箱舱":0}
+  {"帧":10,"敌hp":1,"alive":true,"弹数":0,"新弹初速":"—","分数":0,"未开箱舱":0}
+  {"帧":11,"敌hp":1,"alive":true,"弹数":0,"新弹初速":"—","分数":0,"未开箱舱":0}
+  {"帧":12,"敌hp":1,"alive":true,"弹数":0,"新弹初速":"—","分数":0,"未开箱舱":0}
+  {"帧":13,"敌hp":1,"alive":true,"弹数":0,"新弹初速":"—","分数":0,"未开箱舱":0}
+  {"帧":14,"敌hp":1,"alive":true,"弹数":0,"新弹初速":"—","分数":0,"未开箱舱":0}
+
+【对照】直接调 __SL.damageEnemy 能不能打死
+  {"打死":true,"alive":false,"分数变化":260,"新增crates":7,"未开箱舱":0}
+
+【查 mkShot 签名】
+  function mkShot(x, y, off, dmg, spd, pierce, col, homing) {
+  return { x, y, vx: Math.cos(off) * spd, vy: Math.sin(off) * spd,
+           r: 4, dmg, pierce, col, homing: homing || 0,
+           hitSet: new Set(), age: 0, alive: true };
+}
+
+【查 updateShots 命中判定的守卫】
+  hitWith(e, ang) {
+    const s = mkShot(e.x - 20, e.y, ang, 8, 1.0, 0, COL.white);
+    shots2.push(s);
+    const hp0 = e.hp;
+    updateShots(1);
+    return hp0 - e.hp;
+  }
+
+未捕获异常：（无）

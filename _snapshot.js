@@ -53,6 +53,11 @@ for (const g of games) {
       fs.copyFileSync(path.join(vdir, f), path.join(out, 'verify', f));
     }
   }
+  // 出处说明也一起走。对补录进来的存档（legacy）尤其重要：
+  // 半年后看到 versions/<日期>/space-line-v1/ 只有源码的话，
+  // 根本看不出「这份文件是从哪抓的、md5 对不对、是不是原样」。
+  const prov = path.join(src, 'PROVENANCE.md');
+  if (fs.existsSync(prov)) fs.copyFileSync(prov, path.join(out, 'PROVENANCE.md'));
   const kb = (fs.statSync(html).size / 1024).toFixed(0);
   console.log(`  📦 ${g.name.padEnd(18, '　')} ${kb} KB`);
   n++;

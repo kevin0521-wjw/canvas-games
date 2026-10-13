@@ -34,34 +34,67 @@ function get(pathname) {
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
-/**
- * 逐文件删除目录。
- * ⚠️ 这台机器上 fs.rmSync / rm -rf 会失败：
- *    - rmSync 走 WorkBuddy 的 safe-delete 垫片 → 转回收站 → 报
- *      "Error during a `trash` operation: Unknown"
- *    - 整目录 rm 在项目目录内会静默失败、0 文件被删
- * 逐文件删是实测可行的路径。详见 skill: single-file-canvas-game-verify
+/* ── 收尾：杀【整棵】进程树，再删浏览器 profile ────────────────────────────────
+ * ⚠️ 踩过的坑：`proc.kill()`（SIGTERM）在 Windows 上只杀掉我们 spawn 的**启动器**，
+ *   Edge 的 renderer / gpu / crashpad 子进程会继续活着，并持续往 --user-data-dir
+ *   里写文件。此时再去 rmTree 删 profile，就是在跟一个活进程抢文件 ——
+ *   实测**卡 5 分钟**都删不完，每次回归都白等这么久。
+ *   （之前那次「跑了 11 分钟没输出」也是这个原因，当时误判成「AI 长循环太慢」。）
+ *
+ * 正解：Windows 上用 `taskkill /PID <pid> /T /F` 把整棵树带走，同步等一小会儿
+ * 让文件句柄释放，最后才删目录。
+ *
+ * 为什么不抽成公共模块：每个游戏目录必须能**单独留档** —— _snapshot.js 只复制
+ * <游戏>/index.html 与 <游戏>/verify/*.js，判据脚本一旦 require 外面的文件，
+ * 归档出来的判据将来就跑不起来了。
  */
+const sleepSync = ms => {
+  const a = new Int32Array(new SharedArrayBuffer(4));
+  Atomics.wait(a, 0, 0, ms);
+};
+function killTree(proc) {
+  try {
+    if (process.platform === 'win32')
+      require('child_process').execSync(`taskkill /PID ${proc.pid} /T /F`, { stdio: 'ignore' });
+    else proc.kill('SIGKILL');
+  } catch (e) { /* 进程可能已经自己退出了，不是错误 */ }
+  try { proc.kill(); } catch (e) {}
+  sleepSync(700);            // 等句柄释放，再让 rmTree 上
+}
+
 function rmTree(dir) {
-  if (!fs.existsSync(dir)) return { ok: true, n: 0 };
-  let n = 0, fail = 0;
-  const walk = d => {
-    let ents = [];
-    try { ents = fs.readdirSync(d, { withFileTypes: true }); } catch (e) { return; }
-    for (const e of ents) {
-      const p = path.join(d, e.name);
-      if (e.isDirectory()) walk(p);
-      else { try { fs.unlinkSync(p); n++; } catch (err) { fail++; } }
-    }
-    try { fs.rmdirSync(d); } catch (e) {}
-  };
-  walk(dir);
-  return { ok: fs.existsSync(dir) === false, n, fail };
+  if (!fs.existsSync(dir)) return { ok: true, how: 'absent' };
+  const { execFileSync, spawn: sp } = require('child_process');
+
+  // 1) 同步快删：正常情况 < 0.3 秒
+  try {
+    execFileSync('cmd', ['/c', 'rmdir', '/s', '/q', dir], { stdio: 'ignore', timeout: 5000 });
+  } catch (e) { /* 文件被占用 / 沙箱拦截，都靠下面的「还在不在」判断 */ }
+  if (!fs.existsSync(dir)) return { ok: true, how: 'cmd' };
+
+  // 2) 换 PowerShell 再试一次（走 Win32 API，同样绕开 Node 的 fs 垫片）
+  try {
+    execFileSync('powershell', ['-NoProfile', '-NonInteractive', '-Command', 'Remove-Item',
+      '-LiteralPath', dir, '-Recurse', '-Force', '-ErrorAction', 'SilentlyContinue'],
+      { stdio: 'ignore', timeout: 8000 });
+  } catch (e) {}
+  if (!fs.existsSync(dir)) return { ok: true, how: 'powershell' };
+
+  // 3) 点火即忘：后台删，判据不等它
+  try {
+    const c = sp('cmd', ['/c', 'rmdir', '/s', '/q', dir], { detached: true, stdio: 'ignore' });
+    c.unref();
+  } catch (e) {}
+  return { ok: false, how: 'detached' };
 }
 
 (async () => {
   await new Promise(r => srv.listen(PORT, '127.0.0.1', r));
   const profile = path.resolve(__dirname, '_smokeprof');
+  // 开跑前先清一次：上次被强杀（超时 / Ctrl-C）会留下脏 profile，可能还被残留的
+  // 浏览器进程占着 → Edge 起来会莫名失败，判据报「45s 内没找到页面标签」，
+  // 看起来像**游戏坏了**。先清干净，故障面小一半。（rmTree 现在是外部命令实现，很快）
+  rmTree(profile);
   const proc = spawn(EDGE, [
     '--headless=new', '--disable-gpu', '--no-sandbox', '--mute-audio',
     `--remote-debugging-port=${CDP_PORT}`,
@@ -82,7 +115,7 @@ function rmTree(dir) {
     } catch (e) { /* 端口还没起来 */ }
     await sleep(400);
   }
-  if (!tab) { console.log('❌ 45s 内没找到页面标签'); proc.kill(); srv.close(); process.exit(1); }
+  if (!tab) { console.log('❌ 45s 内没找到页面标签'); killTree(proc); srv.close(); process.exit(1); }
 
   // 最小 WebSocket 客户端（不引第三方依赖）
   ws = await connect(tab.webSocketDebuggerUrl);
@@ -118,7 +151,19 @@ function rmTree(dir) {
 
   await send('Runtime.enable');
   await send('Page.enable');
-  await sleep(1400);   // 等首屏脚本跑完
+  // ⚠️ 这里原来是一句固定 sleep（等页面脚本跑完）。
+  //   「找到 CDP tab」**不等于「页面加载完」** —— tab 一出现就能连上，
+  //   但此时 index.html 可能还没执行到 window.__TP = ... 那行。
+  //   症状：读到 undefined，报「暴露测试接口失败」，而游戏逻辑毫无异常。
+  //   踩到的现场：touhou-danmaku 全量回归挂 2 条，__DM 的 typeof=false。
+  // → 改成轮询真正的就绪条件：慢页面自然多等，快页面立刻进。
+  let __ready = false;
+  for (let __i = 0; __i < 100 && !__ready; __i++) {
+    await sleep(200);
+    try { __ready = await evaluate('typeof window.__TP !== "undefined"'); } catch (e) { __ready = false; }
+  }
+  if (!__ready) console.log('⚠️ 等了 20 秒仍没等到 window.__TP，后续判据大概率会误报');
+
 
   const report = { errs, steps: [] };
   const step = (name, ok, detail) => {
@@ -394,10 +439,21 @@ function rmTree(dir) {
     }
   });
 
-  ws.close(); proc.kill(); srv.close();
-  rmTree(profile);
+// ── 先出结论，再做收尾 ────────────────────────────────────────────────────
+  // 判据跑完立刻把结论交出去。收尾（杀浏览器 / 删 profile）只是家务，
+  // 它慢或失败都不该影响「这一版验过没有」这个信息 —— 这台机器上删一个
+  // 浏览器 profile 实测 0.9s~170s 不等，曾多次把结论拖到十几分钟后才出现，
+  // 被误判成「游戏测试卡住了」。每一步都独立 try，互相不连坐。
   const bad = report.steps.filter(s => !s.ok).length;
   console.log(`\n${bad ? '❌ ' + bad + ' 项失败' : '✅ 全部 ' + report.steps.length + ' 项通过'}`);
+  try { ws.close(); } catch (e) {}
+  try { killTree(proc); } catch (e) {}
+  try { srv.close(); } catch (e) {}
+  try { rmTree(profile); } catch (e) {}
+  /* 把 stdout 刷干净再退。Node 写管道是异步的，直接 process.exit() 可能把
+     「✅ 全部 N 项通过」这一行丢掉 —— 那正是档案页用来填断言数的唯一依据。
+     必须用回调而不是 sleepSync：阻塞事件循环反而会让缓冲刷不出去。 */
+  await new Promise(r => process.stdout.write('', () => r()));
   process.exit(bad ? 1 : 0);
 })().catch(e => { console.error('崩溃:', e); process.exit(2); });
 

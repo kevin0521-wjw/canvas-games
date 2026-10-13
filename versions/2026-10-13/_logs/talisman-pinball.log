@@ -1,0 +1,20 @@
+  ✅ 暴露测试接口 __TP  — typeof=true
+  ✅ start() 未抛异常
+  ✅ ★★ 冻结 rAF 后 step() 独占时钟（且玩家不会在测试里被打死）  — 20 步推进游戏时间 20s, HP 3→3, run.over=false
+  ✅ 状态推进（清场后波次能进下一波）  — wave 1→2, 击杀 3, 场上剩 4 敌, score 0→156 | 计时器 -67.94 waveReady=false | 前几轮: [{"wave":2,"enemies":4,"timer":-67.94,"ready":false}]
+  ✅ 第 1 波不是 BOSS 波  — wave=1 boss=false
+  ✅ 第 5 波是 BOSS 波  — wave=5 boss=true
+  ✅ Canvas 有实际绘制内容  — 采样命中 163
+  ✅ 移动输入生效（行者）  — Δx=-132.0
+  ✅ 长时间空跑 600 帧
+  ✅ 金符撞墙反弹  — bounce=1, x 35..453
+  ✅ 落底自动回收（球不丢）  — 朝下=true 已回收=true（最低到 y=129，底线 784）
+  ✅ 盾向影响伤害（背 > 正）  — 正面 9 vs 背面 22.5（应 ≈2.5 倍）
+  ✅ 掉落物靠近即拾取（战符真的加了反弹上限）  — 反弹上限 6→8，场上剩余 0 个
+  ✅ ★ 掉光残机 → 游戏结束  — hp 1→-4，run.over false→true
+  ✅ 零未捕获异常
+  📷 截图 _smoke.png
+
+✅ 全部 15 项通过
+
+EXIT=0

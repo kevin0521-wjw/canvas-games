@@ -4,7 +4,7 @@
   ✅ 状态推进（清场后波次能进下一波）  — wave 1→2, 击杀 3, 场上剩 4 敌, score 0→156 | 计时器 -67.94 waveReady=false | 前几轮: [{"wave":2,"enemies":4,"timer":-67.94,"ready":false}]
   ✅ 第 1 波不是 BOSS 波  — wave=1 boss=false
   ✅ 第 5 波是 BOSS 波  — wave=5 boss=true
-  ✅ Canvas 有实际绘制内容  — 采样命中 165
+  ✅ Canvas 有实际绘制内容  — 采样命中 163
   ✅ 移动输入生效（行者）  — Δx=-132.0
   ✅ 长时间空跑 600 帧
   ✅ 金符撞墙反弹  — bounce=1, x 35..453

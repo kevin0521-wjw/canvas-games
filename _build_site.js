@@ -64,6 +64,11 @@ for (const g of games) {
   g.exists = fs.existsSync(path.join(ROOT, g.dir, 'index.html'));
 }
 
+// 初版存档（legacy）单独计数：它是「起点」，不是第 5 款新游戏。
+// 混在一起报「5 款游戏」会让人以为这轮又做了新作品，而实际是补录了一份历史存档。
+const legacyGames = games.filter(g => g.legacy);
+const ownGames = games.filter(g => !g.legacy);
+
 // 版本按时间正序（「按序排列」）；最新一版标记为当前
 const versions = (manifest.versions || []).slice()
   .sort((a, b) => String(a.date).localeCompare(String(b.date)));
@@ -103,6 +108,15 @@ const css = `
     box-shadow:0 10px 26px rgba(0,0,0,.5)}
   .card .no{position:absolute;right:14px;top:12px;font-family:Consolas,monospace;
     font-size:11.5px;color:var(--dim)}
+  /* 初版存档卡：视觉上要和「本仓库开发的四款」区分开 ——
+     它是补录的历史文件，不是这一轮的新作品。 */
+  .card.legacy{border-style:dashed;background:#171b2e}
+  .card.legacy .no{color:var(--violet);border:1px solid rgba(169,140,255,.4);
+    border-radius:2px;padding:0 5px}
+  .card .prov{margin-top:9px;padding-top:8px;border-top:1px dashed var(--line);
+    font-size:11px;color:#7c86a3;font-family:Consolas,monospace;line-height:1.75;
+    word-break:break-all}
+  .card .prov .u{color:var(--cyan)}
   .card h3{margin:0 0 3px;font-size:17px;color:var(--gold);font-weight:600}
   .card h3 em{font-style:normal;font-size:11px;letter-spacing:1.5px;color:var(--dim);
     margin-left:7px;font-family:Consolas,monospace}
@@ -145,14 +159,17 @@ const css = `
 `;
 
 const cardHtml = games.map(g => `
-      <a class="card" href="${esc(g.dir)}/index.html">
-        <span class="no">#${g.order}</span>
+      <a class="card${g.legacy ? ' legacy' : ''}" href="${esc(g.dir)}/index.html">
+        <span class="no">${g.legacy ? '初版' : '#' + g.order}</span>
         <h3>${esc(g.name)}<em>${esc(g.en || '')}</em></h3>
-        <p>${esc(g.tagline || '')}</p>
+        <p>${inline(g.tagline || '')}</p>
         <div class="meta">
           <span>${esc(g.genre || '')}</span>
           <span class="${g.asserts === null ? 'bad' : 'ok'}">${g.asserts === null ? '判据未通过' : g.asserts + ' / ' + g.asserts + ' 断言'}</span>
-        </div>
+        </div>${g.legacy ? `
+        <div class="prov">存档补录 · ${(g.originBytes || 0).toLocaleString()} 字节 · md5 ${esc(g.originMd5 || '')}<br>
+          原始发布地址：<span class="u">${esc(g.origin || '')}</span><br>
+          出处说明：${esc(g.dir)}/PROVENANCE.md</div>` : ''}
       </a>`).join('');
 
 const tlHtml = versions.map((v, i) => {
@@ -201,7 +218,8 @@ const html = `<!DOCTYPE html>
     <small>${esc(manifest.subtitle || '')}</small></h1>
 
   <div class="stats">
-    <div><b>${games.length}</b>款游戏</div>
+    <div><b>${ownGames.length}</b>款游戏</div>
+    ${legacyGames.length ? `<div><b>${legacyGames.length}</b>份初版存档</div>` : ''}
     <div><b>${totalAssert}</b>项断言</div>
     <div><b>${games.filter(g => g.asserts !== null).length}/${games.length}</b>判据全绿</div>
     <div><b>${snaps.length}</b>个历史快照</div>

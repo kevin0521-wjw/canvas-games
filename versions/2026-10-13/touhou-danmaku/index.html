@@ -1,0 +1,1640 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<title>星屑符咒 · 弹幕手记</title>
+<style>
+  :root{
+    --void:#05060f; --deep:#0d1230; --panel:#0b0e24;
+    --star:#e9ecff; --gold:#ffd76e; --azure:#6fd3ff;
+    --rose:#ff6b9d; --violet:#b98cff; --jade:#6effc0;
+    --dim:#6a6f9c; --line:#2a2f5c;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0;height:100%;overflow:hidden;background:var(--void);
+    font-family:"Songti SC","STSong","SimSun",serif;color:var(--star)}
+  #wrap{position:relative;width:100%;height:100%;display:flex;align-items:center;justify-content:center}
+  canvas{display:block;background:#07091c;box-shadow:0 0 70px rgba(60,80,200,.22);touch-action:none}
+  #ui{position:absolute;inset:0;pointer-events:none;font-size:13px;line-height:1.65}
+  .panel{position:absolute;pointer-events:auto;background:rgba(9,11,32,.95);
+    border:1px solid var(--line);padding:20px 26px;max-width:min(92vw,560px);
+    box-shadow:0 0 46px rgba(0,0,0,.8), inset 0 0 40px rgba(90,110,220,.07)}
+  .panel h1{margin:0 0 3px;font-size:27px;letter-spacing:6px;color:var(--gold);font-weight:400}
+  .panel h1 small{display:block;font-size:10.5px;letter-spacing:3px;color:var(--dim);margin-top:5px}
+  .panel p{color:#c3c8ec;font-size:13.5px;margin:8px 0}
+  .panel b{color:var(--star)}
+  .panel .k{display:inline-block;min-width:19px;padding:1px 6px;margin:0 2px;
+    background:#1a1f45;border:1px solid #3f477f;border-radius:3px;
+    font-family:Consolas,monospace;font-size:11.5px;color:var(--azure)}
+  .panel hr{border:0;border-top:1px solid var(--line);margin:14px 0}
+  .btn{display:inline-block;margin-top:14px;padding:10px 30px;cursor:pointer;
+    background:linear-gradient(180deg,#232a5c,#141938);border:1px solid var(--gold);
+    color:var(--gold);font-size:15.5px;letter-spacing:3px;font-family:inherit;transition:.15s}
+  .btn:hover{background:linear-gradient(180deg,#333c7a,#1b2148);box-shadow:0 0 20px rgba(255,215,110,.3)}
+  .row{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+  .note{font-size:12px;color:var(--dim);margin-top:11px;line-height:1.75}
+  .leg{display:flex;align-items:center;gap:9px;margin:5px 0;font-size:13px;color:#c3c8ec}
+  .leg i{width:11px;height:11px;border-radius:50%;flex:none;font-style:normal}
+  .tag{display:inline-block;padding:1px 7px;border:1px solid #3f477f;color:var(--jade);
+    font-size:11.5px;border-radius:2px;margin:0 3px}
+  #tip{position:absolute;left:50%;bottom:12px;transform:translateX(-50%);
+    color:#4d5382;font-size:11.5px;letter-spacing:1px;white-space:nowrap}
+  #live{position:absolute;top:9px;left:50%;transform:translateX(-50%);
+    display:none;gap:18px;background:rgba(9,11,32,.8);padding:5px 16px;
+    border:1px solid var(--line);font-size:12.5px;white-space:nowrap}
+  #live i{font-style:normal;color:var(--dim);margin-right:5px}
+  #live b{font-weight:400;font-family:Consolas,monospace;color:var(--gold)}
+</style>
+</head>
+<body>
+<div id="wrap">
+<canvas id="cv" width="480" height="640"></canvas>
+<div id="ui">
+  <div id="live"></div>
+  <!-- ⚠️ 原来写的是「← → 移动」，但 keydown 里 ArrowUp/ArrowDown 一样在
+       KEYS 表里、movePlayer 也真的读它们（第 216-217 行）。
+       竖向弹幕游戏只提示左右，玩家会以为不能上下走 —— 而「往上压」是这类
+       游戏最基本的走位。补全四个方向。 -->
+  <div id="tip">← → ↑ ↓ 移动　　Z 射击　　Shift 精确低速　　X 炸弹　　P 暂停</div>
+
+  <div class="panel" id="p0">
+    <h1>星屑符咒<small>弹 幕 手 记 · DANMAKU NOTE</small></h1>
+    <p>你是<b>星屑使</b>，在坠落的星空里收集散逸的<b>封币</b>。</p>
+    <p><b>活下来</b>：<span class="k">←</span><span class="k">→</span> 移动。
+       按住 <span class="k">Shift</span> 进入<b>精确</b>模式 —— 速度降到三分之一，
+       但会显出那颗<b>极小的判定点</b>。</p>
+    <hr>
+    <p><b>三条要紧规则：</b></p>
+    <p>· 你的判定点只有 <b>3.5 像素</b>，比你看到的机体小得多。
+       贴着弹走过去不会被碰到 —— 但也不能靠脸去撞。<br>
+       · <b>擦弹</b>（弹从判定点旁擦过而没碰到）会加分并积攒力量。<br>
+       · 每关 Boss 有 <span class="tag">符卡</span>，限时内打掉才有<b>符卡奖励</b>。
+       超时 = 奖励作废。</p>
+    <hr>
+    <p><b>弹色即语义</b> —— 学会闭眼读弹：</p>
+    <div class="leg"><i style="background:#ff4d5e;box-shadow:0 0 8px #ff4d5e"></i>红 · 快速瞄准弹，最该躲的就是它</div>
+    <div class="leg"><i style="background:#4da6ff;box-shadow:0 0 8px #4da6ff"></i>蓝 · 慢速环绕弹，可以慢慢走位</div>
+    <div class="leg"><i style="background:#5effa8;box-shadow:0 0 8px #5effa8"></i>绿 · 螺旋弹，成串扫过别站在原地</div>
+    <div class="leg"><i style="background:#ffd23d;box-shadow:0 0 10px #ffd23d"></i>黄 · 大型弹，碰到就掉一截血，撞到会分裂</div>
+    <div class="leg"><i style="background:#b98cff;box-shadow:0 0 8px #b98cff"></i>紫 · 光柱 / 激光柱，先躲再说</div>
+    <hr>
+    <div class="row"><span class="btn" id="b0">开 始</span></div>
+    <div class="note">原作是《东方Project》。本作<b>玩法机制</b>照着做（机制不受版权保护），
+      但<b>角色 / 立绘 / 音乐全部原创</b> —— 星屑使不是博丽巫女，星座不是幻想乡。</div>
+  </div>
+
+  <div class="panel" id="p1" style="display:none">
+    <h1>暂 停<small>PAUSED</small></h1>
+    <div class="row"><span class="btn" id="b1">继 续</span></div>
+    <div class="note">按 <span class="k">P</span> 也可以</div>
+  </div>
+
+  <div class="panel" id="p2" style="display:none">
+    <h1>终 局<small>RUN OVER</small></h1>
+    <p id="r2s"></p>
+    <div class="row"><span class="btn" id="b2">再 来</span></div>
+  </div>
+
+  <div class="panel" id="p3" style="display:none">
+    <h1>全 符 制 霸<small>ALL CLEAR</small></h1>
+    <p id="r3s"></p>
+    <div class="row"><span class="btn" id="b3">再 来</span></div>
+  </div>
+</div>
+</div>
+
+<script>
+"use strict";
+/* ==========================================================================
+   星屑符咒 · 弹幕手记
+   --------------------------------------------------------------------------
+   设计三原则（弹幕射击的命门）：
+   1. 判定点远小于视觉体（3.5px vs 20px），靠"看不清"制造紧张感
+   2. 弹色即语义：红快 / 蓝慢 / 绿螺旋 / 黄大弹 / 紫光柱
+   3. 奖励贴脸：擦弹给分，所以"冒险靠近"被明确激励，而不是纯挨打
+
+   美术为原创：星空 + 星屑使（蓝袍银发星轨），非任何现有 IP 形象。
+   ========================================================================== */
+
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+const W = 480, H = 640;
+
+/* ---- 弹色语义表：全代码只认这几个 key，配色改动只改这里 ----
+   ⚠️ 语义名（给玩家读的）只有 5 种；别名（金/蓝玉/青玉/玫瑰/紫罗兰）只是
+      UI 配色名，指向同一批颜色对象。加别名是为了让 UI 层的用色不必翻译。 */
+const SEM = {
+  red:    { core:'#fff2f3', edge:'#ff2f45', glow:'#ff6b78' },   // 快速瞄准
+  blue:   { core:'#f0f8ff', edge:'#2f7fff', glow:'#6fb6ff' },   // 慢速环绕
+  green:  { core:'#f0fff6', edge:'#19d67a', glow:'#5effa8' },   // 螺旋
+  yellow: { core:'#fffaeb', edge:'#ffb800', glow:'#ffd23d' },   // 大型分裂弹
+  purple: { core:'#faf5ff', edge:'#8a3cff', glow:'#b98cff' },   // 光柱 / 墙
+  white:  { core:'#ffffff', edge:'#a8b4ff', glow:'#dfe6ff' },
+};
+const COL = Object.assign({}, SEM, {
+  gold: SEM.yellow, azure: SEM.blue, jade: SEM.green,
+  rose: SEM.red, violet: SEM.purple, cyan: SEM.blue,
+});
+/* 上线前必须验证：UI 层用到的每个颜色名都能取到 .glow，否则下面全是 TypeError。
+   这行就是那个验证本身 —— 别删。 */
+for (const _k in COL) {
+  if (!COL[_k] || !COL[_k].glow) throw new Error('COL.' + _k + ' 缺少 glow 色值');
+}
+
+const rnd  = (a, b) => a + Math.random() * (b - a);
+const rndi = (a, b) => Math.floor(rnd(a, b + 1));
+const pick = a => a[Math.floor(Math.random() * a.length)];
+const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+const TAU = Math.PI * 2;
+/* 帧率常量：凡是「按秒写、按帧减」的时间量都必须经过它换算，
+   否则 time:40 的真实时限会变成 0.67 秒。 */
+const FPS = 60;
+const ang2 = (a, b) => Math.atan2(b.y - a.y, b.x - a.x);
+
+/* ---- 场地：右侧 76px 是 HUD，玩家活动区不含 HUD ---- */
+const FIELD_W = 400;
+const PLAY_R = FIELD_W - 8;   // 玩家活动右边界
+const TOP = 8, BOT = H - 8;
+
+/* ==========================================================================
+   状态
+   ========================================================================== */
+let P = {};            // 键位
+let run, player, bullets, shots, lasers, enemies, boss, items, parts, stars;
+let raf = 0, lastTs = 0, loopOn = true;
+
+function newRun() {
+  run = {
+    scene: 'title', score: 0, hi: +(localStorage.getItem('danmaku_hi') || 0),
+    noSpawn: false,   // 测试开关：关掉刷怪，隔离「弹幕伤害」与「敌人伤害」
+    stage: 0, over: false, paused: false, t: 0, frame: 0,
+    shake: 0, flash: 0, banner: null, bannerT: 0, bgTint: '#07091c',
+    grazed: 0, spellCleared: 0, deaths: 0, spellHistory: [],
+  };
+  player = {
+    x: FIELD_W / 2, y: H - 96, vx: 0, vy: 0, focus: false,
+    hitR: 3.5, grazeR: 24, spd: 4.0, focusSpd: 1.35,
+    power: 1.0, lives: 3, bombs: 3, bombsMax: 3,
+    invuln: 0, dead: 0, shootCd: 0, grazeCount: 0, grazeShown: 0,
+  };
+  bullets = []; shots = []; lasers = []; enemies = []; items = [];
+  parts = []; boss = null;
+  stars = makeStars();
+  nextStage();
+}
+
+/* ==========================================================================
+   背景星空：一次性预渲染两层，离屏滚动
+   ========================================================================== */
+function makeStars() {
+  const mk = (n, sz, al) => {
+    const c = document.createElement('canvas');
+    c.width = FIELD_W; c.height = H;
+    const g = c.getContext('2d');
+    for (let i = 0; i < n; i++) {
+      const x = Math.random() * FIELD_W, y = Math.random() * H;
+      const a = al * (0.35 + Math.random() * 0.65), r = sz * (0.5 + Math.random());
+      g.fillStyle = `rgba(220,230,255,${a.toFixed(3)})`;
+      g.beginPath(); g.arc(x, y, r, 0, TAU); g.fill();
+    }
+    return c;
+  };
+  return [
+    { c: mk(90, 1.0, .35), sp: 0.22, y: 0 },
+    { c: mk(46, 1.7, .62), sp: 0.62, y: 0 },
+    { c: mk(14, 2.5, .95), sp: 1.25, y: 0 },
+  ];
+}
+
+/* ==========================================================================
+   玩家
+   ========================================================================== */
+function movePlayer(dt) {
+  if (player.dead > 0) { player.dead -= dt; return; }
+  player.focus = !!P['Shift'];
+  const sp = player.focus ? player.focusSpd : player.spd;
+  let ax = 0, ay = 0;
+  if (P['ArrowLeft'])  ax -= 1;
+  if (P['ArrowRight']) ax += 1;
+  if (P['ArrowUp'])    ay -= 1;
+  if (P['ArrowDown'])  ay += 1;
+  // 斜向归一化：不然斜着比直走快 41%
+  if (ax && ay) { ax *= 0.7071; ay *= 0.7071; }
+  player.vx = ax * sp; player.vy = ay * sp;
+  player.x = clamp(player.x + player.vx * dt, 12, PLAY_R - 12);
+  player.y = clamp(player.y + player.vy * dt, TOP + 10, BOT - 10);
+
+  // 射击：火力决定同时出几路
+  player.shootCd -= dt;
+  if (P['z'] && player.shootCd <= 0) {
+    player.shootCd = 4;
+    firePlayerShot();
+  }
+  if (player.invuln > 0) player.invuln -= dt;
+}
+
+/** 火力档位 → 同时射出几路 + 单发伤害 */
+function firePlayerShot() {
+  const pw = player.power;
+  const dmg = pw >= 4 ? 1.6 : pw >= 2 ? 1.25 : 1.0;
+  const px = player.x, py = player.y;
+  // 主路永远 2 路（左右斜上），侧路随火力加
+  shots.push(mkShot(px - 3, py - 12, -0.13, 13, dmg, COL.azure));
+  shots.push(mkShot(px + 3, py - 12,  0.13, 13, dmg, COL.azure));
+  if (pw >= 1.6) shots.push(mkShot(px - 8, py - 8, -0.34, 11.5, dmg * .7, COL.jade));
+  if (pw >= 1.6) shots.push(mkShot(px + 8, py - 8,  0.34, 11.5, dmg * .7, COL.jade));
+  if (pw >= 2.6) shots.push(mkShot(px - 13, py - 2, -0.55, 10.5, dmg * .55, COL.white));
+  if (pw >= 2.6) shots.push(mkShot(px + 13, py - 2,  0.55, 10.5, dmg * .55, COL.white));
+  if (pw >= 3.6) shots.push(mkShot(px, py - 16, 0, 15, dmg * 1.2, COL.gold || COL.white));
+  // 火花
+  burst(px, py - 10, 1, COL.azure.glow, 2.2, .22);
+}
+
+function mkShot(x, y, a, sp, dmg, col) {
+  return { x, y, vx: Math.sin(a) * sp, vy: -Math.cos(a) * sp,
+           r: 4, dmg, c: col || COL.white, alive: true, age: 0 };
+}
+
+/* ==========================================================================
+   弹幕
+   —— 统一工厂：所有 pattern 只能通过 mkBullet 造弹，保证语义色可追溯
+   ========================================================================== */
+function mkBullet(x, y, ang, spd, opt = {}) {
+  return {
+    x, y,
+    vx: Math.cos(ang) * spd, vy: Math.sin(ang) * spd,
+    r: opt.r || 6,
+    c: COL[opt.c || 'blue'],
+    shape: opt.shape || 'ball',   // ball | rice | arrow | star | big
+    rot: opt.rot != null ? opt.rot : ang + Math.PI / 2,
+    spin: opt.spin || 0,
+    delay: opt.delay || 0,        // 延迟出现（弹幕可读性的关键）
+    accel: opt.accel || 0,        // 每帧速度变化（负 = 减速，抛物线手感）
+    minSpd: opt.minSpd || 0,
+    age: 0, grazed: false, alive: true,
+    split: opt.split || null,     // 撞到时的分裂行为
+  };
+}
+
+/* ---- 弹型生成器：所有敌人都只用这几个，保证玩家能建立"读弹"直觉 ---- */
+const PAT = {
+  /** 全周环 */
+  ring(x, y, n, spd, o = {}) {
+    const off = o.off != null ? o.off : Math.random() * TAU;
+    for (let i = 0; i < n; i++)
+      bullets.push(mkBullet(x, y, off + i * TAU / n, spd, o));
+  },
+  /** 瞄准玩家的 n 路扇形 */
+  aimed(x, y, n, spd, spread, o = {}) {
+    const base = ang2({ x, y }, player);
+    for (let i = 0; i < n; i++) {
+      const a = base + (i - (n - 1) / 2) * spread;
+      bullets.push(mkBullet(x, y, a, spd, o));
+    }
+  },
+  /** 从上方推进的墙，中间留 gap 宽度的缺口 */
+  wall(y, spd, gapX, gapW, o = {}) {
+    const step = o.step || 22;
+    for (let x = 12; x < FIELD_W - 8; x += step) {
+      if (Math.abs(x - gapX) < gapW / 2) continue;
+      const px = x + (o.jitter ? rnd(-4, 4) : 0);
+      bullets.push(mkBullet(px, y, Math.PI / 2 + rnd(-.04, .04), spd,
+        Object.assign({ r: 7, shape: 'ball' }, o)));
+    }
+  },
+  /** 螺旋：arms 条臂同时旋转 */
+  spiral(x, y, arms, spd, o = {}) {
+    const spin = o.spin != null ? o.spin : 0.22;
+    for (let i = 0; i < arms; i++)
+      bullets.push(mkBullet(x, y, i * TAU / arms, spd,
+        Object.assign({ r: 6, shape: 'rice', spin: 6 }, o)));
+    return spin;
+  },
+};
+
+/* ---- 光柱：先预警再爆发，给玩家反应窗口 ---- */
+function mkLaser(x, y, ang, len, w, o = {}) {
+  lasers.push({
+    x, y, ang, len, w,
+    warn: o.warn || 46,     // 预警帧
+    life: o.life || 46,     // 爆发帧
+    t: 0, done: false, col: COL[o.c || 'purple'],
+  });
+}
+
+/* ==========================================================================
+   敌人（非 Boss）
+   ========================================================================== */
+function mkEnemy(x, y, o = {}) {
+  return Object.assign({
+    x, y, hx: x, hy: y,
+    hp: 6, r: 16, t: 0, alive: true,
+    score: 100, drop: 0.5, type: 'drift',
+    pattern: null, patT: 0, patN: 0,
+    flash: 0, rot: 0,
+  }, o);
+  // maxHp 在 Object.assign 之后再取：o.hp 可能覆盖默认值，
+  // 血条要用「实际初始血量」而不是默认值 6，否则满血时也会画一条空条
+  e.maxHp = e.hp;
+  return e;
+}
+
+/* ==========================================================================
+   Boss + 符卡
+   —— 每张符卡 = 名字 + 血量 + 限时 + 专属 update
+   ========================================================================== */
+const STAGES = [
+  {
+    name: '陨星之使', sub: 'METEORIC HERALD', tint: '#0a0f2e',
+    hp: 360, r: 26, col: COL.blue, x: FIELD_W / 2, y: 150,
+    cards: [
+      {
+        name: '星符「初式·环流」', sub: 'FIRST FORM — CIRCULATION',
+        hp: 150, time: 40, move: 'sway',
+        init(e) { e.pa = 0; e.pa2 = 0; },
+        update(e, dt) {
+          e.pa += 0.021 * dt;
+          e.pa2 -= 0.0105 * dt;
+          e.patT -= dt;
+          if (e.patT <= 0) {
+            e.patT = 84;
+            PAT.ring(e.x, e.y, 16, 1.5, { c: 'blue', r: 6, shape: 'ball' });
+            PAT.aimed(e.x, e.y, 3, 3.4, 0.20, { c: 'red', r: 5, shape: 'rice' });
+          }
+          if (e.patN++ % 7 === 3)
+            PAT.ring(e.x, e.y, 10, 2.2, { c: 'blue', r: 7, off: e.pa2 });
+        },
+      },
+      {
+        name: '星符「终式·落雨」', sub: 'LAST FORM — METEOR RAIN',
+        hp: 210, time: 45, move: 'drift',
+        init(e) { e.pa = 0; e.patT = 0; },
+        update(e, dt) {
+          e.pa += 0.045 * dt;
+          e.patT -= dt;
+          if (e.patT <= 0) {
+            e.patT = 52;
+            // 黄色大弹：加速下坠，撞到会分裂成 8 发 → 逼迫走位而非站桩
+            for (let i = 0; i < 3; i++) {
+              const a = Math.PI / 2 + (i - 1) * 0.55 + rnd(-.1, .1);
+              bullets.push(mkBullet(e.x + rnd(-26, 26), e.y, a, 0.9,
+                { c: 'yellow', r: 12, shape: 'big', accel: 0.085,
+                  split: { n: 8, spd: 2.6, c: 'yellow', r: 6 } }));
+            }
+          }
+          if (e.patN++ % 3 === 0)
+            PAT.spiral(e.x, e.y, 4, 1.9, { c: 'green', off: e.pa, spin: 6 });
+        },
+      },
+    ],
+  },
+  {
+    name: '霜华骑士', sub: 'RIME KNIGHT', tint: '#071a2e',
+    hp: 520, r: 27, col: COL.cyan || COL.blue, x: FIELD_W / 2, y: 148,
+    cards: [
+      {
+        name: '霜符「冰棱柱」', sub: 'FROST — PRISM PILLARS',
+        hp: 240, time: 40, move: 'sway',
+        init(e) { e.patT = 40; e.pa = 0; },
+        update(e, dt) {
+          e.pa += 0.013 * dt;
+          e.patT -= dt;
+          if (e.patT <= 0) {
+            e.patT = 118;
+            // 紫光柱：两根竖柱从上方压下来，横向留出可钻的缝
+            mkLaser(e.x - 74, 0, Math.PI / 2, H, 20, { c: 'purple', warn: 40, life: 34 });
+            mkLaser(e.x + 74, 0, Math.PI / 2, H, 20, { c: 'purple', warn: 40, life: 34 });
+          }
+          if (e.patN++ % 5 === 0)
+            PAT.aimed(e.x, e.y, 5, 2.4, 0.16, { c: 'blue', r: 6, shape: 'ball' });
+        },
+      },
+      {
+        name: '霜符「双螺旋」', sub: 'FROST — TWIN HELIX',
+        hp: 280, time: 45, move: 'drift',
+        init(e) { e.pa = 0; e.pa2 = 0.5; },
+        update(e, dt) {
+          e.pa += 0.030 * dt;
+          e.pa2 -= 0.026 * dt;
+          e.patT -= dt;
+          if (e.patT <= 0) {
+            e.patT = 70;
+            PAT.spiral(e.x, e.y, 3, 2.2, { c: 'green', off: e.pa, spin: 7 });
+            PAT.spiral(e.x, e.y, 3, 2.2, { c: 'blue', off: e.pa2, spin: -7 });
+          }
+          if (e.patN++ % 4 === 0)
+            PAT.aimed(e.x, e.y, 3, 3.9, 0.13, { c: 'red', r: 5, shape: 'rice' });
+        },
+      },
+    ],
+  },
+  {
+    name: '虚空弦月', sub: 'VOID CRESCENT', tint: '#170a2e',
+    hp: 760, r: 29, col: COL.violet, x: FIELD_W / 2, y: 146,
+    cards: [
+      {
+        name: '虚符「织网」', sub: 'VOID — THE WEAVE',
+        hp: 250, time: 40, move: 'sway',
+        init(e) { e.pa = 0; e.gapDir = 1; },
+        update(e, dt) {
+          e.pa += 0.017 * dt;
+          e.patT -= dt;
+          if (e.patT <= 0) {
+            e.patT = 62;
+            const gap = FIELD_W / 2 + Math.sin(e.pa * 2.2) * 130;
+            PAT.wall(-10, 2.5, gap, 88, { c: 'purple', r: 7, jitter: true });
+          }
+          if (e.patN++ % 6 === 0)
+            PAT.aimed(e.x, e.y, 5, 3.2, 0.15, { c: 'red', r: 5, shape: 'rice' });
+        },
+      },
+      {
+        name: '虚符「乱数」', sub: 'VOID — RANDOM', hp: 250, time: 38, move: 'drift',
+        init(e) { e.pa = 0; },
+        update(e, dt) {
+          e.pa += 0.028 * dt;
+          e.patT -= dt;
+          if (e.patT <= 0) {
+            e.patT = 44;
+            // 随机散射 + 慢速大球：逼玩家读"哪颗是真的慢"
+            for (let i = 0; i < 12; i++)
+              bullets.push(mkBullet(e.x, e.y, Math.random() * TAU,
+                rnd(1.4, 3.6), { c: pick(['red', 'blue', 'green']), r: 6, shape: 'ball' }));
+            bullets.push(mkBullet(e.x, e.y, Math.PI / 2 + rnd(-.3, .3), 1.0,
+              { c: 'yellow', r: 13, shape: 'big', delay: 20,
+                split: { n: 10, spd: 2.8, c: 'yellow', r: 5 } }));
+          }
+        },
+      },
+      {
+        name: '终符「弦断」', sub: 'FINAL — THE SNAPPED STRING',
+        hp: 340, time: 60, move: 'sway',
+        init(e) { e.pa = 0; e.pa2 = 0; e.phase = 0; },
+        update(e, dt) {
+          e.pa += 0.038 * dt;
+          e.pa2 -= 0.019 * dt;
+          e.patT -= dt;
+          if (e.patT <= 0) {
+            e.patT = 34;
+            // 收尾：紫激光柱横扫 + 绿螺旋同时压上
+            mkLaser(e.x + rnd(-70, 70), 0, Math.PI / 2, H, 16,
+              { c: 'purple', warn: 30, life: 30 });
+          }
+          if (e.patN++ % 2 === 0) {
+            PAT.spiral(e.x, e.y, 4, 2.4, { c: 'green', off: e.pa, spin: 8 });
+            PAT.spiral(e.x, e.y, 4, 2.1, { c: 'blue', off: e.pa2, spin: -8 });
+          }
+          if (e.patN++ % 11 === 5)
+            PAT.aimed(e.x, e.y, 7, 4.2, 0.12, { c: 'red', r: 5, shape: 'rice' });
+        },
+      },
+    ],
+  },
+];
+
+function spawnBoss() {
+  const s = STAGES[run.stage];
+  boss = {
+    x: s.x, y: -60, sy: s.y, is: s, cards: s.cards, ci: -1,
+    t: 0, state: 'enter', stateT: 0, card: null, cardHp: 0,
+    flash: 0, rot: 0, patT: 0, patN: 0, clearT: 0,
+  };
+  setBanner(s.name, s.sub, s.col.edge, 120);
+}
+
+function startCard() {
+  const b = boss;
+  b.ci++;
+  if (b.ci >= b.cards.length) { b.state = 'dying'; b.stateT = 0; return; }
+  // ⚠️ 必须是「复制」而不是直接引用 STAGES 里的常量对象。
+  //    卡的时间剩余量 timeLeft 是运行时状态；如果挂在共享的常量对象上，
+  //    ① 跳到下一张卡时不会重置 → 奖励算出来接近 0
+  //    ② 重开一局后仍带着上一局的残值 → 每局越来越难
+  //    这两件事都是「把运行时状态写到共享配置上」造成的。
+  const src = b.cards[b.ci];
+  const c = Object.assign({}, src);
+  // ⚠️ 时间单位：c.time 是「秒」，而 timeLeft 每帧减 1（dt=1）。
+  //    不换算的话 time:40 的实际时限只有 40 帧 ≈ 0.67 秒，
+  //    玩家根本来不及打掉任何一张符卡 ——
+  //    而 HUD 会照着显示「T 40s」，数字对得上、真实时长错，极具欺骗性。
+  //    测试证据：打了 40 帧后 cardHp 仍是满的（240），状态已被超时打断。
+  c.timeSec = c.time;
+  c.timeLeft = c.time * FPS;
+  b.card = c;
+  b.cardHp = c.hp;
+  b.state = 'declare'; b.stateT = 0;
+  b.t = 0; b.patT = 0; b.patN = 0;
+  if (c.init) c.init(b);
+  bullets.length = 0;   // 符卡切换清场，给玩家喘息
+  lasers.length = 0;
+  setBanner('符卡', '', COL.gold.glow, 110);
+  run.spellHistory.push(c.name);
+}
+
+function setBanner(main, sub, col, life) {
+  run.banner = { main, sub, col: col || COL.gold.glow };
+  run.bannerT = life || 100;
+}
+
+/* ==========================================================================
+   关卡推进
+   ========================================================================== */
+function nextStage() {
+  run.stage++;
+  if (run.stage > STAGES.length) { run.stage = STAGES.length; stageClear(); return; }
+  run.bgTint = STAGES[run.stage - 1].tint;
+  bullets.length = 0; lasers.length = 0; enemies.length = 0; items.length = 0;
+  boss = null;
+  setBanner(STAGES[run.stage - 1].name, STAGES[run.stage - 1].sub,
+            STAGES[run.stage - 1].col.glow, 120);
+  waveT = 300;
+  waveN = 0;
+}
+let waveT = 0, waveN = 0;
+
+/** 杂兵波：每关 Boss 前 5 波杂兵，用来练手和攒火力 */
+function updateWaves(dt) {
+  waveT -= dt;
+  if (waveT > 0) return;
+  const perStage = 5;
+  waveN++;
+  waveT = 250;
+  const lv = run.stage;
+  if (waveN > perStage) { spawnBoss(); return; }
+
+  if (waveN % 3 === 0) {
+    // 一排快速弹射手，从上方斜插进来
+    for (let i = 0; i < 4 + lv; i++) {
+      const x = 40 + i * (FIELD_W - 80) / (3 + lv);
+      enemies.push(mkEnemy(x, -20, {
+        hp: 8 + lv * 3, r: 13, score: 180, drop: 0.85, type: 'dive',
+        move: (e) => {
+          e.y += (1.5 + lv * .25) * dt;
+          e.x += Math.sin(e.t * .05) * 1.1 * dt;
+        },
+        pattern: (e) => {
+          e.patT -= dt;
+          if (e.patT <= 0) {
+            e.patT = 72;
+            PAT.aimed(e.x, e.y, 3, 2.8, .19, { c: 'red', r: 5, shape: 'rice' });
+          }
+        },
+      }));
+    }
+  } else {
+    // 缓慢环绕的炮台
+    const cx = FIELD_W / 2 + rnd(-70, 70);
+    enemies.push(mkEnemy(cx, -30, {
+      hp: 26 + lv * 8, r: 18, score: 420, drop: 1, type: 'hover',
+      move: (e) => {
+        e.y += (e.y < 120 ? 1.3 : 0) * dt;
+        e.x = cx + Math.sin(e.t * .017) * 96;
+      },
+      pattern: (e) => {
+        e.patT -= dt;
+        if (e.patT <= 0) {
+          e.patT = 96;
+          PAT.ring(e.x, e.y, 12 + lv * 2, 1.4, { c: 'blue', r: 6 });
+        }
+      },
+    }));
+    // 配 2 个护卫
+    for (let i = 0; i < 2; i++)
+      enemies.push(mkEnemy(cx + (i ? 62 : -62), -20, {
+        hp: 7 + lv * 2, r: 12, score: 150, drop: 0.5, type: 'dive',
+        move: (e) => { e.y += 2.0 * dt; },
+        pattern: (e) => {
+          e.patT -= dt;
+          if (e.patT <= 0) { e.patT = 110; PAT.aimed(e.x, e.y, 1, 2.4, 0, { c: 'red', r: 5 }); }
+        },
+      }));
+  }
+}
+
+/* ==========================================================================
+   更新
+   ========================================================================== */
+function update(dt) {
+  run.t += dt; run.frame++;
+  if (run.bannerT > 0) run.bannerT -= dt;
+  if (run.shake > 0) run.shake *= 0.88;
+  if (run.flash > 0) run.flash -= dt * 3;
+
+  movePlayer(dt);
+  // ⚠️ noSpawn 是给测试用的开关：测「弹碰到玩家」这类单点判定时，
+  //    必须把刷怪关掉，否则 updateWaves 会在同一帧生成新敌人，
+  //    敌人造成的伤害和弹幕造成的伤害混在一起，
+  //    判据就读出「弹在正中心却没掉命」这种自相矛盾的结果。
+  //    ⚠️ 之前查这个 bug 绕了两轮弯路，就是因为没意识到"伤害可能不是弹幕造成的"。
+  if (!boss && !run.noSpawn) updateWaves(dt);
+  updateBoss(dt);
+  updateEnemies(dt);
+  updateBullets(dt);
+  updateLasers(dt);
+  updateShots(dt);
+  updateItems(dt);
+  updateParts(dt);
+  checkBomb();
+}
+
+function updateBoss(dt) {
+  const b = boss;
+  if (!b) return;
+  b.t += dt; b.rot += 0.006 * dt;
+  b.stateT += dt;
+  const s = b.is;
+
+  if (b.state === 'enter') {
+    b.y += (b.sy - b.y) * 0.04 * dt;
+    if (b.y >= b.sy - 0.5) { b.y = b.sy; startCard(); }
+    return;
+  }
+  if (b.state === 'declare') {
+    if (b.stateT > 90) { b.state = 'fight'; b.stateT = 0; }
+    return;
+  }
+  if (b.state === 'fight') {
+    // 移动模式
+    const m = b.card.move;
+    if (m === 'sway') b.x = s.x + Math.sin(b.t * .016) * 108;
+    else if (m === 'drift') b.x = s.x + Math.sin(b.t * .010) * 130;
+    else b.x += Math.sin(b.t * .02) * 1.2 * dt;
+    b.x = clamp(b.x, 46, PLAY_R - 46);
+    b.y = s.y + Math.sin(b.t * .012) * 12;
+    b.card.update(b, dt);
+    b.patN++;
+
+    // 限时判定
+    // ⚠️ 单位 bug：timeLeft 每帧减 dt（dt=1 → 每帧减1），
+    //    而 card.time 是按「秒」写的（38/40/42/45/60）。
+    //    → 实际时限是 40 **帧** ≈ 0.67 秒，玩家永远打不完任何一张符卡。
+    //    HUD 却照着 timeLeft 显示「T 40s」，数字对、真实时长错 —— 极具欺骗性。
+    //    测试证据：打了 40 帧后 cardHp 仍是满的（240），状态已被超时打断。
+    // 修：startCard() 里把秒换算成帧（time * FPS），这里照常每帧递减。
+    b.card.timeLeft -= dt;
+    if (b.card.timeLeft <= 0) {
+      // 超时：奖励作废，不加分，直接进下一张
+      run.spellCleared += 0;
+      showFloat(b.x, b.y - 30, '符卡超时', COL.violet.glow);
+      clearBulletsToItem();
+      b.state = 'next'; b.stateT = 0;
+    }
+    return;
+  }
+  if (b.state === 'next') {
+    if (b.stateT > 40) startCard();
+    return;
+  }
+  if (b.state === 'dying') {
+    b.y += 1.3 * dt;
+    if (b.stateT % 7 < 1)
+      burst(b.x + rnd(-30, 30), b.y + rnd(-24, 24), 3, COL.gold.glow, 4.5, .5);
+    if (b.stateT > 120) {
+      // 掉一地封币
+      for (let i = 0; i < 14; i++) dropItem(b.x + rnd(-40, 40), b.y + rnd(-20, 20), 'point');
+      dropItem(b.x, b.y, 'life');
+      boss = null;
+      nextStage();
+    }
+  }
+}
+
+/** 清弹：把弹幕转成封币（超时的补偿，也让画面干净） */
+function clearBulletsToItem() {
+  for (const b of bullets) {
+    if (Math.random() < 0.13) dropItem(b.x, b.y, 'point');
+  }
+  bullets.length = 0; lasers.length = 0;
+  burst(W / 2, H / 2, 26, COL.azure.glow, 6, .55);
+  run.flash = 0.55;
+}
+
+function updateEnemies(dt) {
+  for (const e of enemies) {
+    if (!e.alive) continue;
+    e.t += dt;
+    if (e.flash > 0) e.flash -= dt;
+    if (e.move) e.move(e, dt);
+    if (e.pattern) e.pattern(e, dt);
+    if (e.y > H + 60 || e.x < -60 || e.x > W + 60) e.alive = false;
+  }
+  enemies = enemies.filter(e => e.alive);
+}
+
+function updateBullets(dt) {
+  const px = player.x, py = player.y;
+  for (const b of bullets) {
+    if (!b.alive) continue;
+    if (b.delay > 0) { b.delay -= dt; continue; }
+    b.age += dt;
+    if (b.accel) {
+      const sp = Math.hypot(b.vx, b.vy) + b.accel * dt;
+      const a = Math.atan2(b.vy, b.vx);
+      b.vx = Math.cos(a) * sp; b.vy = Math.sin(a) * sp;
+    }
+    b.x += b.vx * dt;
+    b.y += b.vy * dt;
+    if (b.spin) b.rot += b.spin * dt;
+
+    if (b.x < -40 || b.x > FIELD_W + 40 || b.y < -60 || b.y > H + 60) {
+      // 大弹飞出屏幕才算"用完"，拆分触发
+      if (b.split && b.age > 30) doSplit(b);
+      b.alive = false;
+      continue;
+    }
+    // 玩家碰撞
+    if (player.dead > 0 || player.invuln > 0) continue;
+    const d = Math.hypot(b.x - px, b.y - py);
+    if (d < b.r + player.hitR) {
+      hitPlayer();
+      if (b.split) doSplit(b);
+      b.alive = false;
+      continue;
+    }
+    // 擦弹：贴脸但没碰到
+    if (!b.grazed && d < b.r + player.grazeR) {
+      b.grazed = true;
+      run.grazed++; player.grazeCount++;
+      run.score += 120;
+      if (player.power < 4) player.power = Math.min(4, player.power + 0.006);
+      burst(b.x, b.y, 1, COL.jade.glow, 2.6, .26);
+      if (player.grazeCount >= 100) {
+        player.grazeCount = 0;
+        showFloat(px, py - 34, 'GRAZE ×100', COL.jade.glow);
+        player.power = Math.min(4, player.power + 0.14);
+      }
+    }
+  }
+  bullets = bullets.filter(b => b.alive);
+}
+
+function doSplit(b) {
+  const sp = b.split;
+  for (let i = 0; i < sp.n; i++)
+    bullets.push(mkBullet(b.x, b.y, i * TAU / sp.n + rnd(0, .3), sp.spd,
+      { c: sp.c, r: sp.r, shape: 'ball' }));
+  burst(b.x, b.y, 8, COL.yellow.glow, 3.4, .3);
+}
+
+function updateLasers(dt) {
+  const px = player.x, py = player.y;
+  for (const L of lasers) {
+    L.t += dt;
+    if (player.dead > 0 || player.invuln > 0) continue;
+    if (L.t < L.warn) continue;
+    if (L.t > L.warn + L.life) { L.done = true; continue; }
+    // 点到线段的距离
+    const dx = px - L.x, dy = py - L.y;
+    const ca = Math.cos(L.ang), sa = Math.sin(L.ang);
+    const along = dx * ca + dy * sa;
+    const perp = Math.abs(-dx * sa + dy * ca);
+    if (along > -10 && along < L.len && perp < L.w / 2 + player.hitR)
+      hitPlayer();
+  }
+  lasers = lasers.filter(L => !L.done);
+}
+
+function updateShots(dt) {
+  for (const s of shots) {
+    s.x += s.vx * dt; s.y += s.vy * dt; s.age += dt;
+    if (s.y < -20 || s.x < -20 || s.x > FIELD_W + 20 || s.age > 130) { s.alive = false; continue; }
+    if (boss && boss.state === 'fight') {
+      if (Math.hypot(s.x - boss.x, s.y - boss.y) < boss.is.r + s.r) {
+        damageBoss(s.dmg, s.x, s.y); s.alive = false;
+      }
+    }
+    for (const e of enemies) {
+      if (!e.alive) continue;
+      if (Math.hypot(s.x - e.x, s.y - e.y) < e.r + s.r) {
+        e.hp -= s.dmg; e.flash = 4; s.alive = false;
+        burst(s.x, s.y, 2, COL.azure.glow, 3, .18);
+        if (e.hp <= 0) killEnemy(e);
+        break;
+      }
+    }
+  }
+  shots = shots.filter(s => s.alive);
+}
+
+function damageBoss(d, x, y) {
+  const b = boss;
+  if (b.state !== 'fight') return;
+  b.cardHp -= d; b.flash = 3;
+  burst(x, y, 2, COL.gold.glow, 3.4, .2);
+  if (b.cardHp <= 0) {
+    // 符卡击破
+    // 奖励 = 基础分 × 剩余时间比例（timeLeft 是帧，分母也要用帧总量）
+    const totalFrames = (b.card.timeSec || b.card.time) * FPS;
+    const bonus = Math.round(200000 * (b.card.timeLeft / totalFrames)) + 80000;
+    run.score += bonus;
+    run.spellCleared++;
+    setBanner('符卡击破', `+${bonus.toLocaleString()}`, COL.gold.glow, 110);
+    showFloat(b.x, b.y - 34, 'SPELL CARD CLEAR', COL.gold.glow);
+    burst(b.x, b.y, 40, COL.gold.glow, 6, .8);
+    run.flash = 0.8;
+    for (let i = 0; i < 8; i++) dropItem(b.x + rnd(-34, 34), b.y + rnd(-18, 18), 'point');
+    if (Math.random() < .5) dropItem(b.x, b.y, 'bomb');
+    run.shake = 8;
+    b.state = 'next'; b.stateT = 0;
+  }
+}
+
+function killEnemy(e) {
+  e.alive = false;
+  run.score += e.score;
+  burst(e.x, e.y, 12, COL.azure.glow, 4.2, .38);
+  for (let i = 0; i < 4; i++) burst(e.x, e.y, 3, COL.gold.glow, 3, .22);
+  run.shake = Math.max(run.shake, 3.5);
+  if (Math.random() < e.drop) dropItem(e.x, e.y, Math.random() < .25 ? 'bomb' : 'point');
+  if (Math.random() < .05) dropItem(e.x, e.y, 'life');
+}
+
+function dropItem(x, y, kind) {
+  items.push({ x: clamp(x, 14, PLAY_R - 14), y: clamp(y, 10, BOT - 10),
+               vy: -2.4, kind, t: 0, alive: true, col: kind === 'point' ? COL.azure
+                    : kind === 'bomb' ? COL.green || COL.green : kind === 'life' ? COL.rose : COL.gold });
+}
+
+function updateItems(dt) {
+  for (const it of items) {
+    it.t += dt;
+    it.y += it.vy * dt;
+    if (it.y > player.y - 40 && it.y < player.y + 40) it.vy *= 0.82;  // 玩家靠近时减速，便于吸收
+    if (it.y > H + 30) { it.alive = false; continue; }
+    if (player.dead > 0) continue;
+    if (Math.hypot(it.x - player.x, it.y - player.y) < 24) {
+      it.alive = false;
+      if (it.kind === 'point') {
+        if (player.power < 4) {
+          player.power = Math.min(4, player.power + 0.05);
+          if (player.power >= 4) showFloat(player.x, player.y - 32, 'MAX POWER', COL.gold.glow);
+        }
+      } else if (it.kind === 'bomb') {
+        if (player.bombs < player.bombsMax) {
+          player.bombs++; showFloat(player.x, player.y - 32, 'BOMB +1', COL.green.glow);
+        } else run.score += 5000;
+      } else if (it.kind === 'life') {
+        player.lives++;
+        showFloat(player.x, player.y - 32, '残机 +1', COL.rose.glow);
+      }
+      run.score += 500;
+    }
+  }
+  items = items.filter(i => i.alive);
+}
+
+function checkBomb() {
+  if (P['x'] && player.bombs > 0 && player.dead <= 0) {
+    player.bombs--;
+    useBomb();
+  }
+}
+
+function useBomb() {
+  run.flash = 1;
+  run.shake = 10;
+  // 清弹 → 转封币（这就是"炸弹能回血"的来源）
+  clearBulletsToItem();
+  lasers.length = 0;
+  // 对 Boss 伤害
+  if (boss && boss.state === 'fight') damageBoss(120, boss.x, boss.y);
+  for (const e of enemies) {
+    if (e.alive) { e.hp -= 120; e.flash = 6; if (e.hp <= 0) killEnemy(e); }
+  }
+  // 3 秒无敌 + 冲击波特效
+  player.invuln = 180;
+  parts.push({ kind: 'ring', x: player.x, y: player.y, t: 0, life: 42,
+               max: 640, col: COL.gold });
+  setBanner('BOMB', '', COL.green ? COL.green.glow : COL.gold.glow, 46);
+}
+
+/* ---- 玩家受击：残机 -1、火力归零、3 秒复活保护 ---- */
+function hitPlayer() {
+  if (player.invuln > 0 || player.dead > 0) return;
+  player.lives--;
+  run.deaths++;
+  player.power = 0;
+  player.bombs = Math.max(0, player.bombs - 1);
+  run.flash = 1; run.shake = 12;
+  burst(player.x, player.y, 26, COL.rose.glow, 5.5, .6);
+  // ⚠️ 这里原本写 `if (player.lives < 0)` —— 是**被截图肉眼抓出来的**：
+  //    lives 从 3 减到 0 时 `0 < 0` 为假 → 判定不触发 → 玩家剩 0 残机还能继续玩，
+  //    画面上却显示「残 0」。当时所有自动断言都是绿的
+  //    （它们只测 3→2 这一种情况，没人测到 1→0）。
+  //    结束条件应当是「没有残机可用」，即 lives <= 0。
+  if (player.lives <= 0) { gameOver(); return; }
+  player.dead = 60;
+  player.invuln = 0;
+  bullets.length = 0; lasers.length = 0;
+  // 复活位置：横向挪一下，避免原地复活被同一发打中
+  player.x = clamp(player.x + rnd(-110, 110), 30, PLAY_R - 30);
+  player.y = H - 110;
+}
+
+function gameOver() {
+  run.over = true;
+  if (run.score > run.hi) { run.hi = run.score; localStorage.setItem('danmaku_hi', run.hi); }
+  showPanel('p2');
+  document.getElementById('r2s').innerHTML =
+    `最终得分 <b>${run.score.toLocaleString()}</b>　·　历史最高 <b>${run.hi.toLocaleString()}</b><br>` +
+    `到达 <b>第 ${run.stage} 关 · ${STAGES[Math.min(run.stage - 1, STAGES.length - 1)].name}</b><br>` +
+    `擦弹 <b>${run.grazed.toLocaleString()}</b> 次　·　符卡击破 <b>${run.spellCleared}</b> 张<br>` +
+    `失机 <b>${run.deaths}</b> 次` +
+    (run.deaths === 0 ? '<br><span style="color:var(--jade)">无伤通关 —— 你把判定点用明白了。</span>' : '');
+}
+
+function stageClear() {
+  run.score += 500000;
+  if (run.score > run.hi) { run.hi = run.score; localStorage.setItem('danmaku_hi', run.hi); }
+  showPanel('p3');
+  document.getElementById('r3s').innerHTML =
+    `三关全破。全符奖励到手。<br><br>` +
+    `得分 <b>${run.score.toLocaleString()}</b>　·　擦弹 <b>${run.grazed.toLocaleString()}</b> 次<br>` +
+    `符卡击破 <b>${run.spellCleared}</b> / ${STAGES.reduce((a, s) => a + s.cards.length, 0)} 张<br>` +
+    `失机 <b>${run.deaths}</b> 次<br><br>` +
+    `<span style="color:var(--dim);font-size:12px">击破的符卡：<br>` +
+    run.spellHistory.filter((n, i, arr) => arr.indexOf(n) === i).map(n => '· ' + n).join('<br>') +
+    `</span>`;
+}
+
+/* ==========================================================================
+   粒子 / 飘字
+   ========================================================================== */
+function burst(x, y, n, col, spd, life) {
+  for (let i = 0; i < n; i++) {
+    const a = Math.random() * TAU, s = spd * rnd(.4, 1.3);
+    parts.push({ kind: 'p', x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s,
+                 t: 0, life: life * rnd(.7, 1.3), col });
+  }
+  if (parts.length > 900) parts.splice(0, parts.length - 900);
+}
+
+function showFloat(x, y, text, col) {
+  parts.push({ kind: 'f', x, y, t: 0, life: 78, text, col });
+}
+
+function updateParts(dt) {
+  for (const p of parts) {
+    p.t += dt;
+    if (p.kind === 'p') { p.x += p.vx * dt; p.y += p.vy * dt; p.vx *= .93; p.vy *= .93; }
+    else if (p.kind === 'f') p.y -= .55 * dt;
+  }
+  parts = parts.filter(p => p.t < p.life);
+}
+
+/* ==========================================================================
+   绘制
+   ========================================================================== */
+function draw() {
+  const sx = run.shake > .4 ? rnd(-run.shake, run.shake) : 0;
+  const sy = run.shake > .4 ? rnd(-run.shake, run.shake) : 0;
+  ctx.save();
+  ctx.translate(sx, sy);
+
+  // 背景
+  ctx.fillStyle = run.bgTint;
+  ctx.fillRect(-10, -10, W + 20, H + 20);
+  for (const s of stars) {
+    s.y = (s.y + s.sp) % H;
+    ctx.globalAlpha = .9;
+    ctx.drawImage(s.c, 0, s.y);
+    if (s.y > 0) ctx.drawImage(s.c, 0, s.y - H);
+  }
+  ctx.globalAlpha = 1;
+  // 场地边界线
+  ctx.strokeStyle = 'rgba(120,140,255,.16)';
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(FIELD_W + .5, 0); ctx.lineTo(FIELD_W + .5, H); ctx.stroke();
+
+  drawLasers();
+  drawItems();
+  drawEnemies();
+  drawBoss();
+  drawBullets();
+  drawShots();
+  drawPlayer();
+  drawParts();
+  ctx.restore();
+
+  drawHUD();
+  drawBanner();
+  if (run.flash > 0) {
+    ctx.fillStyle = `rgba(255,255,255,${Math.min(.75, run.flash * .7).toFixed(3)})`;
+    ctx.fillRect(0, 0, W, H);
+  }
+}
+
+/* ---- 弹幕：外发光 + 实心弹 + 高光核，保证密集时仍能分辨层级 ---- */
+function drawBullets() {
+  ctx.save();
+  // 第一层：所有弹的柔光（批量，降低开销）
+  ctx.globalCompositeOperation = 'lighter';
+  for (const b of bullets) {
+    if (b.delay > 0) continue;
+    const a = Math.min(1, b.age / 6);
+    ctx.globalAlpha = .34 * a;
+    ctx.fillStyle = b.c.glow;
+    ctx.beginPath(); ctx.arc(b.x, b.y, b.r * 2.1, 0, TAU); ctx.fill();
+  }
+  // 第二层：弹体
+  ctx.globalCompositeOperation = 'source-over';
+  for (const b of bullets) {
+    if (b.delay > 0) continue;
+    ctx.save();
+    ctx.translate(b.x, b.y);
+    ctx.rotate(b.rot);
+    const a = Math.min(1, b.age / 6);
+    ctx.globalAlpha = a;
+    const c = b.c;
+    if (b.shape === 'rice') {
+      ctx.fillStyle = c.edge;
+      ctx.beginPath(); ctx.ellipse(0, 0, b.r * .62, b.r * 1.5, 0, 0, TAU); ctx.fill();
+      ctx.fillStyle = c.core;
+      ctx.beginPath(); ctx.ellipse(0, -b.r * .25, b.r * .26, b.r * .62, 0, 0, TAU); ctx.fill();
+    } else if (b.shape === 'big') {
+      ctx.fillStyle = c.edge;
+      ctx.beginPath(); ctx.arc(0, 0, b.r, 0, TAU); ctx.fill();
+      ctx.fillStyle = c.core;
+      ctx.beginPath(); ctx.arc(-b.r * .18, -b.r * .2, b.r * .46, 0, TAU); ctx.fill();
+    } else {
+      ctx.fillStyle = c.edge;
+      ctx.beginPath(); ctx.arc(0, 0, b.r, 0, TAU); ctx.fill();
+      ctx.fillStyle = c.core;
+      ctx.beginPath(); ctx.arc(-b.r * .22, -b.r * .24, b.r * .42, 0, TAU); ctx.fill();
+    }
+    ctx.restore();
+  }
+  ctx.restore();
+}
+
+function drawShots() {
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.fillStyle = COL.azure.glow;
+  for (const s of shots) {
+    ctx.globalAlpha = .5;
+    ctx.beginPath(); ctx.arc(s.x, s.y, s.r * 2.4, 0, TAU); ctx.fill();
+  }
+  ctx.globalCompositeOperation = 'source-over';
+  for (const s of shots) {
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = s.c.core;
+    ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, TAU); ctx.fill();
+  }
+  ctx.restore();
+}
+
+/** 光柱：预警期画细虚线预告，爆发期画实心柱 + 两端光斑 */
+function drawLasers() {
+  for (const L of lasers) {
+    ctx.save();
+    ctx.translate(L.x, L.y);
+    ctx.rotate(L.ang);
+    const warning = L.t < L.warn;
+    if (warning) {
+      const k = L.t / L.warn;
+      ctx.globalAlpha = .28 + .4 * Math.abs(Math.sin(L.t * .5));
+      ctx.strokeStyle = L.col.glow;
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([7, 9]);
+      ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(L.len, 0); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.globalAlpha = .55;
+      ctx.fillStyle = L.col.edge;
+      ctx.beginPath(); ctx.arc(0, 0, L.w / 2 * (0.4 + k * 0.6), 0, TAU); ctx.fill();
+    } else {
+      const k = Math.min(1, (L.t - L.warn) / 5);
+      const fade = Math.min(1, (L.warn + L.life - L.t) / 8);
+      ctx.globalAlpha = fade;
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.fillStyle = L.col.glow;
+      ctx.globalAlpha = fade * .38;
+      ctx.fillRect(0, -L.w, L.len, L.w * 2);
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.globalAlpha = fade;
+      ctx.fillStyle = L.col.edge;
+      ctx.fillRect(0, -L.w / 2 * k, L.len, L.w * k);
+      ctx.fillStyle = L.col.core;
+      ctx.fillRect(0, -L.w * .16 * k, L.len, L.w * .32 * k);
+      ctx.beginPath(); ctx.arc(0, 0, L.w * .9, 0, TAU); ctx.fill();
+      ctx.globalAlpha = fade * .5;
+      ctx.beginPath(); ctx.arc(L.len, 0, L.w * .7, 0, TAU); ctx.fill();
+    }
+    ctx.restore();
+  }
+}
+
+function drawEnemies() {
+  for (const e of enemies) {
+    ctx.save();
+    ctx.translate(e.x, e.y);
+    ctx.rotate(e.rot || 0);
+    const c = e.type === 'dive' ? COL.rose : COL.blue;
+    ctx.globalAlpha = .18;
+    ctx.fillStyle = c.glow;
+    ctx.beginPath(); ctx.arc(0, 0, e.r * 2.2, 0, TAU); ctx.fill();
+    ctx.globalAlpha = 1;
+    // 菱形机体
+    // ⚠️ 配色原来用的是深蓝 `#252c62`，而**蓝弹的边缘色是 `#2f7fff`** ——
+    //    两者撞色。弹幕一密，敌舰就完全糊在里面认不出来
+    //    （这是看截图才发现的，所有断言都是绿的）。
+    //    改法：敌机体用**暖色**（朱红/橙），和弹幕的冷色系彻底分开；
+    //    再加一圈白色描边保证任何背景下都有一道清晰的轮廓。
+    ctx.fillStyle = e.flash > 0 ? '#fff' : (e.type === 'dive' ? '#5a2430' : '#3a2a52');
+    ctx.strokeStyle = e.type === 'dive' ? '#ffb0b8' : '#c8a8ff';
+    ctx.lineWidth = 2.4;
+    ctx.beginPath();
+    ctx.moveTo(0, -e.r); ctx.lineTo(e.r * .8, 0);
+    ctx.lineTo(0, e.r); ctx.lineTo(-e.r * .8, 0); ctx.closePath();
+    ctx.fill(); ctx.stroke();
+    // 外圈白边：把敌舰从弹幕堆里"抠"出来
+    ctx.strokeStyle = 'rgba(255,255,255,.55)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    // 核心（亮一点，作为识别点）
+    ctx.fillStyle = e.flash > 0 ? '#fff' : (e.type === 'dive' ? '#ffd7dc' : '#e6dcff');
+    ctx.beginPath(); ctx.arc(0, 0, e.r * .3, 0, TAU); ctx.fill();
+    // 血条（受伤后显示）
+    if (e.hp < e.maxHp) {
+      const w = e.r * 1.6, pct = Math.max(0, e.hp / (e.maxHp || e.hp));
+      ctx.rotate(-(e.rot || 0));
+      ctx.fillStyle = 'rgba(0,0,0,.55)';
+      ctx.fillRect(-w / 2, -e.r - 7, w, 3);
+      ctx.fillStyle = COL.jade ? COL.jade.glow : '#6effc0';
+      ctx.fillRect(-w / 2, -e.r - 7, w * pct, 3);
+    }
+    ctx.restore();
+  }
+}
+
+function drawBoss() {
+  const b = boss;
+  if (!b) return;
+  ctx.save();
+  ctx.translate(b.x, b.y);
+  ctx.rotate(b.rot);
+  const c = b.is.col;
+  // 立场：外发光 + 旋转星环 + 核心六芒
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.globalAlpha = .26;
+  ctx.fillStyle = c.glow;
+  ctx.beginPath(); ctx.arc(0, 0, b.is.r * 3, 0, TAU); ctx.fill();
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.globalAlpha = 1;
+  ctx.strokeStyle = c.edge; ctx.lineWidth = 2;
+  ctx.globalAlpha = .8;
+  ctx.beginPath(); ctx.arc(0, 0, b.is.r * 1.7, 0, TAU); ctx.stroke();
+  ctx.globalAlpha = .45;
+  ctx.beginPath(); ctx.arc(0, 0, b.is.r * 2.2, 0.4, 2.4); ctx.stroke();
+  ctx.beginPath(); ctx.arc(0, 0, b.is.r * 2.2, 3.6, 5.6); ctx.stroke();
+  ctx.globalAlpha = 1;
+  // 核心
+  ctx.fillStyle = b.flash > 0 ? '#fff' : '#171d48';
+  ctx.strokeStyle = c.glow; ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  for (let i = 0; i < 6; i++) {
+    const a = i * TAU / 6;
+    ctx.lineTo(Math.cos(a) * b.is.r, Math.sin(a) * b.is.r);
+  }
+  ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = c.core;
+  ctx.beginPath(); ctx.arc(0, 0, b.is.r * .4, 0, TAU); ctx.fill();
+  ctx.restore();
+}
+
+function drawPlayer() {
+  if (player.dead > 0) return;
+  const blink = player.invuln > 0 && Math.floor(player.invuln / 4) % 2 === 0;
+  if (blink) return;
+  const x = player.x, y = player.y;
+  ctx.save();
+  ctx.translate(x, y);
+  // 光环
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.globalAlpha = .22;
+  ctx.fillStyle = COL.azure.glow;
+  ctx.beginPath(); ctx.arc(0, 0, 22, 0, TAU); ctx.fill();
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.globalAlpha = 1;
+  // 星轨（转向移动方向）
+  const lean = clamp(player.vx * 0.045, -0.30, 0.30);
+  ctx.rotate(lean);
+  // 机体：蓝袍银发的星屑使
+  ctx.fillStyle = '#1c2456';
+  ctx.strokeStyle = COL.azure.edge; ctx.lineWidth = 1.6;
+  ctx.beginPath();
+  ctx.moveTo(0, -14); ctx.lineTo(9, 2); ctx.lineTo(5, 11);
+  ctx.lineTo(-5, 11); ctx.lineTo(-9, 2); ctx.closePath();
+  ctx.fill(); ctx.stroke();
+  // 裙摆星纹
+  ctx.fillStyle = COL.gold ? COL.gold.glow : '#ffd76e';
+  ctx.globalAlpha = .85;
+  ctx.beginPath(); ctx.arc(0, 6, 2.6, 0, TAU); ctx.fill();
+  ctx.globalAlpha = 1;
+  // 头部
+  ctx.fillStyle = '#eef2ff';
+  ctx.beginPath(); ctx.arc(0, -7, 4.2, 0, TAU); ctx.fill();
+  ctx.restore();
+
+  // 判定点：只在 Focus 时显形（这是东方的核心 UX）
+  if (player.focus) {
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.fillStyle = '#ff4d5e';
+    ctx.globalAlpha = .35;
+    ctx.beginPath(); ctx.arc(x, y, 7, 0, TAU); ctx.fill();
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = '#ff2f45';
+    ctx.beginPath(); ctx.arc(x, y, player.hitR, 0, TAU); ctx.fill();
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 1;
+    ctx.globalAlpha = .8;
+    ctx.beginPath(); ctx.arc(x, y, player.grazeR, 0, TAU); ctx.stroke();
+    ctx.restore();
+  }
+  // 擦弹计数
+  if (player.grazeCount > 0 && player.grazeCount % 10 === 0) {
+    ctx.fillStyle = 'rgba(110,255,192,.5)';
+    ctx.font = '9px Consolas,monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('G' + player.grazeCount, x, y + 20);
+  }
+}
+
+function drawItems() {
+  for (const it of items) {
+    const c = it.kind === 'point' ? COL.azure : it.kind === 'bomb' ? (COL.green || COL.gold)
+            : it.kind === 'life' ? COL.rose : COL.gold;
+    const bob = Math.sin(it.t * .12) * 1.6;
+    ctx.save();
+    ctx.translate(it.x, it.y + bob);
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = .3;
+    ctx.fillStyle = c.glow;
+    ctx.beginPath(); ctx.arc(0, 0, 11, 0, TAU); ctx.fill();
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = c.core;
+    ctx.strokeStyle = c.edge; ctx.lineWidth = 1.4;
+    if (it.kind === 'point') {
+      ctx.beginPath();
+      for (let i = 0; i < 4; i++) {
+        const a = i * TAU / 4 - Math.PI / 2;
+        ctx.lineTo(Math.cos(a) * 6.5, Math.sin(a) * 6.5);
+      }
+      ctx.closePath(); ctx.fill(); ctx.stroke();
+    } else {
+      ctx.beginPath(); ctx.arc(0, 0, 6, 0, TAU); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = c.edge; ctx.font = 'bold 8px Consolas,monospace';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(it.kind === 'bomb' ? 'B' : it.kind === 'life' ? '1UP' : 'P', 0, .5);
+    }
+    ctx.restore();
+  }
+}
+
+function drawParts() {
+  ctx.save();
+  for (const p of parts) {
+    const k = 1 - p.t / p.life;
+    if (p.kind === 'p') {
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.globalAlpha = Math.max(0, k) * .8;
+      ctx.fillStyle = p.col;
+      ctx.beginPath(); ctx.arc(p.x, p.y, Math.max(.4, 2.6 * k), 0, TAU); ctx.fill();
+    } else if (p.kind === 'f') {
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.globalAlpha = Math.max(0, k);
+      ctx.fillStyle = p.col;
+      ctx.font = 'bold 13px "Songti SC",serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(p.text, p.x, p.y);
+    } else if (p.kind === 'ring') {
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.globalAlpha = Math.max(0, k) * .7;
+      ctx.strokeStyle = p.col; ctx.lineWidth = 3 + 6 * k;
+      ctx.beginPath(); ctx.arc(p.x, p.y, (1 - k) * 320, 0, TAU); ctx.stroke();
+    }
+  }
+  ctx.restore();
+}
+
+/* ---- HUD ---- */
+function drawHUD() {
+  const x = FIELD_W + 8, w = W - FIELD_W - 8;
+  ctx.save();
+  ctx.textBaseline = 'top';
+
+  ctx.fillStyle = 'rgba(8,10,28,.86)';
+  ctx.fillRect(FIELD_W + 1, 0, w - 1, H);
+
+  let y = 10;
+  const lab = (t, c) => {
+    ctx.fillStyle = '#5c6296'; ctx.font = '9px Consolas,monospace';
+    ctx.fillText(t, x, y); y += 11;
+  };
+  const val = (t, c, sz) => {
+    ctx.fillStyle = c || COL.gold.glow; ctx.font = (sz || 15) + 'px Consolas,monospace';
+    ctx.fillText(t, x, y); y += (sz || 15) + 5;
+  };
+
+  lab('SCORE');
+  val(run.score.toLocaleString(), COL.gold.glow, 14);
+  lab('HI-SCORE');
+  val(Math.max(run.hi, run.score).toLocaleString(), '#8a90c4', 11);
+
+  y += 6;
+  // 残机
+  ctx.fillStyle = '#5c6296'; ctx.font = '9px Consolas,monospace';
+  ctx.fillText('LIVES', x, y); y += 12;
+  for (let i = 0; i < Math.max(0, player.lives); i++) {
+    ctx.fillStyle = COL.rose.glow;
+    ctx.beginPath(); ctx.arc(x + 4 + i * 11, y + 4, 4, 0, TAU); ctx.fill();
+  }
+  y += 14;
+
+  // 炸弹
+  ctx.fillStyle = '#5c6296'; ctx.font = '9px Consolas,monospace';
+  ctx.fillText('BOMB', x, y); y += 12;
+  for (let i = 0; i < player.bombsMax; i++) {
+    const on = i < player.bombs;
+    ctx.fillStyle = on ? (COL.green ? COL.green.glow : '#6effc0') : 'rgba(255,255,255,.12)';
+    ctx.beginPath(); ctx.arc(x + 4 + i * 11, y + 4, 4, 0, TAU); ctx.fill();
+  }
+  y += 16;
+
+  // 火力条
+  ctx.fillStyle = '#5c6296'; ctx.font = '9px Consolas,monospace';
+  ctx.fillText('POWER', x, y); y += 12;
+  const pw = player.power / 4;
+  ctx.fillStyle = 'rgba(255,255,255,.10)';
+  ctx.fillRect(x, y, w - 14, 7);
+  ctx.fillStyle = pw >= 1 ? COL.gold.glow : COL.azure.glow;
+  ctx.fillRect(x, y, (w - 14) * pw, 7);
+  ctx.fillStyle = '#dfe6ff'; ctx.font = '9px Consolas,monospace';
+  ctx.fillText(player.power.toFixed(2), x, y + 10);
+  y += 26;
+
+  // 擦弹
+  ctx.fillStyle = '#5c6296'; ctx.font = '9px Consolas,monospace';
+  ctx.fillText('GRAZE', x, y); y += 12;
+  ctx.fillStyle = COL.jade ? COL.jade.glow : '#6effc0';
+  ctx.font = '13px Consolas,monospace';
+  ctx.fillText(run.grazed.toLocaleString(), x, y); y += 22;
+
+  // 关卡
+  ctx.fillStyle = '#5c6296'; ctx.font = '9px Consolas,monospace';
+  ctx.fillText('STAGE', x, y); y += 12;
+  ctx.fillStyle = '#dfe6ff'; ctx.font = '11px Consolas,monospace';
+  ctx.fillText(Math.min(run.stage, STAGES.length) + ' / ' + STAGES.length, x, y); y += 20;
+
+  // Boss 血条 + 符卡
+  if (boss) {
+    const b = boss;
+    const bw = w - 14;
+    const by = H - 150;
+    ctx.fillStyle = '#5c6296'; ctx.font = '9px Consolas,monospace';
+    ctx.fillText('BOSS', x, by - 12);
+
+    ctx.fillStyle = 'rgba(255,255,255,.10)';
+    ctx.fillRect(x, by, bw, 8);
+    if (b.state === 'fight' && b.card) {
+      const pct = Math.max(0, b.cardHp / b.card.hp);
+      ctx.fillStyle = pct > .35 ? COL.gold.glow : '#ff6b9d';
+      ctx.fillRect(x, by, bw * pct, 8);
+      // 限时条
+      // ⚠️ 分母要用「帧总量」而不是 card.time（秒），因为 timeLeft 现在是帧。
+      const totalFrames = (b.card.timeSec || b.card.time) * FPS;
+      const tpct = Math.max(0, (b.card.timeLeft || 0) / totalFrames);
+      ctx.fillStyle = 'rgba(255,255,255,.16)';
+      ctx.fillRect(x, by + 10, bw, 3);
+      ctx.fillStyle = tpct > .3 ? '#8a90c4' : '#ff4d5e';
+      ctx.fillRect(x, by + 10, bw * tpct, 3);
+      ctx.fillStyle = '#dfe6ff'; ctx.font = '9px Consolas,monospace';
+      // 显示回「秒」：timeLeft 是帧，除以 FPS 才是玩家看得懂的剩余时间
+      ctx.fillText('T ' + Math.ceil((b.card.timeLeft || 0) / FPS) + 's', x, by + 16);
+
+      // 符卡名（竖排，模仿东方的符卡条）
+      ctx.save();
+      ctx.translate(x + bw - 4, by + 30);
+      ctx.font = '11px "Songti SC",serif';
+      ctx.fillStyle = b.card ? COL.gold.glow : '#fff';
+      const nm = b.card.name;
+      for (let i = 0; i < nm.length; i++) ctx.fillText(nm[i], 0, i * 12);
+      ctx.restore();
+    } else {
+      ctx.fillStyle = 'rgba(255,255,255,.25)';
+      ctx.fillRect(x, by, bw, 8);
+    }
+
+    ctx.fillStyle = '#c3c8ec'; ctx.font = '10px "Songti SC",serif';
+    ctx.fillText(b.is.name.slice(0, 5), x, H - 26);
+  }
+
+  ctx.restore();
+}
+
+/* ---- 符卡宣告横幅 ---- */
+function drawBanner() {
+  if (run.bannerT <= 0) return;
+  const b = run.banner;
+  const k = Math.min(1, run.bannerT / 18);
+  ctx.save();
+  ctx.globalAlpha = k;
+  ctx.fillStyle = 'rgba(4,5,16,.72)';
+  ctx.fillRect(0, H / 2 - 34, W, 68);
+  ctx.strokeStyle = b.col; ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(0, H / 2 - 34); ctx.lineTo(W, H / 2 - 34);
+  ctx.moveTo(0, H / 2 + 34); ctx.lineTo(W, H / 2 + 34);
+  ctx.stroke();
+  ctx.textAlign = 'center';
+  ctx.fillStyle = b.col;
+  ctx.font = '22px "Songti SC",serif';
+  ctx.fillText(b.main, W / 2, H / 2 - 14);
+  if (b.sub) {
+    ctx.fillStyle = '#8a90c4';
+    ctx.font = '10px Consolas,monospace';
+    ctx.fillText(b.sub, W / 2, H / 2 + 8);
+  }
+  ctx.restore();
+}
+
+/* ==========================================================================
+   主循环 / 输入 / 面板
+   ========================================================================== */
+function frame(ts) {
+  // ⚠️ 冻结时必须真的停下 rAF，不能只是「不更新」。
+  //    页面自己的动画循环会和测试的 step() 赛跑 —— 玩家在原地挨打、
+  //    掉光残机后 run.over=true，之后 step() 全部空转，
+  //    所有判据都读出一片「游戏没反应」的假象。
+  if (!loopOn) { raf = 0; return; }
+  raf = requestAnimationFrame(frame);
+  if (!lastTs) lastTs = ts;
+  let dt = (ts - lastTs) / 16.6667;
+  lastTs = ts;
+  dt = clamp(dt, 0, 3);   // 切标签页回来别一次跳几百帧
+  if (run.scene === 'play' && !run.paused && !run.over) update(dt);
+  if (run.scene !== 'title') draw();
+  else drawIdle();
+  tickLive();
+}
+
+/** 标题页：让星空和一枚绕圈灵弹动起来，不至于死板 */
+function drawIdle() {
+  run.t += 1;
+  ctx.fillStyle = '#07091c';
+  ctx.fillRect(0, 0, W, H);
+  for (const s of stars) {
+    s.y = (s.y + s.sp) % H;
+    ctx.globalAlpha = .9;
+    ctx.drawImage(s.c, 0, s.y);
+    if (s.y > 0) ctx.drawImage(s.c, 0, s.y - H);
+  }
+  ctx.globalAlpha = 1;
+  if (!run._idle) {
+    run._idle = [];
+    for (let i = 0; i < 14; i++) run._idle.push(mkBullet(rnd(0, W), rnd(0, H), 0, 0, {
+      c: pick(['red', 'blue', 'green', 'purple']), r: 5 }));
+  }
+  const R = 150, sp = .012;
+  for (const b of run._idle) {
+    const a = run.t * sp + b.x * .01;
+    b.x = W / 2 + Math.cos(a) * R * .7;
+    b.y = H / 2 + Math.sin(a) * R;
+    b.age += 1;
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = .28;
+    ctx.fillStyle = b.c.glow;
+    ctx.beginPath(); ctx.arc(b.x, b.y, b.r * 2, 0, TAU); ctx.fill();
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = b.c.edge;
+    ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, TAU); ctx.fill();
+    ctx.fillStyle = b.c.core;
+    ctx.beginPath(); ctx.arc(b.x - 1, b.y - 1, b.r * .45, 0, TAU); ctx.fill();
+    ctx.restore();
+  }
+}
+
+function fit() {
+  const s = Math.min(innerWidth / W, innerHeight / H, 1.15);
+  cv.style.width = (W * s) + 'px';
+  cv.style.height = (H * s) + 'px';
+}
+addEventListener('resize', fit);
+
+const KEYS = {
+  ArrowLeft: 'ArrowLeft', ArrowRight: 'ArrowRight', ArrowUp: 'ArrowUp', ArrowDown: 'ArrowDown',
+  z: 'z', Z: 'z', x: 'x', X: 'x', Shift: 'Shift',
+};
+addEventListener('keydown', e => {
+  const k = KEYS[e.key];
+  if (k) { P[k] = true; e.preventDefault(); }
+  if (e.key === 'p' || e.key === 'P') togglePause();
+});
+addEventListener('keyup', e => {
+  const k = KEYS[e.key];
+  if (k) { P[k] = false; e.preventDefault(); }
+  // 炸弹用 keydown 触发，避免长按连放
+  if (e.key === 'x' || e.key === 'X') P['x'] = false;
+});
+
+function togglePause() {
+  if (run.scene !== 'play' || run.over) return;
+  run.paused = !run.paused;
+  showPanel(run.paused ? 'p1' : null);
+}
+
+function showPanel(id) {
+  ['p0', 'p1', 'p2', 'p3'].forEach(p => {
+    const el = document.getElementById(p);
+    if (el) el.style.display = (p === id) ? '' : 'none';
+  });
+  document.getElementById('tip').style.display = id === 'p1' ? 'none' : '';
+}
+
+function start() {
+  cancelAnimationFrame(raf);
+  newRun();
+  run.scene = 'play';
+  showPanel(null);
+  lastTs = 0;
+  loopOn = true;
+  raf = requestAnimationFrame(frame);
+}
+
+document.getElementById('b0').onclick = start;
+document.getElementById('b1').onclick = togglePause;
+document.getElementById('b2').onclick = start;
+document.getElementById('b3').onclick = start;
+
+function tickLive() {
+  const el = document.getElementById('live');
+  if (run.scene !== 'play') { el.style.display = 'none'; return; }
+  el.style.display = 'flex';
+  el.innerHTML =
+    `<span><i>分</i><b>${run.score.toLocaleString()}</b></span>` +
+    `<span><i>擦</i><b>${run.grazed}</b></span>` +
+    `<span><i>火</i><b>${player.power.toFixed(2)}</b></span>` +
+    `<span><i>残</i><b>${Math.max(0, player.lives)}</b></span>` +
+    `<span><i>弹</i><b>${player.bombs}</b></span>` +
+    `<span><i>弹幕</i><b>${bullets.length}</b></span>` +
+    `<span><i>阶段</i><b>${run.scene === 'play' ? boss ? (boss.card ? boss.card.name : boss.state) : '杂兵' : '-'}</b></span>`;
+}
+
+/* ==========================================================================
+   测试接口（无头回归用；自己都带自检，判据坏了必须先怀疑判据）
+   ========================================================================== */
+window.__DM = {
+  get run() { return run; },
+  get player() { return player; },
+  get bullets() { return bullets; },
+  get boss() { return boss; },
+  start,
+  step(n) { for (let i = 0; i < (n || 60); i++) if (run.scene === 'play' && !run.paused && !run.over) update(1); },
+  key(k, v) { P[k] = v; },
+  // 造弹：绕 PAT / Boss，直接注入也能测擦弹和碰撞
+  mkBullet, PAT, mkLaser, useBomb, hitPlayer, STAGES, COL,
+  mkShot, damageBoss,   // 测「符卡击破是否结算奖励」时注入伤害用
+  /**
+   * 冻结/恢复自带的动画循环，让 step() 成为唯一时钟。
+   *
+   * ⚠️ 为什么不加这个接口就测不准（这个坑值得记）：
+   *    页面自己的 requestAnimationFrame 一直在跑，测试的 step() 在旁边赛跑。
+   *    玩家在原地不动 → 挨打 → 4 次掉光残机 → run.over = true
+   *    → 此后 step() 里的 `if (... && !run.over)` 全部不成立，什么都不推进。
+   *    于是所有判据都读到「游戏没反应」，而游戏代码其实一点问题都没有。
+   *    表现就是：判据失败，但失败得毫无道理。
+   */
+  freeze() { loopOn = false; cancelAnimationFrame(raf); raf = 0; },
+  unfreeze() { if (!raf) { loopOn = true; lastTs = 0; raf = requestAnimationFrame(frame); } },
+  FIELD_W, PLAY_R, H,
+  get lasers() { return lasers; },
+  get items() { return items; },
+  get enemies() { return enemies; },
+  get shots() { return shots; },   // 玩家子弹：测「打掉符卡是否结算奖励」时用
+  /** 把玩家瞬移到某点，并清掉无敌，方便确定性测试 */
+  warp(x, y) {
+    player.x = x; player.y = y; player.invuln = 0; player.dead = 0;
+  },
+  /** 直接跳到第 n 关并出 Boss，测符卡逻辑 */
+  gotoStage(n) {
+    run.stage = n - 1;
+    bullets.length = 0; lasers.length = 0; enemies.length = 0; items.length = 0;
+    boss = null;
+    nextStage();
+    waveT = 0; waveN = 99;   // 下一帧直接出 Boss
+  },
+};
+
+/* ---- 启动 ---- */
+newRun();
+run.scene = 'title';
+fit();
+raf = requestAnimationFrame(frame);
+</script>
+</body>
+</html>

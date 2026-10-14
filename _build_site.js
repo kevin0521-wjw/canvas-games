@@ -58,6 +58,16 @@ function inline(s) {
     .replace(/`([^`]+)`/g, '<code>$1</code>');
 }
 
+/** 页脚单独一条通道：manifest 里写的换行是 <br>，而 esc() 会把它转成
+ *  &lt;br&gt; —— 结果页面上**原样显示成 "<br>" 六个字符**（实测线上就是这样，
+ *  不是排版崩了，是转义转错了）。这里先整体转义、再只放行 <br> 与 **粗体**，
+ *  其余标签照旧被吃掉，不给注入留口子。 */
+function footerHtml(s) {
+  return esc(s || '')
+    .replace(/&lt;br\s*\/?&gt;/gi, '<br>')
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+}
+
 const games = manifest.games.slice().sort((a, b) => a.order - b.order);
 for (const g of games) {
   g.asserts = assertCount(g.id);
@@ -84,9 +94,16 @@ const snaps = fs.existsSync(snapRoot)
   : [];
 
 const css = `
+  /* 浅色主题。原先是一套深蓝底：这一页的时间线文本很长，深底 + 低对比灰字
+     读久了累眼。浅底 + 深色语义色反而对比度更高，也更像「档案」该有的样子。
+     ⚠️ 强调色**不能**沿用深色主题那一套 —— #ffc94a 在白底上对比度只有约
+     1.6:1（≈ 看不见），#5ec8ff 约 1.9:1。下面每个色都按白底重挑过，
+     并用 WCAG 对比度公式逐个复核，最低 4.9:1。 */
   :root{
-    --bg:#0a0c14; --panel:#131829; --line:#243049; --ink:#e6ebf7; --dim:#8892ad;
-    --gold:#ffc94a; --cyan:#5ec8ff; --jade:#3ddc97; --rose:#ff5b6e; --violet:#a98cff;
+    color-scheme:light;
+    --bg:#f4f6fa; --panel:#ffffff; --line:#e3e7f0; --ink:#1a2333; --dim:#5f6a83;
+    --gold:#96650a; --cyan:#0b6a9e; --jade:#0d7a52; --rose:#c12f47; --violet:#6247d0;
+    --shade:rgba(23,37,74,.10);
   }
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--ink);
@@ -105,22 +122,22 @@ const css = `
     border:1px solid var(--line);border-radius:8px;padding:16px 17px;
     transition:.16s;position:relative}
   .card:hover{transform:translateY(-3px);border-color:var(--gold);
-    box-shadow:0 10px 26px rgba(0,0,0,.5)}
+    box-shadow:0 10px 24px var(--shade)}
   .card .no{position:absolute;right:14px;top:12px;font-family:Consolas,monospace;
     font-size:11.5px;color:var(--dim)}
   /* 初版存档卡：视觉上要和「本仓库开发的四款」区分开 ——
      它是补录的历史文件，不是这一轮的新作品。 */
-  .card.legacy{border-style:dashed;background:#171b2e}
-  .card.legacy .no{color:var(--violet);border:1px solid rgba(169,140,255,.4);
+  .card.legacy{border-style:dashed;background:#fbfaff}
+  .card.legacy .no{color:var(--violet);border:1px solid rgba(98,71,208,.35);
     border-radius:2px;padding:0 5px}
   .card .prov{margin-top:9px;padding-top:8px;border-top:1px dashed var(--line);
-    font-size:11px;color:#7c86a3;font-family:Consolas,monospace;line-height:1.75;
+    font-size:11px;color:var(--dim);font-family:Consolas,monospace;line-height:1.75;
     word-break:break-all}
   .card .prov .u{color:var(--cyan)}
   .card h3{margin:0 0 3px;font-size:17px;color:var(--gold);font-weight:600}
   .card h3 em{font-style:normal;font-size:11px;letter-spacing:1.5px;color:var(--dim);
     margin-left:7px;font-family:Consolas,monospace}
-  .card p{margin:7px 0 0;font-size:13px;color:#b9c1d4}
+  .card p{margin:7px 0 0;font-size:13px;color:#465268}
   .meta{margin-top:11px;display:flex;gap:14px;flex-wrap:wrap;font-size:11.5px;
     color:var(--dim);font-family:Consolas,monospace}
   .meta .ok{color:var(--jade)}
@@ -130,15 +147,17 @@ const css = `
     margin-left:5px}
   .tl li:last-child{border-left-color:transparent;padding-bottom:0}
   .tl li::before{content:"";position:absolute;left:-5px;top:6px;width:9px;height:9px;
-    border-radius:50%;background:var(--line)}
-  .tl li.now::before{background:var(--gold);box-shadow:0 0 10px var(--gold)}
+    border-radius:50%;background:#c6cddd}
+  /* 深色主题里这圈光晕（box-shadow 0 0 10px）在白底上会糊成一团脏黄，
+     改成实心环 —— 浅底上「扩散光」这个隐喻本身就不成立。 */
+  .tl li.now::before{background:var(--gold);box-shadow:0 0 0 4px rgba(150,101,10,.14)}
   .tl .v{font-family:Consolas,monospace;color:var(--gold);font-size:13.5px}
   .tl .d{color:var(--dim);font-size:12px;margin-left:9px;
     font-family:Consolas,monospace}
   .tl .cur{display:inline-block;margin-left:9px;font-size:10.5px;padding:1px 7px;
     border:1px solid var(--gold);border-radius:2px;color:var(--gold)}
-  .tl .s{font-size:13.5px;color:#c3cadb;margin-top:5px}
-  .tl ul{margin:8px 0 0;padding-left:20px;font-size:13px;color:#aab3c8}
+  .tl .s{font-size:13.5px;color:#38425a;margin-top:5px}
+  .tl ul{margin:8px 0 0;padding-left:20px;font-size:13px;color:#525d75}
   .tl ul li{border:0;padding:2px 0;margin:0}
   .tl ul li::before{display:none}
   .snap{font-size:12.5px;color:var(--dim);font-family:Consolas,monospace;
@@ -147,12 +166,12 @@ const css = `
   .snap a:hover{text-decoration:underline}
   /* manifest 的内联标记渲染出来的行内样式 */
   code{font-family:Consolas,"Cascadia Mono",monospace;font-size:12.5px;
-    background:rgba(94,200,255,.1);border:1px solid rgba(94,200,255,.22);
-    border-radius:3px;padding:.5px 5px;color:#9fdcff}
+    background:#eaf3fa;border:1px solid #cde1f0;
+    border-radius:3px;padding:.5px 5px;color:#0b5a86}
   .ok{color:var(--jade)} .bad{color:var(--rose)}
-  strong{color:#fff;font-weight:600}
-  .warn{background:rgba(255,91,110,.08);border:1px solid rgba(255,91,110,.4);
-    border-radius:6px;padding:11px 14px;font-size:12.5px;color:#ffd4d9;margin-top:14px}
+  strong{color:#0f172a;font-weight:600}
+  .warn{background:#fdf2f3;border:1px solid #f0c6cd;
+    border-radius:6px;padding:11px 14px;font-size:12.5px;color:#8d2436;margin-top:14px}
   footer{margin-top:52px;padding-top:18px;border-top:1px solid var(--line);
     font-size:12px;color:var(--dim)}
   a{color:var(--cyan)}
@@ -244,7 +263,7 @@ const html = `<!DOCTYPE html>
   <div class="snap">${snapHtml}</div>
 
   <footer>
-    ${esc(manifest.footer || '')}
+    ${footerHtml(manifest.footer)}
   </footer>
 </div>
 </body>
@@ -252,6 +271,28 @@ const html = `<!DOCTYPE html>
 `;
 
 fs.writeFileSync(path.join(ROOT, 'index.html'), html);
+
+/** 产物自检：模板里漏写调用括号时，`${someFn}` 插进来的是**函数源码**，
+ *  构建照样「成功」、控制台照样打 ✅，只有肉眼看页面才会发现页脚变成一段 JS。
+ *  实测就这么错过一次，所以这里直接对产物做一次扫描。
+ *
+ *  ⚠️ 判据必须精确到「源码形态」，不能按关键字扫。第一版列了
+ *     `function ` / `=>` / `const ` 这些裸词，结果**把记录这个 bug 的正文
+ *     自己判成了错误** —— 因为那段文案里天然就要写这些词。
+ *     第二版改成带跟随符号的形态，仍然拦住了一次：文案里写了 `require(`。
+ *     最终只保留**两条中文句子绝不可能长成**的形态：
+ *     带名字和左括号的 `function` 定义、以及后跟 `(`/`{` 的箭头函数。
+ *     教训：判据的词表只能取「正文里不可能出现的形态」，不能取「词」。 */
+const leakPats = [
+  [/function\s+[A-Za-z_$][\w$]*\s*\(/, 'function 定义'],
+  [/=>\s*[{(]/, '箭头函数'],
+];
+const leaked = leakPats.filter(([re]) => re.test(html)).map(([, name]) => name);
+if (leaked.length) {
+  console.error(`❌ index.html 里出现疑似源码残留：${leaked.join('、')}`);
+  console.error('   多半是模板占位符写成了函数名本身、漏了调用括号。');
+  process.exit(1);
+}
 console.log(`✅ 生成 index.html —— ${games.length} 款游戏 / ${totalAssert} 项断言 / ${snaps.length} 个快照`);
 for (const g of games) {
   console.log(`   #${g.order} ${g.name.padEnd(16, '　')} 断言 ${g.asserts === null ? '未通过' : g.asserts}`);

@@ -37,7 +37,39 @@ function runOne(g) {
   });
 }
 
+/** 静态检查（毫秒级，不需要浏览器）：语法 + 配色对比度。
+ *  放在无头回归**之前**跑 —— 它们快得多，能让「脚本写错了」这类问题
+ *  在启动 5 个浏览器进程之前就暴露出来。 */
+function runStatic(script, label) {
+  return new Promise(resolve => {
+    const out = [];
+    const p = spawn(NODE, [script], { cwd: ROOT });
+    p.stdout.on('data', d => out.push(d));
+    p.stderr.on('data', d => out.push(d));
+    p.on('close', code => resolve({ label, code, text: Buffer.concat(out).toString('utf8') }));
+  });
+}
+
 (async () => {
+  console.log('静态检查（语法 / 配色对比度）…\n');
+  const statics = await Promise.all([
+    runStatic('_syntaxcheck.js', '语法自检'),
+    runStatic('_contrastcheck.js', '配色对比度'),
+  ]);
+  let staticFailed = 0;
+  for (const s of statics) {
+    const bad = s.text.split('\n').filter(l => l.includes('❌'));
+    if (s.code !== 0) staticFailed++;
+    console.log(`  ${s.code === 0 ? '✅' : '❌'} ${s.label}` +
+      (s.code === 0 ? '' : ` —— ${bad[0] ? bad[0].trim() : '见下方输出'}`));
+  }
+  if (staticFailed) {
+    for (const s of statics) if (s.code !== 0) console.log('\n' + s.text.trim());
+    console.log('\n❌ 静态检查未通过，已跳过无头回归（先修上面这些）');
+    process.exit(1);
+  }
+  console.log('');
+
   console.log(`并行跑 ${games.length} 款游戏的冒烟测试…\n`);
   const results = await Promise.all(games.map(runOne));
 

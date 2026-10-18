@@ -1181,6 +1181,187 @@ function rmTree(dir) {
          dropRes.击杀 >= 190 && dropRes.率 >= 6 && dropRes.率 <= 20,
          `${dropRes.击杀} 次确认击杀（尝试 ${dropRes.尝试}）→ 掉 ${dropRes.掉舱} 个 = ${dropRes.率}%`);
 
+    /* ═══ 本轮（第六轮）新增：去掉「抖屏 / 闪屏」+ UI 调亮 ═══════════════════
+       用户的原话：「视觉污染的闪屏和屏幕抖动」。所以这一节要钉住三件事：
+         ① 世界坐标系里**不能再有位移抖动**（run.shake 与顶层 translate 都要干净）；
+         ② **不能再有覆盖整屏的亮色填充**（全屏白闪）；
+         ③ 受击反馈改成「按方向偏色的边缘脉冲」—— 判据不能只看字段存在，
+            还要证明「左侧受击时左边缘确实更亮」且「会自己衰减回 0」。
+       最后两条是配色：面板底色亮度 + 正文/次级文字的对比度（WCAG AA 4.5:1）。
+       ====================================================================== */
+
+    // ── ★ 位移抖动必须彻底消失 ────────────────────────────────────────────
+    //  改前：draw() 开头 `const sx = rnd(-run.shake, run.shake); ctx.translate(sx, sy)`
+    //        —— 整幅画面（含弹幕）随机平移。对「读弹幕」的游戏来说这是最坏的一种反馈：
+    //        弹的真实位置在抖动的那几帧里是**错**的。
+    //  判据分两层：① 旧字段没了；② 在真实渲染路径上录一遍顶层 translate 的偏移。
+    //  为什么不能只查字段：字段删掉了，但别处仍可能加一个 translate —— 那判据就瞎了。
+    const noShake = await evaluate(`(() => {
+      const D = ${EXPORT};
+      D.start(); D.freeze(); D.step(2); D.invuln();
+      const legacy = { hasShake: 'shake' in D.run, shakeVal: D.run.shake };
+      // 给 ctx 的 save/restore 计数：depth === 1 就是 draw() 最外层那一层。
+      // 当年「整幅画面平移」正好发生在那一层，所以这里录到的就是它。
+      const g = document.querySelector('canvas').getContext('2d');
+      const os = g.save, ore = g.restore, ot = g.translate;
+      let depth = 0; const tops = [];
+      g.save = function () { depth++; return os.apply(this, arguments); };
+      g.restore = function () { depth--; return ore.apply(this, arguments); };
+      g.translate = function (x, y) { if (depth === 1) tops.push([x, y]); return ot.apply(this, arguments); };
+      try { D.drawOnce(); } finally { g.save = os; g.restore = ore; g.translate = ot; }
+      const bad = tops.filter(p => p[0] !== 0 || p[1] !== 0);
+      return { legacy, n: tops.length, bad: bad.length };
+    })()`);
+    step('★ 已移除位移抖动：run.shake 字段不存在 + 渲染顶层 translate 偏移恒为 0',
+         noShake.legacy.hasShake === false &&
+         noShake.legacy.shakeVal === undefined &&
+         noShake.bad === 0,
+         `run.shake 字段存在=${noShake.legacy.hasShake}（值 ${noShake.legacy.shakeVal}）；` +
+         `渲染顶层 translate 调用 ${noShake.n} 次，其中偏移非 0 的 ${noShake.bad} 次` +
+         `（0 次 = 世界坐标系完全没有平移，弹幕画在哪就在哪）`);
+
+    // ── ★ 全屏白闪必须彻底消失 ────────────────────────────────────────────
+    //  改前：draw() 末尾 `ctx.fillStyle = rgba(255,255,255,α); ctx.fillRect(0,0,W,H)`。
+    //  判据在真实绘制里抓「覆盖整屏 + 接近白色」的填充 —— 只看字段是抓不到
+    //  「字段删了、但别处又画了一块白的」这种情况的。
+    const noFlash = await evaluate(`(() => {
+      const D = ${EXPORT};
+      D.start(); D.freeze(); D.step(2);
+      const hasFlashField = 'flash' in D.run;
+      const g = document.querySelector('canvas').getContext('2d');
+      const ofr = g.fillRect;
+      const covers = [];
+      g.fillRect = function (x, y, w, h) {
+        // 只关心「盖住整块画布」的那些填充；画布是 720x480
+        if (w >= 720 && h >= 480) covers.push(String(this.fillStyle));
+        return ofr.apply(this, arguments);
+      };
+      let n = 0;
+      try {
+        // 最容易被白闪盖住的时刻：挨打那一下
+        D.run.noSpawn = true; D.clearRoom(); D.bullets.length = 0;
+        D.pl.dead = 0; D.pl.invuln = 0; D.pl.rolling = 0;
+        D.hitPlayer(Math.PI);
+        D.drawOnce(); n = covers.length;
+        D.pl.dead = 0; D.pl.invuln = 0;
+        D.drawOnce();
+      } finally { g.fillRect = ofr; }
+      // 亮色判定：颜色里 RGB 三分量都 >= 200 视为「接近白/亮」
+      const bright = covers.filter(c => {
+        const m = /rgba?\\((\\d+),\\s*(\\d+),\\s*(\\d+)/.exec(c);
+        return m && +m[1] >= 200 && +m[2] >= 200 && +m[3] >= 200;
+      });
+      return { hasFlashField, covers, bright };
+    })()`);
+    step('★ 已移除全屏白闪：run.flash 字段不存在 + 渲染里没有覆盖整屏的亮色填充',
+         noFlash.hasFlashField === false && noFlash.bright.length === 0,
+         `run.flash 字段存在=${noFlash.hasFlashField}；覆盖整屏的填充 ${noFlash.covers.length} 处` +
+         `[${noFlash.covers.join(' ')}]，其中亮色 ${noFlash.bright.length} 处` +
+         `（覆盖率最高的是深色背景 #060812，这是对的）`);
+
+    // ── ★ 温和替代反馈：按受击方向偏色的边缘脉冲 ──────────────────────────
+    //  三条一起验，缺一条这个「替代方案」就不成立：
+    //    ① 受击真的触发了反馈（edge > 0）；
+    //    ② 方向是对的（从左侧打来 → 左边缘权重 > 右边缘）；
+    //    ③ 会自己衰减回 0（不是 NaN、不是卡住不动）。
+    //  ⚠️ ②用的是 edgeWeights()，和渲染共用同一份实现 —— 判据自己再写一遍三角函数
+    //    是最经典的自欺：两边一起错，测试照样全绿。
+    const gentle = await evaluate(`(() => {
+      const D = ${EXPORT};
+      D.start(); D.freeze(); D.step(2);
+      D.run.noSpawn = true; D.clearRoom(); D.bullets.length = 0;
+      D.pl.dead = 0; D.pl.invuln = 0; D.pl.rolling = 0;
+      D.hitPlayer(Math.PI);                 // pi = 从左侧打来
+      const e0 = D.run.edge, w0 = D.edgeWeights();
+      const ang0 = D.run.edgeAng;
+      D.pl.dead = 0; D.pl.invuln = 0;
+      D.step(40);                           // 34 帧衰减完，40 帧后必为 0
+      const e1 = D.run.edge, w1 = D.edgeWeights();
+      // 反向对照：从右侧打来，左右应该反过来
+      D.pl.dead = 0; D.pl.invuln = 0; D.pl.rolling = 0;
+      D.hitPlayer(0);                       // 0 = 从右侧打来
+      const w2 = D.edgeWeights();
+      return { e0: +e0.toFixed(3), e1: +e1.toFixed(3), ang0: +ang0.toFixed(3),
+               l0: +w0.l.toFixed(3), r0: +w0.r.toFixed(3),
+               l2: +w2.l.toFixed(3), r2: +w2.r.toFixed(3),
+               w1l: w1.l, w1r: w1.r };
+    })()`);
+    step('★ 受击反馈 = 方向化边缘脉冲（左侧受击左边缘更亮，且会衰减回 0）',
+         gentle.e0 === 1 && gentle.e1 === 0 &&
+         Math.abs(gentle.ang0 - Math.PI) < 0.01 &&
+         gentle.l0 > gentle.r0 && gentle.l2 < gentle.r2 &&
+         gentle.w1l === 0 && gentle.w1r === 0,
+         `受击瞬间 edge=${gentle.e0}→40 帧后 ${gentle.e1}（必须回到 0，不能是 NaN/负数）；` +
+         `左侧受击 左${gentle.l0}/右${gentle.r0}，右侧受击 左${gentle.l2}/右${gentle.r2}（方向必须反过来）`);
+
+    // ── ★ 上一条只是"算出来的权重对"；这一条验「真的画到屏幕上了」 ──────────
+    //  ⚠️ 只看字段/权重是不够的：把 drawEdgePulse() 的调用删掉、或者渐变写反，
+    //    上一条判据照样全绿。所以这里**读画布像素**：
+    //      左侧受击时左边缘必须比上边缘红，也必须比"改成右侧受击"时更红。
+    //  ⚠️ 为什么不去量右边缘：右侧 96px 是 HUD 面板，它画在脉冲之上（刻意如此，
+    //    为了不让 HUD 数字在受击时被染色），所以右边读不到 —— 这是设计，不是 bug。
+    const edgePix = await evaluate(`(() => {
+      const D = ${EXPORT};
+      const g = document.querySelector('canvas').getContext('2d');
+      const redness = (x0, y0, x1, y1) => {
+        const d = g.getImageData(x0, y0, x1 - x0, y1 - y0).data;
+        let s = 0, n = 0;
+        for (let i = 0; i < d.length; i += 4) { s += d[i] - (d[i + 1] + d[i + 2]) / 2; n++; }
+        return +(s / n).toFixed(2);
+      };
+      D.start(); D.freeze(); D.step(2);
+      D.run.noSpawn = true; D.clearRoom(); D.bullets.length = 0;
+      D.run.bannerT = 0;                       // 横幅会横穿左半屏，先收掉
+      D.edgePulse(Math.PI, '#ff2f50', 1);      // ① 左侧受击（红）
+      D.drawOnce();
+      const 左 = redness(4, 180, 40, 300), 上 = redness(320, 4, 440, 24);
+      D.edgePulse(0, '#ff2f50', 1);            // ② 改成右侧受击 → 左边缘应该退回去
+      D.drawOnce();
+      const 左对照 = redness(4, 180, 40, 300);
+      D.run.edge = 0;
+      return { 左, 上, 左对照 };
+    })()`);
+    step('★ 边缘脉冲真的画在屏幕上（左侧受击时左边缘的红色通道明显高于上边缘 / 高于右侧受击）',
+         edgePix.左 > edgePix.上 + 15 && edgePix.左 > edgePix.左对照 + 15,
+         `左边缘"红度" ${edgePix.左} > 上边缘 ${edgePix.上}（同一帧、方向权重只有 1/9）；` +
+         `换成右侧受击后左边缘降到 ${edgePix.左对照}`);
+
+    // ── ★ 配色：面板不能再掉回「太暗」 ────────────────────────────────────
+    //  真正的风险不是「这一版够不够亮」，而是**以后有人手滑把变量调回去**。
+    //  所以断言直接钉在 CSS 变量上，并且顺带确认 .panel 真的用的是这个变量
+    //  （不然「改了变量但没人用」也会全绿）。
+    const uiCol = await evaluate(`(() => {
+      const cs = getComputedStyle(document.documentElement);
+      const v = n => cs.getPropertyValue(n).trim();
+      const hex = h => { const n = parseInt(h.replace('#',''), 16);
+                         return [(n>>16)&255, (n>>8)&255, n&255]; };
+      const lin = c => { c /= 255; return c <= .03928 ? c/12.92 : Math.pow((c+.055)/1.055, 2.4); };
+      const lum = h => { const a = hex(h); return .2126*lin(a[0]) + .7152*lin(a[1]) + .0722*lin(a[2]); };
+      const cr = (a, b) => { const l1 = lum(a), l2 = lum(b);
+                             const hi = Math.max(l1,l2), lo = Math.min(l1,l2);
+                             return +((hi+.05)/(lo+.05)).toFixed(2); };
+      const rgb = s => { const m = /rgba?\\((\\d+),\\s*(\\d+),\\s*(\\d+)/.exec(s);
+                         return m ? [+m[1],+m[2],+m[3]].join(',') : ''; };
+      const panel = v('--panel'), paper = v('--paper'), dim = v('--dim');
+      const panelBg = getComputedStyle(document.querySelector('.panel')).backgroundColor;
+      return { panel, paper, dim,
+               panelLum: +lum(panel).toFixed(4),
+               panelUsed: hex(panel).join(',') === rgb(panelBg),
+               panelBg,
+               cPaper: cr(paper, panel), cDim: cr(dim, panel),
+               voidLum: +lum(v('--void')).toFixed(4) };
+    })()`);
+    step('★ 配色：面板底色亮度 ≥ 0.010，且太空背景仍保持深色（背景不许跟着变亮）',
+         uiCol.panelLum >= 0.010 && uiCol.panelUsed &&
+         uiCol.voidLum <= 0.004,
+         `--panel=${uiCol.panel} 亮度 ${uiCol.panelLum}（改前 #0a0e20 = 0.005）；` +
+         `.panel 实际用的是这个变量=${uiCol.panelUsed}（${uiCol.panelBg}）；` +
+         `--void 亮度 ${uiCol.voidLum}（太空背景必须仍是深色）`);
+    step('★ 配色：正文 + 次级文字对面板的对比度都 ≥ 4.5:1（WCAG AA）',
+         uiCol.cPaper >= 4.5 && uiCol.cDim >= 4.5,
+         `正文 ${uiCol.paper} = ${uiCol.cPaper}:1，次级 ${uiCol.dim} = ${uiCol.cDim}:1` +
+         `（改前次级 #6a7196 只有 4.03:1，不达 AA）`);
+
     // ── 长时间空跑（三关流程）不崩 ──
     const errBefore = errs.length;
     await evaluate(`${EXPORT}.start(); ${EXPORT}.freeze(); ${EXPORT}.invuln(); ${EXPORT}.step(1500)`);

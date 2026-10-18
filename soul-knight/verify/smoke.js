@@ -415,6 +415,305 @@ function rmTree(dir) {
     step('清空后 → 门可通过', gate.roomAfterClean === gate.roomBefore + 1,
          `房间 ${gate.roomBefore} → ${gate.roomAfterClean}`);
 
+    // ── 8.b ★ 无限下潜：最后一间房的门 = 下一层，不是「出坑」 ──────────────
+    //   这是本轮的核心行为改动。必须证明两件事**同时**成立：
+    //     ① run.depth 真的 +1；
+    //     ② 游戏**没有结束**（run.over 仍为 false，scene 仍是 play）。
+    //   只验其一都不够 —— 原来那一支就是「depth 不变但 over=true」。
+    const dive = await evaluate(`(() => {
+      const D = ${EXPORT};
+      D.start(); D.freeze(); D.step(2);
+      D.invuln();
+      const d0 = D.run.depth;
+      const last = D.rooms.length - 1;
+      D.placeInRoom(last);              // 跳到最后一间房（会刷 Boss）
+      D.clearRoom();                    // 直接清空，跳过战斗
+      D.step(2);                        // 让 checkRoomState 判定「已清空」
+      D.chests.length = 0;              // 箱子会挡住去路，清掉专心测门
+      D.hideUpgrade();
+      const cleared = D.rooms[last].cleared;
+      const p = D.roomDoorPos(last);
+      D.warp(p.x, p.y);                 // 走到门
+      D.step(3);
+      return { d0, d1: D.run.depth, over: D.run.over, scene: D.run.scene,
+               curRoom: D.curRoom, rooms: D.rooms.length, cleared,
+               enemies: D.enemies.length, ebullets: D.ebullets.length,
+               chests: D.chests.length, drops: D.drops.length };
+    })()`);
+    step('★ 清完最后一间房走门 → 下潜一层（run.depth + 1）',
+         dive.cleared === true && dive.d1 === dive.d0 + 1 && dive.curRoom === 0,
+         `第 ${dive.d0} 层 → 第 ${dive.d1} 层，回到新层第 ${dive.curRoom + 1} 间房（共 ${dive.rooms} 间）`);
+    step('★ 下潜后游戏没有结束（不再是「出坑」）',
+         dive.over === false && dive.scene === 'play',
+         `run.over=${dive.over}, run.scene=${dive.scene}（都应为「还在玩」）`);
+    step('下潜会清掉上一层残留（敌弹 / 宝箱 / 掉落物），并刷出新层的怪',
+         dive.enemies > 0 && dive.ebullets === 0 && dive.chests === 0 && dive.drops === 0,
+         `新层刷出 ${dive.enemies} 怪；残留 敌弹${dive.ebullets} 宝箱${dive.chests} 掉落${dive.drops}`);
+
+    // ── 8.c ★ 连续下潜 3 层不崩 ─────────────────────────────────────────────
+    const dive3 = await evaluate(`(() => {
+      const D = ${EXPORT};
+      D.start(); D.freeze(); D.step(2);
+      D.invuln();
+      const trace = [];
+      for (let k = 0; k < 3; k++) {
+        const last = D.rooms.length - 1;
+        D.placeInRoom(last); D.clearRoom(); D.step(2);
+        D.chests.length = 0; D.hideUpgrade();
+        const p = D.roomDoorPos(last); D.warp(p.x, p.y); D.step(3);
+        trace.push('第' + D.run.depth + '层/' + D.rooms.length + '间/' + D.enemies.length + '怪');
+      }
+      const nums = [D.pl.x, D.pl.y, D.run.depth, D.curRoom];
+      return { depth: D.run.depth, over: D.run.over, trace,
+               nan: nums.some(v => !isFinite(v)),
+               best: D.run.bestDepth, rooms: D.rooms.length };
+    })()`);
+    step('★ 连续下潜 3 层不崩（run.depth 到 4、无 NaN、未结束）',
+         dive3.depth === 4 && dive3.over === false && dive3.nan === false,
+         `${dive3.trace.join(' → ')}；最终第 ${dive3.depth} 层`);
+
+    // ── 8.d 难度随层数增长（否则「层数只是数字」）──────────────────────────
+    const scale = await evaluate(`(() => {
+      const D = ${EXPORT};
+      D.start(); D.freeze();
+      // 数量和种类是随机的，但**血量公式**是确定的；这里把随机性靠层数差压过去。
+      const sample = (depth) => {
+        D.run.depth = depth;
+        D.genFloor(); D.clearRoom(); D.placeInRoom(0);
+        const hp = D.enemies.reduce((a, e) => a + e.hp, 0);
+        return { cnt: D.enemies.length, hp: +hp.toFixed(1), rooms: D.rooms.length };
+      };
+      const a = sample(1), b = sample(6), c = sample(12);
+      return { a, b, c };
+    })()`);
+    step('★ 难度随层数增长（房间数不缩水、敌人总血量单增）',
+         scale.b.rooms >= scale.a.rooms && scale.c.rooms >= scale.b.rooms &&
+         scale.b.hp > scale.a.hp && scale.c.hp > scale.b.hp,
+         `第1层 ${scale.a.rooms}间/${scale.a.cnt}怪 总血${scale.a.hp}｜` +
+         `第6层 ${scale.b.rooms}间/${scale.b.cnt}怪 总血${scale.b.hp}｜` +
+         `第12层 ${scale.c.rooms}间/${scale.c.cnt}怪 总血${scale.c.hp}`);
+
+    // ── 8.e 最高层数纪录（内存 + localStorage）────────────────────────────
+    const best = await evaluate(`(() => {
+      const D = ${EXPORT};
+      // ⚠️ 前面的下潜判据已经写过 localStorage，会让这里读到一个更高的旧纪录，
+      //   于是「纪录 > 本局深度」而断言失败。先清干净，从「全新玩家」开始测。
+      try { localStorage.clear(); } catch (e) {}
+      D.start(); D.freeze(); D.step(2);
+      D.invuln();
+      const b0 = D.run.bestDepth;
+      for (let k = 0; k < 2; k++) {
+        const last = D.rooms.length - 1;
+        D.placeInRoom(last); D.clearRoom(); D.step(2);
+        D.chests.length = 0; D.hideUpgrade();
+        const p = D.roomDoorPos(last); D.warp(p.x, p.y); D.step(3);
+      }
+      return { b0, depth: D.run.depth, best: D.run.bestDepth, stored: D.getBest(),
+               label: (document.getElementById('best') || {}).textContent || '' };
+    })()`);
+    step('★ 最高层数纪录随下潜更新，并写进 localStorage 与开始面板',
+         best.b0 === 1 && best.best === best.depth && best.best > best.b0 &&
+         best.stored === best.best && best.label.indexOf(String(best.best)) >= 0,
+         `全新存档纪录 ${best.b0} → ${best.best}（= 当前第 ${best.depth} 层），` +
+         `localStorage=${best.stored}，开始面板「${best.label.trim()}」`);
+
+    // ── 8.f ★ AI 接管：先钉「单步决策是对的」，再谈「它真的活得久」 ────────
+    //   只验存活会变成「跑得久就算过」的脆弱判据；先钉决策，存活只是统计确认。
+    const aiLogic = await evaluate(`(() => {
+      const D = ${EXPORT};
+      // 准备：清场 + 清弹，玩家放在房间正中 → 消掉「跑到墙边/回中」这些站位项
+      const setup = () => {
+        D.start(); D.freeze(); D.step(2);
+        D.clearRoom(); D.ebullets.length = 0; D.bullets.length = 0;
+        D.rooms[D.curRoom].cleared = false;   // 保持「战斗中」，别走清房分支
+        D.warp(320, 224);
+        D.pl.rollT = 0; D.pl.hp = 3; D.pl.deadT = 0;
+      };
+      const mk = (o) => Object.assign({ r: 5, col: '#a98cff', dmg: 1, delay: 0, t: 0, alive: true }, o);
+      const mag = (v) => Math.hypot(v.ax, v.ay);
+
+      // ① 空场基线：没有弹也没有怪时，输出应≈0
+      setup();
+      const base = D.aiSteer();
+
+      // ② 一发「会从玩家身边掠过」的弹：最近接近点在玩家左上方 → 应往右下躲。
+      //   ⚠️ 不能放「正对玩家飞来」的弹 —— 那种弹的最近接近点恰好落在玩家身上，
+      //     cx/cy ≈ 0 → 躲避向量恰好为 0，判据会红，而 AI 逻辑其实没问题。
+      setup();
+      D.ebullets.push(mk({ x: 420, y: 150, vx: -4, vy: 2.2 }));
+      const dodge = D.aiSteer();
+
+      // ③ 一发正在远离的弹 → 不该被当成威胁
+      setup();
+      D.ebullets.push(mk({ x: 450, y: 224, vx: 4, vy: 0 }));
+      const away = D.aiSteer();
+
+      // ④ 三发会从身边擦过的弹 → close 达到阈值，必须想翻滚（吃无敌帧）
+      setup();
+      for (const [sx, sy] of [[366, 204], [366, 224], [366, 244]]) {
+        const a = Math.atan2(234 - sy, 320 - sx);
+        D.ebullets.push(mk({ x: sx, y: sy, vx: Math.cos(a) * 3, vy: Math.sin(a) * 3 }));
+      }
+      D.pl.rollT = 0;
+      D.aiSteer();
+      const wantRoll = D.AI.wantRoll;
+
+      // ⑤ 敌人体也躲：把一个敌人贴到玩家身上 → 应被推开
+      setup();
+      D.enemies.push({ kind:'statue', x: 336, y: 224, r: 15, hp: 99, maxHp: 99, spd: 0,
+        dmg: 1, col: '#ff5b6e', score: 1, t: 0, fireT: 9999, flash: 0,
+        knock: 0, kx: 0, ky: 0, alive: true, boss: false });
+      const body = D.aiSteer();
+
+      D.ebullets.length = 0; D.clearRoom();
+      return { 基线: +mag(base).toFixed(3),
+               躲避: +mag(dodge).toFixed(3),
+               躲避x: +dodge.ax.toFixed(3), 躲避y: +dodge.ay.toFixed(3),
+               远离: +mag(away).toFixed(3),
+               贴身roll: wantRoll,
+               推离x: +body.ax.toFixed(3) };
+    })()`);
+    step('★ AI 判据自检：对「会擦过的弹」做躲避、对「正在远离的弹」不反应',
+         aiLogic.基线 < 0.05 && aiLogic.躲避 > 0.3 && aiLogic.远离 < 0.05,
+         `空场 ${aiLogic.基线}（应≈0）｜斜掠弹 ${aiLogic.躲避}（方向 ${aiLogic.躲避x},${aiLogic.躲避y}）｜` +
+         `逃逸弹 ${aiLogic.远离}（应≈0）`);
+    step('★ AI 判据自检：贴身弹围上来时会想翻滚（用无敌帧，不是硬吃）',
+         aiLogic.贴身roll === true, `三发贴身弹 → wantRoll=${aiLogic.贴身roll}`);
+    step('★ AI 判据自检：会推开贴身的敌人本体（接触伤害是最常见的掉血来源）',
+         aiLogic.推离x < -0.2,
+         `敌人贴在右侧 → ax=${aiLogic.推离x}（应为负=往左让开）`);
+
+    // ── 8.g ★ AI 没作弊：开关前后，受击半径 / 翻滚无敌帧 / 移动速度 完全不变 ──
+    const aiCheat = await evaluate(`(() => {
+      const D = ${EXPORT};
+      D.start(); D.freeze(); D.step(2);
+      const snap = () => ({ r: D.pl.r, rollIfr: D.pl.rollIfr, rollCd: D.pl.rollCd,
+                            spd: D.pl.spd, maxHp: D.pl.maxHp });
+      const off = snap();
+      D.toggleAI(); D.step(30);
+      const on = snap();
+      // 同时证明 AI 不是靠「偷偷加无敌」活着：照样会掉血
+      D.pl.deadT = 0; D.pl.rolling = 0; D.pl.hp = 3;
+      D.hurtPlayer(1, 0, 0);
+      const hurtWorks = D.pl.hp === 2;
+      D.toggleAI();
+      const same = ['r','rollIfr','rollCd','spd','maxHp'].every(k => off[k] === on[k]);
+      return { off, on, same, hurtWorks, aiOff: D.AI.on };
+    })()`);
+    step('★ AI 没作弊：受击半径 / 无敌帧 / 移速常量开关前后不变',
+         aiCheat.same === true && aiCheat.aiOff === false,
+         `判定半径 ${aiCheat.on.r}、无敌帧 ${aiCheat.on.rollIfr}、翻滚CD ${aiCheat.on.rollCd}、` +
+         `移速 ${aiCheat.on.spd}（开关前后一致）`);
+    step('★ AI 没作弊：接管期间照样会被打（不是靠偷偷加无敌苟活）',
+         aiCheat.hurtWorks === true, `接管中受击 3 → ${aiCheat.hurtWorks ? 2 : '未掉血'}`);
+
+    // ── 8.h ★ AI：清房后主动去开箱（确定性，不依赖掉落概率）──────────────
+    const aiSeek = await evaluate(`(() => {
+      const D = ${EXPORT};
+      D.start(); D.freeze(); D.step(2);
+      if (!D.AI.on) D.toggleAI();
+      D.clearRoom(); D.step(2);              // 让房间进入「已清空」
+      D.chests.length = 0; D.drops.length = 0; D.hideUpgrade();
+      D.warp(160, 200);
+      D.chests.push({ x: 460, y: 330, r: 13, tier: D.chestTier(0), opened: false, t: 0, bob: 0 });
+      const dist0 = Math.round(Math.hypot(460 - D.pl.x, 330 - D.pl.y));
+      let f = 0;
+      for (; f < 900 && !D.chests.some(c => c.opened); f++) D.step(1);
+      const out = { dist0, frames: f, opened: D.chests.filter(c => c.opened).length,
+                    left: Math.round(Math.hypot(460 - D.pl.x, 330 - D.pl.y)),
+                    choosing: D.run.choosing };
+      if (D.AI.on) D.toggleAI();
+      return out;
+    })()`);
+    step('★ AI 接管：会主动走过去开远处的宝箱（且不弹面板、不卡时钟）',
+         aiSeek.opened >= 1 && aiSeek.frames < 900 && aiSeek.choosing === false,
+         `${aiSeek.dist0}px 外的箱子，${aiSeek.frames} 帧内走到并开启（剩 ${aiSeek.left}px），` +
+         `choosing=${aiSeek.choosing}`);
+
+    // ── 8.i ★ AI：房间里没箱了就走向门 → 真的下潜 ─────────────────────────
+    const aiDoor = await evaluate(`(() => {
+      const D = ${EXPORT};
+      D.start(); D.freeze(); D.step(2);
+      D.invuln();
+      if (!D.AI.on) D.toggleAI();
+      const last = D.rooms.length - 1;
+      D.placeInRoom(last); D.clearRoom(); D.step(2);
+      D.chests.length = 0; D.hideUpgrade();
+      const d0 = D.run.depth;
+      let f = 0;
+      for (; f < 1200 && D.run.depth === d0; f++) D.step(1);
+      const out = { d0, d1: D.run.depth, frames: f, over: D.run.over };
+      if (D.AI.on) D.toggleAI();
+      return out;
+    })()`);
+    step('★ AI 接管：房间清空且无箱时自己走进门下潜',
+         aiDoor.d1 === aiDoor.d0 + 1 && aiDoor.over === false,
+         `${aiDoor.frames} 帧内从第 ${aiDoor.d0} 层走到门 → 第 ${aiDoor.d1} 层`);
+
+    // ── 8.j ★ AI 接管：5 轮中位数真的能连续下潜多层 ────────────────────────
+    //   ⚠️ 不用单轮值：这游戏全是 Math.random（刷怪位置/掉落/暴击），
+    //   单轮结果测的是「这一把运气」，不是「AI 设计得好不好」。
+    const aiLife = await evaluate(`(() => {
+      const D = ${EXPORT};
+      // AIDBG=1 时额外收集「每一帧所有敌人的 kind/坐标/血量/距离」——
+      // 排查 AI 卡死靠的就是这份细节（只靠 enemies[0] 看不出「台上只剩一只法师」）。
+      const DBG = ${process.env.AIDBG ? 'true' : 'false'};
+      const trial = (cap) => {
+        D.start(); D.freeze(); D.step(2);
+        if (!D.AI.on) D.toggleAI();
+        let f = 0;
+        const trace = [], dbg = [];
+        for (; f < cap && !D.run.over; f++) {
+          D.step(1);
+          if (f % 2000 === 0) {
+            const e0 = D.enemies[0];
+            const head = f + ':' + D.run.depth + '/' + D.curRoom + '/' +
+              (D.rooms[D.curRoom] && D.rooms[D.curRoom].cleared ? 'C' : '-') + '/' +
+              D.enemies.length + 'e/' + D.chests.length + 'c/hp' + D.pl.hp +
+              '/(' + Math.round(D.pl.x) + ',' + Math.round(D.pl.y) + ')' +
+              (e0 ? '[' + e0.kind + ' ' + Math.round(e0.x) + ',' + Math.round(e0.y) +
+                    ' hp' + e0.hp.toFixed(1) +
+                    ' d' + Math.round(Math.hypot(e0.x - D.pl.x, e0.y - D.pl.y)) +
+                    ' k' + (e0.knock ? e0.knock.toFixed(1) : 0) + ']' : '');
+            trace.push(head);
+            if (DBG) dbg.push(head + '  ALL[' +
+              D.enemies.map(e => e.kind + '@' + Math.round(e.x) + ',' + Math.round(e.y) +
+                ' hp' + e.hp.toFixed(1) + ' d' + Math.round(Math.hypot(e.x - D.pl.x, e.y - D.pl.y)) +
+                ' k' + (e.knock || 0).toFixed(1)).join(' | ') + ']' +
+              ' w' + D.pl.shots + '/dmg' + D.pl.dmg.toFixed(1) + '/sp' + D.pl.spread.toFixed(3) +
+              '/eng' + D.pl.range.toFixed(0));
+          }
+        }
+        const out = { depth: D.run.depth, over: D.run.over, frames: f, trace, dbg,
+                      kills: D.run.kills, chests: D.run.chestsOpened,
+                      hp: D.pl.hp, dmg: +D.pl.dmg.toFixed(2) };
+        if (D.AI.on) D.toggleAI();
+        return out;
+      };
+      const runs = [];
+      for (let i = 0; i < 5; i++) runs.push(trial(22000));
+      const mid = (a) => a.slice().sort((x, y) => x - y)[Math.floor(a.length / 2)];
+      return { runs, 中位深度: mid(runs.map(r => r.depth)),
+               最大深度: Math.max.apply(null, runs.map(r => r.depth)),
+               下潜3次的轮数: runs.filter(r => r.depth >= 4).length };
+    })()`);
+    if (process.env.AIDBG) {
+      aiLife.runs.forEach((r, i) => {
+        console.log(`\n=== run${i} depth=${r.depth} frames=${r.frames} ` +
+                    `kills=${r.kills} chests=${r.chests} hp=${r.hp} dmg=${r.dmg}`);
+        (r.dbg.length ? r.dbg : r.trace).forEach(t => console.log('   ' + t));
+      });
+    }
+    step('★ AI 接管：5 轮中位数能连续下潜（中位到第 3 层，且 ≥3 轮下潜满 3 次）',
+         aiLife.中位深度 >= 3 && aiLife.下潜3次的轮数 >= 3,
+         `5 轮深度 ${aiLife.runs.map(r => r.depth).join('/')}` +
+         `（中位 ${aiLife.中位深度}，最深 ${aiLife.最大深度}）；` +
+         `下潜满 3 次的轮数 ${aiLife.下潜3次的轮数}/5；` +
+         `各轮「存活帧/击杀/开箱」= ` +
+         aiLife.runs.map(r => r.frames + '/' + r.kills + '/' + r.chests).join('，') +
+         `（随机性极大，比的是中位数量级）｜第 1 轮轨迹 ` +
+         (aiLife.runs[0] ? aiLife.runs[0].trace.join(' → ') : ''));
+
     // ── 9. 敌人有四种且都能造成伤害 ──
     const kinds = await evaluate(`(() => {
       const D = ${EXPORT};
@@ -488,6 +787,138 @@ function rmTree(dir) {
     step('空跑 1200 帧不崩且未误判结束', errs.length === errBefore && longRun.over === false,
          `frame=${longRun.frame}, run.over=${longRun.over}` +
          (errs.slice(errBefore, errBefore + 1)[0] ? ' | ' + errs[errBefore] : ''));
+
+    // ── 10.5 ★ 二倍速：固定步长累加器，不是把 dt 乘 2 ────────────────────
+    const spd = await evaluate(`(() => {
+      const D = ${EXPORT};
+      D.start(); D.freeze(); D.step(2);
+      if (D.SPEED !== 1) D.toggleSpeed();
+      const f1 = D.run.frame;
+      const n1 = D.advance(3);              // 1× 推 3 帧 → 应为 3 步
+      const frames1 = D.run.frame - f1;
+      D.toggleSpeed();
+      const s2 = D.SPEED;
+      const f2 = D.run.frame;
+      const n2 = D.advance(3);              // 2× 推 3 帧 → 应为 6 步
+      const frames2 = D.run.frame - f2;
+      D.toggleSpeed();
+      return { n1, n2, frames1, frames2, s2, back: D.SPEED };
+    })()`);
+    step('★ 二倍速 = 固定步长翻倍（1× 推 3 帧跑 3 步 / 2× 跑 6 步）',
+         spd.frames1 === 3 && spd.frames2 === 6 && spd.n1 === 3 && spd.n2 === 6 &&
+         spd.s2 === 2 && spd.back === 1,
+         `1× → ${spd.frames1} 步；2× → ${spd.frames2} 步；SPEED ${spd.s2} → ${spd.back}`);
+
+    // 同样的输入 + 同样的**逻辑帧数**：一倍速逐帧跑，二倍速攒着跑，结果必须一致。
+    // 这正是「固定步长」与「把 dt 乘 2」的分水岭 —— 后者会一步跨过判定圆。
+    const equiv = await evaluate(`(() => {
+      const D = ${EXPORT};
+      const play = (speed, logicalFrames) => {
+        D.start(); D.freeze(); D.step(2);
+        D.clearRoom(); D.ebullets.length = 0; D.bullets.length = 0;
+        D.rooms[D.curRoom].cleared = true;      // 别让清房逻辑掉箱 + 弹面板打断时钟
+        D.warp(200, 224);
+        if (D.SPEED !== speed) D.toggleSpeed();
+        D.key('d', true); D.key('j', true);
+        const calls = speed === 1 ? logicalFrames : Math.floor(logicalFrames / speed);
+        for (let i = 0; i < calls; i++) D.advance(1);
+        D.key('d', false); D.key('j', false);
+        return { x: D.pl.x, y: D.pl.y, frame: D.run.frame };
+      };
+      const a = play(1, 120);
+      const b = play(2, 120);
+      if (D.SPEED !== 1) D.toggleSpeed();
+      return { a, b };
+    })()`);
+    step('★ 二倍速下同输入序列结果与一倍速完全一致（物理步长恒为 1）',
+         Math.abs(equiv.a.x - equiv.b.x) < 1e-9 && Math.abs(equiv.a.y - equiv.b.y) < 1e-9 &&
+         equiv.a.frame === equiv.b.frame,
+         `1× 终点 (${equiv.a.x.toFixed(4)}, ${equiv.a.y.toFixed(4)}) 共 ${equiv.a.frame} 帧 ｜ ` +
+         `2× 终点 (${equiv.b.x.toFixed(4)}, ${equiv.b.y.toFixed(4)}) 共 ${equiv.b.frame} 帧`);
+
+    // ── 10.6 ★ 视觉：屏幕抖动 / 白闪已移除，受击改成温和反馈 ──────────────
+    const vfx = await evaluate(`(() => {
+      const D = ${EXPORT};
+      D.start(); D.freeze(); D.step(2);
+      const hasShake = Object.prototype.hasOwnProperty.call(D.run, 'shake');
+      // 清场 + 标记已清空 → step() 期间既不会被打，也不会被打断/掉箱
+      D.clearRoom(); D.ebullets.length = 0;
+      D.rooms[D.curRoom].cleared = true;
+      D.pl.deadT = 0; D.pl.rolling = 0; D.pl.hp = 3;
+      D.hurtPlayer(1, 100, 100);
+      const g0 = D.run.hurtGlow, dir0 = D.run.hurtDir;
+      D.step(40);
+      const g1 = D.run.hurtGlow;
+      D.step(80);
+      const g2 = D.run.hurtGlow;
+      return { hasShake, g0: +g0.toFixed(4), g1: +g1.toFixed(4), g2: +g2.toFixed(4),
+               dir0: +dir0.toFixed(4) };
+    })()`);
+    step('★ 屏幕位移抖动已彻底移除（run 上不再有 shake 字段）',
+         vfx.hasShake === false,
+         `run.shake 存在=${vfx.hasShake}`);
+    step('★ 受击改为温和反馈：暗角脉冲会衰减到 0（不再晃屏/闪屏）',
+         vfx.g0 === 1 && vfx.g1 > 0 && vfx.g1 < 1 && vfx.g2 === 0 && isFinite(vfx.dir0),
+         `hurtGlow ${vfx.g0} →(40帧) ${vfx.g1} →(再80帧) ${vfx.g2}；来向 ${vfx.dir0} rad`);
+
+    // 形状检查：源码里不该再有「位移抖动」与「受击整只怪拍成纯白」的写法。
+    // 先剥掉块注释与整行注释，免得「注释里提到过」把检查搞红。
+    const shape = await evaluate(`(async () => {
+      const txt = await (await fetch(location.href)).text();
+      const clean = txt.split('/*').map(function (c, i) {
+        if (i === 0) return c;
+        const e = c.indexOf('*/');
+        return e < 0 ? '' : c.slice(e + 2);
+      }).join('');
+      const code = clean.split('\\n').filter(function (L) {
+        return L.trim().indexOf('//') !== 0;
+      }).join('\\n');
+      return {
+        位移抖动赋值: code.indexOf('run.shake') >= 0,
+        翻译抖动: code.indexOf('ctx.translate(sx') >= 0,
+        受击白闪: code.indexOf('C.white : e.col') >= 0,
+        温和替代: code.indexOf('hurtGlow') >= 0,
+      };
+    })()`);
+    step('★ 源码形状：无屏幕位移抖动、无「受击拍成纯白」，且存在温和替代',
+         shape.位移抖动赋值 === false && shape.翻译抖动 === false &&
+         shape.受击白闪 === false && shape.温和替代 === true,
+         `run.shake 赋值=${shape.位移抖动赋值}，translate 抖动=${shape.翻译抖动}，` +
+         `受击白闪=${shape.受击白闪}，hurtGlow=${shape.温和替代}`);
+
+    // ── 10.7 UI 调亮：面板正文 / 次级文字对比度 ≥ 4.5:1（WCAG AA）────────
+    const ui = await evaluate(`(() => {
+      const grab = function (c) {
+        const m = String(c).match(/rgba?\\(([^)]+)\\)/);
+        if (!m) return null;
+        const p = m[1].split(',').map(function (s) { return parseFloat(s); });
+        return { r: p[0], g: p[1], b: p[2], a: p.length > 3 ? p[3] : 1 };
+      };
+      const lum = function (c) {
+        const f = function (v) { v = v / 255;
+          return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); };
+        return 0.2126 * f(c.r) + 0.7152 * f(c.g) + 0.0722 * f(c.b);
+      };
+      const over = function (fg, bg) {
+        return { r: fg.r * fg.a + bg.r * (1 - fg.a),
+                 g: fg.g * fg.a + bg.g * (1 - fg.a),
+                 b: fg.b * fg.a + bg.b * (1 - fg.a), a: 1 };
+      };
+      const ratio = function (a, b) {
+        const l1 = Math.max(lum(a), lum(b)), l2 = Math.min(lum(a), lum(b));
+        return (l1 + 0.05) / (l2 + 0.05);
+      };
+      const pageBg = { r: 10, g: 12, b: 16, a: 1 };        // body 的 #0a0c10
+      const panel = document.getElementById('p0');
+      const bg = over(grab(getComputedStyle(panel).backgroundColor), pageBg);
+      const 正文 = ratio(over(grab(getComputedStyle(panel.querySelector('p')).color), bg), bg);
+      const 次级 = ratio(over(grab(getComputedStyle(panel.querySelector('.note')).color), bg), bg);
+      return { 正文: +正文.toFixed(2), 次级: +次级.toFixed(2),
+               panelBg: getComputedStyle(panel).backgroundColor };
+    })()`);
+    step('UI 调亮：开始面板正文 / 次级文字对比度 ≥ 4.5:1（WCAG AA）',
+         ui.正文 >= 4.5 && ui.次级 >= 4.5,
+         `正文 ${ui.正文}:1，次级 ${ui.次级}:1（面板底色 ${ui.panelBg}）`);
 
     // ── 11. Canvas 真画了东西 ──
     const ink = await evaluate(`(() => {

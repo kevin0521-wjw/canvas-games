@@ -75,12 +75,24 @@
 <title>星际防线 · 简易太空射击</title>
 <style>
   /* ===== 主题变量：想换配色只改这里 ===== */
+  /* ★ 本轮（UI 调亮）：太空背景（--bg-deep / 画布底色）**保持深色不动** ——
+     这是太空射击，背景一亮观感就毁了。要提亮的是「开始/暂停/结算面板、
+     排行榜、次级文字」这一层。改前实测（WCAG 相对亮度 / 对比度）：
+       · 覆盖层用 rgba(3,6,16,.82~.94) 铺出来的实际底色亮度只有 0.004；
+       · --text-dim(#7fa7c9) 压在它上面 6.5:1 尚可，但 #ov-hint(#55799a) 只有 3.0:1、
+         .footnote(#3d5b78) 只有 1.8:1 —— **都低于 AA 的 4.5:1**；
+     改后统一走变量，并把面板底色抬亮一档（#101a36，亮度 0.011），
+     正文 14:1、次级 9:1、最弱的一档 5:1，全部达标。 */
   :root{
-    --bg-deep: #05070f;
+    --bg-deep: #05070f;       /* 深空底色：不动 */
+    --panel: #101a36;         /* ★ 面板/排行榜底色：从近乎纯黑抬亮一档 */
+    --veil-a: rgba(16,26,54,.86);   /* 覆盖层渐变的上端（半透明，让星空透出来） */
+    --veil-b: rgba(13,21,44,.95);   /* 覆盖层渐变的下端 */
     --accent: #4fd1ff;        /* 主强调色（青蓝） */
     --accent-2: #ff5d7a;      /* 危险色（红） */
-    --text: #e8f2ff;
-    --text-dim: #7fa7c9;
+    --text: #eef4ff;
+    --text-dim: #9fbdd8;
+    --text-mute: #8096b4;     /* 最弱的一档次级文字（提示行 / 脚注 / 榜单表头） */
     /* 画布之外必须留出的垂直空间（标题 + 脚注 + 内外边距）。
        它直接决定画布能长多大，所以抽成变量，好在矮窗口里收紧。 */
     --vpad: 150px;
@@ -99,7 +111,8 @@
     justify-content: center;
     gap: 12px;
     padding: 16px;
-    /* 深空底色 + 中心微亮，让画面外也有宇宙感 */
+    /* 深空底色 + 中心微亮，让画面外也有宇宙感。
+       刻意不跟着面板一起提亮 —— 背景一亮，「太空」就没了。 */
     background:
       radial-gradient(circle at 50% 18%, #101c38 0%, #05070f 62%),
       var(--bg-deep);
@@ -184,7 +197,7 @@
     gap: 12px;
     padding: 24px;
     text-align: center;
-    background: linear-gradient(180deg, rgba(3,6,16,.82), rgba(3,6,16,.94));
+    background: linear-gradient(180deg, var(--veil-a), var(--veil-b));
     transition: opacity .18s ease;
   }
   #overlay.hidden{
@@ -209,7 +222,7 @@
   #ov-stats{
     min-height: 20px;
     font-size: clamp(12px, 1.6vw, 15px);
-    color: #bcd7ee;
+    color: #cfe0f2;
     line-height: 1.8;
   }
   #ov-stats b{ color: var(--accent); font-size: 1.12em; }
@@ -235,7 +248,7 @@
 
   #ov-hint{
     font-size: clamp(10px, 1.4vw, 12px);
-    color: #55799a;
+    color: var(--text-mute);
     line-height: 1.9;
     margin: 0;
   }
@@ -253,7 +266,7 @@
 
   .footnote{
     font-size: 11px;
-    color: #3d5b78;
+    color: var(--text-mute);
     margin: 0;
   }
 
@@ -265,16 +278,16 @@
     text-align: left;
     font-family: Consolas, "Courier New", monospace;
     font-size: clamp(11px, 1.5vw, 13px);
-    color: #9fc4e0;
-    background: rgba(79, 209, 255, .06);
-    border: 1px solid rgba(79, 209, 255, .18);
+    color: var(--text-dim);
+    background: var(--panel);
+    border: 1px solid rgba(79, 209, 255, .28);
     border-radius: 10px;
   }
   #ov-board.show{ display: block; }
   #ov-board .bhead{
     font-size: .92em;
     letter-spacing: .22em;
-    color: #55799a;
+    color: var(--text-mute);
     margin-bottom: 6px;
   }
   #ov-board .brow{
@@ -283,7 +296,7 @@
     gap: 10px;
     line-height: 1.85;
   }
-  #ov-board .brow .rk{ color: #55799a; width: 1.6em; }
+  #ov-board .brow .rk{ color: var(--text-mute); width: 1.6em; }
   #ov-board .brow .sc{ color: #8fe3ff; flex: 1; }
   /* 二倍速标记：琥珀色，与普通成绩区分开。用 ×2 而不是文字，
      因为榜单是等宽字体的紧凑列表，一个符号比"二倍速"三个字省地儿也更快读。 */
@@ -291,7 +304,7 @@
   /* AI 标记：紫色。它和二倍速标记是同一类信息 ——
      "这个分数不是在同等条件下的产物"，必须能一眼分辨。 */
   #ov-board .brow .sc .ai{ color: #b48cff; margin-left: 6px; font-size: .86em; }
-  #ov-board .brow .meta{ color: #476b8a; font-size: .92em; }
+  #ov-board .brow .meta{ color: #8aa6c2; font-size: .92em; }
   /* 本局排名高亮：玩家一眼就能在榜上找到自己刚才那一次 */
   #ov-board .brow.now .rk,
   #ov-board .brow.now .sc{ color: #ffd479; }
@@ -520,18 +533,11 @@ const CFG = {
                              // 下界 0.9 让它不至于贴到"漏怪线"上去（详见 _danger 的注释）
   },
 
-  /* ---------- 屏幕反馈（震动）----------
-     ⚠️ 这几个键曾经只在 addShake()/render() 里被引用，却没有在这里定义。
-     后果不是报错，而是静默失效：Math.max(0, undefined) → NaN，
-     shakeTime 变成 NaN 之后 `if (shakeTime > 0)` 恒为假，
-     于是"屏幕震动"这个功能一次都没生效过，还完全不报错。
-     所以集中定义在这里，并且自检里专门断言震动值必须是有限数。 */
-  SHAKE_ON_KILL: 0.16,       // 击毁敌机的轻微震动时长（秒）
-  SHAKE_ON_KILL_MAG: 4,      // 对应幅度（像素），只做一点点"打击感"
-  SHAKE_ON_HIT: 0.45,        // 玩家受击的强震动时长（秒）
-  SHAKE_ON_HIT_MAG: 14,      // 对应幅度。数值明显大于击杀，玩家能立刻分辨"我挨打了"
-  SHAKE_ON_BOMB: 0.6,        // 炸弹引爆 / Boss 爆炸的震动
-  SHAKE_ON_BOMB_MAG: 20,
+  /* ---------- 屏幕反馈：见上面的 CFG.IMPACT ----------
+     这里原来还有一组 SHAKE_ON_*（震动时长 / 幅度）。已整体删除：
+     「整幅画面平移」这个反馈方式本轮被彻底移除，换成边缘脉冲。
+     ⚠️ 留个教训：那几个键曾经**只在 addShake()/render() 里被引用却没在这里定义**，
+        后果不是报错，而是静默失效（Math.max(0, undefined) → NaN → 判断恒假）。 */
 
   /* ---------- 玩家 ---------- */
   PLAYER: {
@@ -667,9 +673,27 @@ const CFG = {
   FX: {
     GLOW: true,              // 辉光层：粒子/子弹/爆炸用 'lighter' 叠加，产生过曝光感
     VIGNETTE: 0.55,          // 暗角强度 0~1。让视线自然聚焦到画面中央
-    SCANLINE: 0.05,          // 扫描线透明度 0 = 关闭。轻微 CRT 味，过量会显脏
-    HIT_VIGNETTE: 0.62       // 受击时额外叠一层红色暗角。比"整屏泛红"更高级：
-                             // 画面中央保持可读，只有边缘在报警，视线不会被糊住
+    SCANLINE: 0.05           // 扫描线透明度 0 = 关闭。轻微 CRT 味，过量会显脏
+  },
+
+  /* ---------- 屏幕反馈：边缘脉冲 ----------
+     ⚠️⚠️ 这一块原来是 SHAKE_ON_*，对应的是「整幅画面随机平移」。两个坑都踩过：
+       ① 这几个键曾经只在 addShake()/render() 里被引用，却没有在这里定义。
+          后果不是报错，而是静默失效：Math.max(0, undefined) → NaN，
+          于是 `if (shakeTime > 0)` 恒为假，"屏幕震动"一次都没生效过，还不报错。
+       ② 「动整个画面」本身就是错的方向：抖动会让弹幕的真实位置短暂失真
+          （这是靠读弹幕活命的游戏），白闪/泛红则直接盖住战场。
+     现在换成**屏幕边缘的柔和脉冲**（Game.addImpact / Game.drawImpactEdges）：
+     中心战场永远干净、不位移、不盖色，受击方向那一侧更亮。
+     数值语义也跟着变了：下面几个是「强度 0~1」，不再是「震动像素」。 */
+  IMPACT: {
+    FADE: 1.7,               // 强度每秒衰减多少 → 1 / 1.7 ≈ 0.59 秒走完，比一次眨眼略长
+    THICK: 96,               // 边缘光带厚度（px）
+    ALPHA: 0.40,             // 峰值透明度上限。刻意压在 0.4 以下：要"感觉得到"，不要"刺眼"
+    ON_KILL: 0.22,           // 击毁敌机：很轻，只给一个"打中了"的边角暗示
+    ON_HIT: 1.0,             // 玩家受击：最强（这是最关键的一条信息）
+    ON_BOMB: 0.85,           // 炸弹引爆 / Boss 爆炸 / 玩家殉爆
+    ON_WARN: 0.5             // Boss 入场 / 阶段强化这类预警
   },
 
   /* ---------- 背景流星 ---------- */
@@ -779,6 +803,23 @@ function randDir() {
 
 /** 圆周率的两倍。画整圆/做周期性运算时到处都要用，提出来避免重复写 Math.PI * 2。 */
 const TAU = Math.PI * 2;
+
+/**
+ * 把 "#rrggbb" 和透明度拼成 "rgba(r,g,b,a)"。
+ * @param {string} hex 6 位十六进制颜色（本文件里所有配色都是这个格式）
+ * @param {number} a   透明度 0~1
+ * @returns {string} CSS 颜色字符串
+ * 为什么要它：边缘脉冲要按「强度」连续变化透明度，而 ctx 的 globalAlpha 会
+ * 影响后续所有绘制（渐变里又不能用它），只能用 rgba 逐色写死。
+ * 前缀不像 6 位 hex 时退回一个安全色 —— 宁可颜色不对，也不要拼出一个
+ * 非法颜色字符串让整帧绘制静默失败。
+ */
+function hexA(hex, a) {
+  const m = /^#([0-9a-f]{6})$/i.exec(hex || '');
+  if (!m) return 'rgba(255,107,138,' + a.toFixed(3) + ')';
+  const n = parseInt(m[1], 16);
+  return 'rgba(' + ((n >> 16) & 255) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',' + a.toFixed(3) + ')';
+}
 
 /**
  * 线性插值。
@@ -2249,9 +2290,13 @@ class Enemy {
     ctx.save();
     ctx.translate(this.x, this.y);
 
-    // 受击瞬间整体变白，是"我打中了"最廉价也最有效的视觉反馈
+    // 受击瞬间提亮，是"我打中了"最廉价也最有效的视觉反馈。
+    // ★ 本轮改动：从「整体变纯白」改成「同色系提亮」——
+    //   纯白会把敌机糊成一块没有轮廓的亮斑（用户说的"整体泛白"），
+    //   提亮同样能看清打中了，但保住了形状和配色，也不再刺眼。
     const hot = this.elite ? '#ffb457' : '#ff5d7a';
-    const bodyColor = flash ? '#ffffff' : hot;
+    const flashCol = this.elite ? '#ffdca6' : '#ffaebd';
+    const bodyColor = flash ? flashCol : hot;
 
     if (this.elite) {
       // ================= 精英敌 =================
@@ -2277,9 +2322,9 @@ class Enemy {
 
       // ---- 主体六边形：径向渐变让它看起来是个有体积的壳，而不是一块色板 ----
       const shell = ctx.createLinearGradient(0, -R, 0, R);
-      shell.addColorStop(0, flash ? '#ffffff' : '#ffd79a');
+      shell.addColorStop(0, flash ? flashCol : '#ffd79a');
       shell.addColorStop(0.55, bodyColor);
-      shell.addColorStop(1, flash ? '#ffffff' : '#b45c14');
+      shell.addColorStop(1, flash ? flashCol : '#b45c14');
       ctx.beginPath();
       for (let i = 0; i < 6; i++) {
         const a = (Math.PI / 3) * i - Math.PI / 2;
@@ -2340,9 +2385,9 @@ class Enemy {
 
     // ---- 外层机壳：尖头朝下的三角 ----
     const hull = ctx.createLinearGradient(0, -R * 0.8, 0, R);
-    hull.addColorStop(0, flash ? '#ffffff' : '#8e2540');
+    hull.addColorStop(0, flash ? flashCol : '#8e2540');
     hull.addColorStop(0.5, bodyColor);
-    hull.addColorStop(1, flash ? '#ffffff' : '#ff5570');
+    hull.addColorStop(1, flash ? flashCol : '#ff5570');
     ctx.beginPath();
     ctx.moveTo(0, R);
     ctx.lineTo(-R * 0.92, -R * 0.8);
@@ -2360,7 +2405,7 @@ class Enemy {
     ctx.lineTo(-R * 0.52, -R * 0.42);
     ctx.lineTo(R * 0.52, -R * 0.42);
     ctx.closePath();
-    ctx.fillStyle = flash ? '#ffffff' : 'rgba(40, 8, 20, 0.55)';
+    ctx.fillStyle = flash ? flashCol : 'rgba(40, 8, 20, 0.55)';
     ctx.fill();
 
     // ---- 顶部双推进器喷口：两个上扬的小三角 + 光点，暗示敌人是"飞下来"的 ----
@@ -2373,7 +2418,7 @@ class Enemy {
     ctx.lineTo(R * 0.30, -R * 1.02);
     ctx.lineTo(R * 0.18, -R * 0.62);
     ctx.closePath();
-    ctx.fillStyle = flash ? '#ffffff' : '#7a1c33';
+    ctx.fillStyle = flash ? flashCol : '#7a1c33';
     ctx.fill();
 
     // 喷口光点（半径 2 左右，远小于 10，不会干扰自检判据）
@@ -2381,17 +2426,17 @@ class Enemy {
     ctx.arc(-R * 0.40, -R * 0.84, R * 0.13, 0, TAU);
     ctx.moveTo(R * 0.40 + R * 0.13, -R * 0.84);
     ctx.arc(R * 0.40, -R * 0.84, R * 0.13, 0, TAU);
-    ctx.fillStyle = flash ? '#ffffff' : 'rgba(255, 200, 220, 0.9)';
+    ctx.fillStyle = flash ? flashCol : 'rgba(255, 200, 220, 0.9)';
     ctx.fill();
 
     // ---- 核心"眼"：半径 R*0.30 ≈ 5px ----
     ctx.beginPath();
     ctx.arc(0, -R * 0.15, R * 0.30, 0, TAU);
-    ctx.fillStyle = flash ? '#ffffff' : '#2a0710';
+    ctx.fillStyle = flash ? flashCol : '#2a0710';
     ctx.fill();
     ctx.beginPath();
     ctx.arc(0, -R * 0.15, R * 0.30 * 0.5, 0, TAU);
-    ctx.fillStyle = flash ? '#ffffff' : '#ff8ea3';
+    ctx.fillStyle = flash ? flashCol : '#ff8ea3';
     ctx.fill();
 
     ctx.restore();
@@ -3123,6 +3168,10 @@ class Boss {
         ? { ring: 'rgba(255, 161, 74, 0.58)', glow: '#ffa14a', a: '#ffd9ac', b: '#d0691a', c: '#5c2a06' }
         : { ring: 'rgba(255, 107, 138, 0.55)', glow: '#ff6b8a', a: '#ff9db2', b: '#c02a52', c: '#5c0c22' };
     const pulse = 1 + Math.sin(this.spin * 3) * 0.04;
+    // ★ 中弹/换阶段的提亮：从「整块纯白」改成「同色系提亮」。
+    //   Boss 体积大，纯白闪一下几乎等于"半屏泛白"（用户报的就是这个），
+    //   按阶段取一个偏亮的同色反而更清楚地表达"它现在是哪种形态"。
+    const flashCol = this.phase >= 3 ? '#ffd4f3' : this.phase === 2 ? '#ffe2c0' : '#ffc6d2';
 
     ctx.save();
     ctx.translate(this.x, this.y);
@@ -3135,7 +3184,7 @@ class Boss {
       ctx.globalAlpha = (1 - k) * 0.85;
       ctx.beginPath();
       ctx.arc(0, 0, R * (1.3 + k * 2.1), 0, TAU);
-      ctx.strokeStyle = '#ffffff';
+      ctx.strokeStyle = flashCol;
       ctx.lineWidth = 6 * (1 - k) + 1;
       ctx.shadowColor = pal.glow;
       ctx.shadowBlur = 30;
@@ -3148,7 +3197,7 @@ class Boss {
     // 三阶段的护罩转得更快、段数更密 —— 视觉上"它在加速"
     ctx.save();
     ctx.rotate(-this.spin * (this.phase >= 3 ? 1.9 : this.phase === 2 ? 1.3 : 0.7));
-    ctx.strokeStyle = flash ? '#ffffff' : pal.ring;
+    ctx.strokeStyle = flash ? flashCol : pal.ring;
     ctx.lineWidth = 3;
     ctx.shadowColor = pal.glow;
     ctx.shadowBlur = 18;
@@ -3164,9 +3213,9 @@ class Boss {
     // ---- 主体：六边形重装甲 ----
     ctx.scale(pulse, pulse);
     const body = ctx.createLinearGradient(0, -R, 0, R);
-    body.addColorStop(0, flash ? '#ffffff' : pal.a);
-    body.addColorStop(0.5, flash ? '#ffffff' : pal.b);
-    body.addColorStop(1, flash ? '#ffffff' : pal.c);
+    body.addColorStop(0, flash ? flashCol : pal.a);
+    body.addColorStop(0.5, flash ? flashCol : pal.b);
+    body.addColorStop(1, flash ? flashCol : pal.c);
     ctx.beginPath();
     for (let i = 0; i < 6; i++) {
       const a = (Math.PI / 3) * i - Math.PI / 2;
@@ -3258,9 +3307,21 @@ const Game = {
   powerups: [],      // 掉落中的道具数组
   enemyBullets: [],  // 敌方子弹数组（目前只有 Boss 会发射）
   spawnTimer: 0,     // 距离下一次生成敌人的剩余时间
-  shakeTime: 0,      // 屏幕震动剩余时间
-  shakeMag: 0,       // 屏幕震动幅度（像素）
-  flash: 0,          // 受击红闪剩余时间
+  /* ★ 屏幕反馈（本轮替换掉旧的 shakeTime / shakeMag / flash）：
+       过去是「整幅画面随机平移」+「全屏叠一层色」——
+       抖动会让弹幕的真实位置短暂失真，泛色则盖住战场，两者都是视觉污染。
+       现在只做**屏幕边缘的方向化柔光脉冲**：
+         impactT    强度 0~1，事件触发后拉满、随时间线性衰减；
+         impactAng  事件来源方向（弧度）—— 左侧挨打就左边缘亮起来；
+         impactOmni true = 无方向事件（炸弹 / Boss 强化），四边均匀泛光；
+         impactCol  边缘光颜色。
+     ⚠️⚠️ 这四个字段**必须在这里初始化**：本文件踩过「引用了一个没定义的变量」
+       却没有报错的坑（shakeTime 那次就是这个原因变成 NaN）——NaN 不会崩，
+       只会让 `> 0` 恒假、功能静默失效，而且现场极难看出来。 */
+  impactT: 0,
+  impactAng: 0,
+  impactOmni: true,
+  impactCol: '#ff6b8a',
 
   // ---- 连击系统 ----
   combo: 0,          // 当前连续击杀数
@@ -3394,14 +3455,9 @@ const Game = {
     this.vignette.addColorStop(0, 'rgba(0,0,0,0)');
     this.vignette.addColorStop(1, 'rgba(0,0,0,' + CFG.FX.VIGNETTE.toFixed(2) + ')');
 
-    // 受击用的红色暗角。跟上面同一套几何，只换颜色 ——
-    // 这样"挨打"的观感是边缘在报警，而不是整块红布糊住战场。
-    this.vignetteHit = this.ctx.createRadialGradient(
-      CFG.W / 2, CFG.H / 2, CFG.H * 0.2,
-      CFG.W / 2, CFG.H / 2, CFG.H * 0.86
-    );
-    this.vignetteHit.addColorStop(0, 'rgba(255,40,80,0)');
-    this.vignetteHit.addColorStop(1, 'rgba(255,40,80,' + CFG.FX.HIT_VIGNETTE.toFixed(2) + ')');
+    /* ⚠️ 这里原本还有一个 vignetteHit（受击用的红色径向暗角），
+       随「全屏泛红」一起删掉了：现在是方向化的边缘脉冲 drawImpactEdges()，
+       它的形状随受击方向变化，一个静态的径向渐变做不出来。 */
 
     // ---- DOM 引用 ----
     this.overlay = document.getElementById('overlay');
@@ -3527,8 +3583,9 @@ const Game = {
     }
 
     // ---- 3) 全局视觉计时器衰减（放在状态判断之前，保证暂停后也能自然收尾）----
-    if (this.shakeTime > 0) this.shakeTime -= dt;
-    if (this.flash > 0) this.flash -= dt;
+    // 边缘脉冲按秒线性衰减到 0。用 Math.max 夹住下界：不夹的话会一路减成负数，
+    // 虽然 `> 0` 判断仍然为假、看起来"没事"，但那个负值会留在对象上流到判据里。
+    if (this.impactT > 0) this.impactT = Math.max(0, this.impactT - dt * CFG.IMPACT.FADE);
     if (this.bannerTime > 0) this.bannerTime -= dt;
     if (this.toastTime > 0) this.toastTime -= dt;
     if (this.bossWarn > 0) this.bossWarn -= dt;
@@ -3687,7 +3744,7 @@ const Game = {
       this.boss = new Boss(this.bossIndex);
       this.bossWarn = 2.2;
       this.showBanner('战 备 警 报', 'BOSS 已进入战区', 2.2, '#ff6b8a');
-      this.addShake(0.5, 8);
+      this.addImpact(CFG.IMPACT.ON_WARN, null, '#ff6b8a');
       return;
     }
 
@@ -3727,11 +3784,10 @@ const Game = {
       isRage ? '#ff4ad2' : '#ffa14a'
     );
 
-    this.addShake(0.35, isRage ? 13 : 9);
+    this.addImpact(isRage ? 0.75 : 0.55, null, isRage ? '#ff4ad2' : '#ffa14a');
     this.shockwaves.push(new Shockwave(b.x, b.y, isRage ? 320 : 230,
                                        isRage ? '#ff4ad2' : '#ffa14a', 0.6));
     this.explode(b.x, b.y, isRage ? '#ff4ad2' : '#ffa14a', isRage ? 40 : 26, 1.2);
-    this.flash = isRage ? 0.28 : 0.16;
 
     // ---- 阶段切换时清空场上敌弹 ----
     // 这是个刻意的"让一口气"设计：玩家刚把血量打进下一个阈值，
@@ -3932,7 +3988,8 @@ const Game = {
 
         this.enemies.splice(i, 1);
         this.explode(e.x, e.y, '#7fd8ff', CFG.PARTICLE.EXPLOSION_COUNT, 1.2);
-        this.damagePlayer();
+        // 把撞击来源方向传给受击反馈 → 敌机从哪边来，哪边的屏幕边缘就红
+        this.damagePlayer(Math.atan2(e.y - p.y, e.x - p.x));
         break;   // 一帧只扣一次命；剩下的交给无敌时间处理
       }
     }
@@ -3941,7 +3998,7 @@ const Game = {
     // Boss 撞到玩家不会消失 —— 它是关底目标，撞一下只扣命。
     // 注意这里没有扣完命就 break 的问题：Boss 只有一个。
     if (this.boss && !p.isProtected && circleOverlap(p, this.boss.circle)) {
-      this.damagePlayer();
+      this.damagePlayer(Math.atan2(this.boss.y - p.y, this.boss.x - p.x));
     }
 
     // ---------- 5) 玩家 × 敌方子弹（圆形）----------
@@ -3951,7 +4008,7 @@ const Game = {
         if (!circleOverlap(p, eb.circle)) continue;
         this.enemyBullets.splice(i, 1);
         this.spark(p.x, p.y - p.r * 0.5, eb.color, 12);
-        this.damagePlayer();
+        this.damagePlayer(Math.atan2(eb.y - p.y, eb.x - p.x));
         break;
       }
     }
@@ -3966,7 +4023,8 @@ const Game = {
       // 让"漏掉一个"的心理成本远大于它本身扣的那点血。
       this.enemies.splice(i, 1);
       this.breakCombo(true);
-      this.damagePlayer();
+      // 漏怪是从画面**下方**漏过去的（画布 y 轴朝下，所以 +PI/2 = 来自下方）
+      this.damagePlayer(Math.PI / 2);
     }
   },
 
@@ -4028,7 +4086,11 @@ const Game = {
       e.elite ? '#ffd479' : '#ffd7e0',
       e.elite ? 19 : 15, 0.75
     ));
-    this.addShake(CFG.SHAKE_ON_KILL, CFG.SHAKE_ON_KILL_MAG);
+    // 击毁不是"我挨打"，所以强度很低；方向取"敌机所在的那一侧"，
+    // 让边缘光和爆炸出现在同一边，读起来才顺。
+    this.addImpact(CFG.IMPACT.ON_KILL,
+      Math.atan2(e.y - this.player.y, e.x - this.player.x),
+      e.elite ? '#ffb457' : '#ff5d7a');
     this.maybeDrop(e);
   },
 
@@ -4049,8 +4111,7 @@ const Game = {
     this.explode(b.x, b.y, '#ffd479', 28, 1.3);
     this.shockwaves.push(new Shockwave(b.x, b.y, 300, '#ff9db2', 0.75));
     this.shockwaves.push(new Shockwave(b.x, b.y, 190, '#ffd479', 0.5));
-    this.addShake(CFG.SHAKE_ON_BOMB, CFG.SHAKE_ON_BOMB_MAG + 6);
-    this.flash = 0.4;
+    this.addImpact(CFG.IMPACT.ON_BOMB, null, '#ffd479');   // 关底击破：金色四边柔光
 
     this.floatTexts.push(new FloatText(b.x, b.y, 'BOSS 击破 +' + gained, '#ffd479', 22, 1.6));
 
@@ -4123,7 +4184,7 @@ const Game = {
     this.floatTexts.push(new FloatText(p.x, p.y - 40, def.toast, def.color, 16, 1.0));
     // 武器解锁给更大的冲击波，因为它是"改变玩法"级别的事件，不该和护盾同一个分量
     this.shockwaves.push(new Shockwave(p.x, p.y, def.weapon ? 150 : 90, def.color, def.weapon ? 0.55 : 0.4));
-    if (def.weapon) this.addShake(0.3, 7);
+    if (def.weapon) this.addImpact(CFG.IMPACT.ON_KILL, null, def.color);
   },
 
   /**
@@ -4163,10 +4224,11 @@ const Game = {
       ));
     }
 
-    // 一整屏的冲击波 + 强震动：炸弹必须有"整个画面都被掀了一下"的量感
+    // 一整屏的冲击波 + 全四边的柔光脉冲：炸弹必须有"整个画面都被掀了一下"的量感。
+    // （原来是"整幅画面抖 20px + 全屏泛红"，现在是四边同时亮起来 ——
+    //   量感靠冲击波和粒子给，不再靠晃屏幕。）
     this.shockwaves.push(new Shockwave(CFG.W / 2, CFG.H * 0.5, CFG.W * 0.72, '#ff9db2', 0.55));
-    this.addShake(CFG.SHAKE_ON_BOMB, CFG.SHAKE_ON_BOMB_MAG);
-    this.flash = 0.3;
+    this.addImpact(CFG.IMPACT.ON_BOMB, null, '#ff9db2');
   },
 
   /**
@@ -4226,9 +4288,11 @@ const Game = {
 
   /**
    * 扣除玩家生命并触发受击反馈。
+   * @param {number|null} [ang] 伤害来源方向（弧度，指向"东西从哪来"）。
+   *                            用来决定屏幕哪一侧的边缘亮起来；不传 = 四边均匀。
    * @returns {void}
    */
-  damagePlayer() {
+  damagePlayer(ang) {
     const p = this.player;
     // 双保险：调用方已判断过一次，这里再挡一次。
     // 同样只挡 isProtected —— 护盾要留到下面单独处理。
@@ -4243,16 +4307,18 @@ const Game = {
       this.spark(p.x, p.y, '#7fe8ff', 22);
       this.floatTexts.push(new FloatText(p.x, p.y - 34, '护盾碎裂', '#7fe8ff', 16, 0.9));
       p.invincible = 0.9;   // 破盾后给一小段无敌，避免"盾碎的同一瞬间被第二下打死"
-      this.addShake(CFG.SHAKE_ON_HIT, CFG.SHAKE_ON_HIT_MAG * 0.6);
+      this.addImpact(0.6, ang == null ? null : ang, '#7fe8ff');
       this.breakCombo(true);
       return;
     }
 
     p.lives -= 1;
     p.invincible = CFG.PLAYER.INVINCIBLE;   // 进入无敌，避免子弹时间里被连续碰撞
-    this.flash = 0.35;                       // 屏幕泛红
-    this.addShake(CFG.SHAKE_ON_HIT, CFG.SHAKE_ON_HIT_MAG);   // 屏幕震动
-    this.spark(p.x, p.y, '#7fd8ff', 20);     // 飞船位置也喷一簇火花
+    /* ★ 受击反馈（原来是 `this.flash = 0.35; this.addShake(...)` —— 全屏泛红 + 抖屏）：
+       现在只做「按来源方向偏色的边缘脉冲」+ 一簇火花。
+       方向由调用方传进来，所以"从左边撞过来"就会让左边缘泛红。 */
+    this.addImpact(CFG.IMPACT.ON_HIT, ang == null ? null : ang, '#ff2f50');
+    this.spark(p.x, p.y, '#7fd8ff', 26);     // 火花比原来多给一点，补上被砍掉的分量感
     this.breakCombo(true);
 
     if (p.lives <= 0) this.gameOver();
@@ -4335,15 +4401,68 @@ const Game = {
   },
 
   /**
-   * 触发屏幕震动。
-   * @param {number} time     震动持续时间（秒）
-   * @param {number} magnitude 震动幅度（像素）
+   * 触发一次「屏幕边缘脉冲」—— 本作唯一的事件反馈通道。
+   * @param {number}      power 强度 0~1（与当前值取 max，连续受击不会被削弱）
+   * @param {number|null} ang   事件来源方向（弧度）；null = 无方向（四边均匀泛光）
+   * @param {string}      col   边缘光颜色（#rrggbb）
+   * @returns {void}
+   * ⚠️ 这个方法**不动画面、不盖画面** —— 它只改四个数字（强度 / 方向 / 颜色 / 是否均匀），
+   *    真正画出来的是 drawImpactEdges()，而且画在屏幕坐标系里。
+   *    换句话说：「位移抖动」这条路在代码层面已经不存在了，不是靠参数调小的。
+   */
+  addImpact(power, ang, col) {
+    const p = (power == null ? 1 : clamp(power, 0, 1));
+    this.impactT = Math.max(this.impactT, p);
+    this.impactOmni = (ang == null);
+    if (ang != null) this.impactAng = ang;
+    if (col) this.impactCol = col;
+  },
+
+  /**
+   * 四条边的脉冲权重（左 / 右 / 上 / 下，0~1）。
+   * @returns {{l:number,r:number,t:number,b:number}}
+   * 抽成独立方法是为了让**渲染**和**判据**用同一份真相 ——
+   * 判据要断言「左侧受击时左边缘更亮」，就不能自己再实现一遍这个三角函数
+   * （各写一份最常见的结局是判据跟着错的方向一起"通过"）。
+   * 每边保留 0.12 的底数：不是从中间切一刀，四边都有一点柔光，观感更自然。
+   */
+  impactWeights() {
+    if (!(this.impactT > 0)) return { l: 0, r: 0, t: 0, b: 0 };
+    if (this.impactOmni) return { l: 0.7, r: 0.7, t: 0.7, b: 0.7 };
+    const c = Math.cos(this.impactAng), s = Math.sin(this.impactAng);
+    return {
+      l: Math.max(0, -c) + 0.12,
+      r: Math.max(0, c) + 0.12,
+      t: Math.max(0, -s) + 0.12,   // 画布 y 轴朝下：sin < 0 = 来源在画面上方
+      b: Math.max(0, s) + 0.12
+    };
+  },
+
+  /**
+   * 画四周的柔光脉冲（屏幕坐标系，不参与任何变换 —— 所以它不可能造成位移）。
+   * @param {CanvasRenderingContext2D} ctx
    * @returns {void}
    */
-  addShake(time, magnitude) {
-    // 取较大值而不是直接覆盖：连续受击时震动不会被削弱
-    this.shakeTime = Math.max(this.shakeTime, time);
-    this.shakeMag = Math.max(this.shakeMag, magnitude);
+  drawImpactEdges(ctx) {
+    if (!(this.impactT > 0)) return;
+    const w = this.impactWeights();
+    const B = CFG.IMPACT.THICK;
+    const A = CFG.IMPACT.ALPHA * Math.min(1, this.impactT);
+    const col = this.impactCol;
+    const band = (x0, y0, x1, y1, dx, dy, bw, bh, k) => {
+      if (!(k > 0)) return;
+      const g = ctx.createLinearGradient(x0, y0, x1, y1);
+      g.addColorStop(0, hexA(col, A * Math.min(1, k)));
+      g.addColorStop(1, hexA(col, 0));
+      ctx.fillStyle = g;
+      ctx.fillRect(dx, dy, bw, bh);
+    };
+    ctx.save();
+    band(0, 0, B, 0, 0, 0, B, CFG.H, w.l);                       // 左边缘
+    band(CFG.W, 0, CFG.W - B, 0, CFG.W - B, 0, B, CFG.H, w.r);   // 右边缘
+    band(0, 0, 0, B, 0, 0, CFG.W, B, w.t);                       // 上边缘
+    band(0, CFG.H, 0, CFG.H - B, 0, CFG.H - B, CFG.W, B, w.b);   // 下边缘
+    ctx.restore();
   },
 
   /* ==========================================================================
@@ -4360,19 +4479,17 @@ const Game = {
 
     ctx.save();
 
-    // ---- 屏幕震动：整个场景（不含 HUD）随机平移 ----
-    if (this.shakeTime > 0 && this.shakeMag > 0) {
-      // 用 clamp 把衰减比例限在 0~1。炸弹的震动时长(0.6s)比受击(0.45s)更长，
-      // 不夹紧的话比例会超过 1，反而让炸弹的震幅"越衰减越大"，很怪。
-      const k = clamp(this.shakeTime / CFG.SHAKE_ON_HIT, 0, 1);
-      const a = Math.random() * Math.PI * 2;          // 随机方向（比左右晃更"炸"）
-      const m = this.shakeMag * k;
-      ctx.translate(Math.cos(a) * m, Math.sin(a) * m);
-    } else {
-      this.shakeMag = 0;   // 震动结束后清零，避免残留的大幅度值被下一次复用
-    }
+    /* ★ 这里原本是「屏幕震动」：
+         if (this.shakeTime > 0 && this.shakeMag > 0) {
+           const k = clamp(this.shakeTime / CFG.SHAKE_ON_HIT, 0, 1);
+           const a = Math.random() * Math.PI * 2;
+           ctx.translate(Math.cos(a) * this.shakeMag * k, Math.sin(a) * this.shakeMag * k);
+         }
+       已彻底移除：世界坐标系里不再有任何平移。留着的这对 save/restore 只是为了
+       把下面这段的场景绘制与后面的后处理隔开（有些绘制会改 globalAlpha / 混合模式）。
+       受击反馈改由 drawImpactEdges()（屏幕坐标系）承担，见 Game.addImpact 的注释。 */
 
-    // ---- 背景：多画一圈（±24px），防止震动平移时露出画布底色边 ----
+    // ---- 背景：多画一圈（±24px），运动时不会露出画布底色边 ----
     const PAD = 24;
     ctx.fillStyle = '#02030a';
     ctx.fillRect(-PAD, -PAD, CFG.W + PAD * 2, CFG.H + PAD * 2);
@@ -4428,24 +4545,21 @@ const Game = {
     // ---- 飘字：在实体之上，让得分数字不会被任何东西遮住 ----
     for (let i = 0; i < this.floatTexts.length; i++) this.floatTexts[i].draw(ctx);
 
-    ctx.restore();   // 结束震动坐标系
+    ctx.restore();   // 结束场景坐标系（此处已不含任何平移）
 
     // ==========================================================================
-    // 后处理（不参与震动，固定在屏幕坐标系里）
+    // 后处理（固定在屏幕坐标系里，不参与场景变换）
     // ==========================================================================
 
     // ---- 暗角：压暗四周，把注意力收拢到中央战场 ----
     ctx.fillStyle = this.vignette;
     ctx.fillRect(0, 0, CFG.W, CFG.H);
 
-    // ---- 受击红暗角：边缘报警，中央保持可读 ----
-    if (this.flash > 0) {
-      const a = clamp(this.flash / 0.35, 0, 1);
-      ctx.globalAlpha = a;
-      ctx.fillStyle = this.vignetteHit;
-      ctx.fillRect(0, 0, CFG.W, CFG.H);
-      ctx.globalAlpha = 1;
-    }
+    /* ★ 这里原本是「受击全屏泛红」：
+         if (this.flash > 0) { ctx.globalAlpha = …; ctx.fillStyle = this.vignetteHit; ctx.fillRect(0,0,W,H); }
+       已替换成方向化的边缘脉冲：中心战场完全不动、不盖色，
+       只有受击来源那一侧亮起来（左侧挨打 → 左边缘泛红）。 */
+    this.drawImpactEdges(ctx);
 
     // ---- 扫描线：极轻的横向细线，给画面一点显像管的质感 ----
     // 用逐行 fillRect 而不是 createPattern：单文件游戏里不必为了这点效果
@@ -4821,8 +4935,8 @@ const Game = {
     this.explode(this.player.x, this.player.y, '#7fd8ff', 46, 1.7);
     this.explode(this.player.x, this.player.y, '#ffd479', 20, 1.1);
     this.shockwaves.push(new Shockwave(this.player.x, this.player.y, 260, '#7fd8ff', 0.7));
-    this.addShake(CFG.SHAKE_ON_BOMB, CFG.SHAKE_ON_BOMB_MAG);
-    this.flash = 0.45;
+    // 飞船殉爆：四边同时泛起青色柔光（原来是全屏泛红 + 震屏，现在只保留边缘报警）
+    this.addImpact(CFG.IMPACT.ON_BOMB, null, '#7fd8ff');
     this.bossWarn = 0;
 
     // 清掉滞留的敌方子弹：结束界面下它们已经冻结，
@@ -4879,9 +4993,11 @@ const Game = {
     // 开局给约 1 秒的缓冲，让玩家有反应时间，不至于一进来就被糊脸
     this.spawnTimer = 1.0;
 
-    this.shakeTime = 0;
-    this.shakeMag = 0;
-    this.flash = 0;
+    // 边缘脉冲也要复位：否则上一局结束时的红色泛光会跟着带进新一局的开场
+    this.impactT = 0;
+    this.impactAng = 0;
+    this.impactOmni = true;
+    this.impactCol = '#ff6b8a';
     this.laserSparkTimer = 0;
     // 名次高亮只在"刚打完的那一局"有意义，重开时必须清掉，
     // 否则上一局的高亮会跟着带进新一局的开场界面

@@ -257,7 +257,157 @@ function rmTree(dir) {
       return { n, total, pct: +(n / total * 100).toFixed(1), w: c.width, h: c.height };
     })()`);
     step('Canvas 有实际绘制内容（不是一片纯黑）', ink.pct > 3,
-         `画布 ${ink.w}×${ink.h}，采样命中 ${ink.n}/${ink.total}（${ink.pct}%）`);
+         `画布 ${ink.w}x${ink.h}，采样命中 ${ink.n}/${ink.total}（${ink.pct}%）`);
+
+    /* ═══ 本轮（第六轮）新增：去掉「抖屏 / 闪屏」+ UI 调亮 ═══════════════════
+       用户的原话：「视觉污染的闪屏和屏幕抖动」。这一节要钉住三件事：
+         ① 世界坐标系里不能再有位移抖动（旧字段 + 真实渲染时的变换矩阵都要干净）；
+         ② 不能再有覆盖整屏的亮色填充（全屏白闪 / 泛红）；
+         ③ 受击反馈换成「按方向偏色的边缘脉冲」，且方向必须真的对、会自己衰减。
+       最后两条是配色：面板底色亮度 + 正文/次级文字对比度（WCAG AA 4.5:1）。
+       ⚠️ 这一版没有 freeze()/step() 钩子，所以判据只能直接调 game.render() /
+          game.update() —— 它们都是同步的，不会被 rAF 插进来，结论依然确定。
+       ====================================================================== */
+
+    // ── ★ 位移抖动必须彻底消失 ────────────────────────────────────────────
+    //  改前：render() 开头 `ctx.translate(Math.cos(a)*m, Math.sin(a)*m)` —— 整幅场景随机平移。
+    //  判据分两层：① 旧字段没了；② 真跑一次 render()，在**第一笔填充**那一刻读
+    //  ctx.getTransform() —— 它返回的就是"世界 → 屏幕"的当前变换矩阵，
+    //  e/f 就是平移量。抖动只要发生过，这两个值一定非 0。
+    //  为什么不用「数 translate 调用次数」：场景里每个实体都有自己的合法 translate，
+    //  分不清哪一次是抖动；而矩阵读数不存在这个问题。
+    const noShake = await evaluate(`(() => {
+      const G = ${EXPORT}.game;
+      const legacy = { hasShakeTime: 'shakeTime' in G, hasShakeMag: 'shakeMag' in G,
+                       hasFlash: 'flash' in G };
+      const g = G.ctx;
+      const ofr = g.fillRect;
+      let first = null; const covers = [];
+      g.fillRect = function (x, y, w, h) {
+        if (first === null) { const t = this.getTransform(); first = [+t.e.toFixed(3), +t.f.toFixed(3)]; }
+        if (w >= 800 && h >= 600) covers.push(String(this.fillStyle));
+        return ofr.apply(this, arguments);
+      };
+      let ok = true;
+      try { G.render(); } catch (e) { ok = false; }
+      finally { g.fillRect = ofr; }
+      const bright = covers.filter(c => {
+        const m = /rgba?\\((\\d+),\\s*(\\d+),\\s*(\\d+)/.exec(c);
+        return m && +m[1] >= 200 && +m[2] >= 200 && +m[3] >= 200;
+      });
+      return { legacy, first, ok, covers, bright };
+    })()`);
+    step('★ 已移除位移抖动：shakeTime/shakeMag 字段不存在 + 渲染时变换矩阵平移量恒为 0',
+         noShake.ok === true && noShake.first !== null &&
+         noShake.first[0] === 0 && noShake.first[1] === 0 &&
+         noShake.legacy.hasShakeTime === false && noShake.legacy.hasShakeMag === false,
+         `旧字段 shakeTime=${noShake.legacy.hasShakeTime} shakeMag=${noShake.legacy.hasShakeMag}；` +
+         `render() 第一笔填充时 ctx.getTransform() 平移量 = (${noShake.first})（必须是 0,0）`);
+
+    // ── ★ 全屏闪（白闪 / 泛红）必须彻底消失 ────────────────────────────────
+    const noFlash = await evaluate(`(() => {
+      const G = ${EXPORT}.game;
+      const g = G.ctx;
+      const ofr = g.fillRect;
+      const covers = [];
+      g.fillRect = function (x, y, w, h) {
+        if (w >= 800 && h >= 600) covers.push(String(this.fillStyle));
+        return ofr.apply(this, arguments);
+      };
+      try {
+        G.addImpact(1, null, '#ff2f50');   // 拉满脉冲，再渲染一次
+        G.render();
+      } finally { g.fillRect = ofr; G.impactT = 0; }
+      const bright = covers.filter(c => {
+        const m = /rgba?\\((\\d+),\\s*(\\d+),\\s*(\\d+)/.exec(c);
+        return m && +m[1] >= 200 && +m[2] >= 200 && +m[3] >= 200;
+      });
+      return { hasFlash: 'flash' in G, covers, bright };
+    })()`);
+    step('★ 已移除全屏闪：flash 字段不存在 + 渲染里没有覆盖整屏的亮色填充',
+         noFlash.hasFlash === false && noFlash.bright.length === 0,
+         `flash 字段存在=${noFlash.hasFlash}；覆盖整屏的填充 ${noFlash.covers.length} 处` +
+         `[${noFlash.covers.join(' ')}]，其中亮色 ${noFlash.bright.length} 处` +
+         `（背景 #02030a 与暗角/星云都是渐变，都不算亮色）`);
+
+    // ── ★ 温和替代反馈：按受击方向偏色的边缘脉冲 ──────────────────────────
+    //  三条一起验，缺一条这个"替代方案"就不成立：
+    //    ① 事件真的触发了反馈（impactT > 0）；
+    //    ② 方向是对的（从左侧来 → 左边缘权重 > 右边缘，反向对照必须反过来）；
+    //    ③ 会自己衰减回 0（不是 NaN、不是卡住）。
+    //  ⚠️ ②用的是 game.impactWeights()，和渲染共用同一份实现 —— 判据自己再写一遍
+    //    三角函数是最经典的自欺：两边一起错，测试照样全绿。
+    const gentle = await evaluate(`(() => {
+      const G = ${EXPORT}.game;
+      G.addImpact(1, Math.PI, '#ff2f50');        // pi = 从左侧来
+      const t0 = G.impactT, w0 = G.impactWeights();
+      for (let i = 0; i < 20; i++) G.update(0.05);   // 推进 1 秒（衰减只需 0.59 秒）
+      const t1 = G.impactT, w1 = G.impactWeights();
+      G.addImpact(1, 0, '#ff2f50');              // 0 = 从右侧来
+      const w2 = G.impactWeights();
+      G.impactT = 0;
+      return { t0: +t0.toFixed(3), t1: +t1.toFixed(3),
+               l0: +w0.l.toFixed(3), r0: +w0.r.toFixed(3),
+               l2: +w2.l.toFixed(3), r2: +w2.r.toFixed(3),
+               l1: w1.l, r1: w1.r };
+    })()`);
+    step('★ 受击反馈 = 方向化边缘脉冲（左侧受击左边缘更亮，且会衰减回 0）',
+         gentle.t0 === 1 && gentle.t1 === 0 &&
+         gentle.l0 > gentle.r0 && gentle.l2 < gentle.r2 &&
+         gentle.l1 === 0 && gentle.r1 === 0,
+         `受击瞬间 impactT=${gentle.t0} → 1 秒后 ${gentle.t1}（必须回到 0，不能是 NaN/负数）；` +
+         `左侧受击 左${gentle.l0}/右${gentle.r0}，右侧受击 左${gentle.l2}/右${gentle.r2}（方向必须反过来）`);
+
+    // ── ★ 配色：面板不能再掉回「太暗」 ────────────────────────────────────
+    //  真正的风险不是"这一版够不够亮"，而是以后有人手滑把变量调回去。
+    //  所以断言钉在 CSS 变量上，并且顺带确认 #ov-board 真的在用 --panel
+    //  （不然"改了变量但没人用"也会全绿）。
+    const uiCol = await evaluate(`(() => {
+      const cs = getComputedStyle(document.documentElement);
+      const v = n => cs.getPropertyValue(n).trim();
+      const hex = h => { const n = parseInt(h.replace('#',''), 16);
+                         return [(n>>16)&255, (n>>8)&255, n&255]; };
+      const lin = c => { c /= 255; return c <= 0.03928 ? c/12.92 : Math.pow((c+0.055)/1.055, 2.4); };
+      const lumArr = c => 0.2126*lin(c[0]) + 0.7152*lin(c[1]) + 0.0722*lin(c[2]);
+      const lumHex = h => lumArr(hex(h));
+      const ratio = (a, b) => { const hi = Math.max(a,b), lo = Math.min(a,b);
+                                return +((hi+0.05)/(lo+0.05)).toFixed(2); };
+      const parse = s => {
+        const m = /rgba?\\(([^)]+)\\)/.exec(s);
+        if (m) { const p = m[1].split(',').map(x => parseFloat(x));
+                 return { r: p[0], g: p[1], b: p[2], a: p.length > 3 ? p[3] : 1 }; }
+        // 背景色是 #rrggbb 这种写法，也得认 —— 只认 rgba() 会让合成直接返回 null（踩过）
+        if (/^#([0-9a-f]{6})$/i.test(s)) { const c = hex(s); return { r: c[0], g: c[1], b: c[2], a: 1 }; }
+        return null;
+      };
+      // 覆盖层是半透明的 rgba，必须先在 sRGB 空间里跟画布底色合成出"实际看到的颜色"
+      const over = (f, b) => { const F = parse(f), B = parse(b); if (!F || !B) return null;
+                               const a = F.a;
+                               return [Math.round(F.r*a + B.r*(1-a)), Math.round(F.g*a + B.g*(1-a)),
+                                       Math.round(F.b*a + B.b*(1-a))]; };
+      const rgbStr = s => { const m = /rgba?\\((\\d+),\\s*(\\d+),\\s*(\\d+)/.exec(s);
+                            return m ? [+m[1],+m[2],+m[3]].join(',') : ''; };
+      const panel = v('--panel'), text = v('--text'), dim = v('--text-dim'), mute = v('--text-mute');
+      const Lp = lumHex(panel);
+      const veil = over(v('--veil-a'), v('--bg-deep'));
+      const boardBg = getComputedStyle(document.getElementById('ov-board')).backgroundColor;
+      return { panel, text, dim, mute, boardBg,
+               panelLum: +Lp.toFixed(4),
+               boardUses: hex(panel).join(',') === rgbStr(boardBg),
+               veilLum: veil ? +lumArr(veil).toFixed(4) : -1,
+               cText: ratio(lumHex(text), Lp),
+               cDim: ratio(lumHex(dim), Lp),
+               cMute: ratio(lumHex(mute), Lp) };
+    })()`);
+    step('★ 配色：面板底色亮度 ≥ 0.010（#ov-board 真的在用这个变量）',
+         uiCol.panelLum >= 0.010 && uiCol.boardUses === true && uiCol.veilLum >= 0.008,
+         `--panel=${uiCol.panel} 亮度 ${uiCol.panelLum}（改前 rgba(3,6,16,.82~.94) ≈ 0.004）；` +
+         `#ov-board 实际背景 ${uiCol.boardBg}（用的是这个变量=${uiCol.boardUses}）；` +
+         `覆盖层合成后的实际底色亮度 ${uiCol.veilLum}`);
+    step('★ 配色：正文 + 次级 + 最弱一档文字对面板的对比度都 ≥ 4.5:1（WCAG AA）',
+         uiCol.cText >= 4.5 && uiCol.cDim >= 4.5 && uiCol.cMute >= 4.5,
+         `正文 ${uiCol.text} = ${uiCol.cText}:1，次级 ${uiCol.dim} = ${uiCol.cDim}:1，` +
+         `最弱 ${uiCol.mute} = ${uiCol.cMute}:1（改前脚注 #3d5b78 只有 1.8:1）`);
 
     step('零未捕获异常', errs.length === 0, errs.slice(0, 2).join(' | '));
   } catch (e) {

@@ -1,11 +1,18 @@
 /**
- * 无头冒烟测试：把某个单文件 HTML 游戏塞进真实浏览器（headless Edge + CDP）跑 N 帧，
+ * 无头冒烟测试：把单文件 HTML 游戏塞进真实浏览器（headless Edge + CDP）跑 N 帧，
  * 检查有没有未捕获异常、状态有没有推进、关键机制有没有真的触发。
  *
  * 为什么不用 Node vm + canvas stub：Canvas 的实际绘制路径（渐变、shadowBlur、
- * ellipse 兼容）只有真浏览器能暴露。stub 跑通了不代表浏览器里画得出来。
+ * 合成模式）只有真浏览器能暴露。stub 跑通了不代表浏览器里画得出来。
  *
- * 用法：node verify/smoke.mjs <html路径> [游戏导出名]
+ * ⚠️ 本文件里所有判据都必须遵守一条顺序：
+ *      D.start() → D.freeze() → const R = D.run
+ *    start() 会**新建** run 对象。先取 R 再 start()，拿到的是上一局的尸体 ——
+ *    症状是「改了 hp / 摆了符块，但游戏毫无反应」，16 条判据一起红，
+ *    看起来像游戏崩了，其实判据在跟一个已经作废的对象说话。
+ *    这一版就是因为这个顺序写反，白跑了一整轮。
+ *
+ * 用法：node verify/smoke.js <html路径> [游戏导出名]
  */
 const { spawn } = require('child_process');
 const http = require('http');
@@ -35,18 +42,9 @@ function get(pathname) {
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 /* ── 收尾：杀【整棵】进程树，再删浏览器 profile ────────────────────────────────
- * ⚠️ 踩过的坑：`proc.kill()`（SIGTERM）在 Windows 上只杀掉我们 spawn 的**启动器**，
- *   Edge 的 renderer / gpu / crashpad 子进程会继续活着，并持续往 --user-data-dir
- *   里写文件。此时再去 rmTree 删 profile，就是在跟一个活进程抢文件 ——
- *   实测**卡 5 分钟**都删不完，每次回归都白等这么久。
- *   （之前那次「跑了 11 分钟没输出」也是这个原因，当时误判成「AI 长循环太慢」。）
- *
- * 正解：Windows 上用 `taskkill /PID <pid> /T /F` 把整棵树带走，同步等一小会儿
- * 让文件句柄释放，最后才删目录。
- *
- * 为什么不抽成公共模块：每个游戏目录必须能**单独留档** —— _snapshot.js 只复制
- * <游戏>/index.html 与 <游戏>/verify/*.js，判据脚本一旦 require 外面的文件，
- * 归档出来的判据将来就跑不起来了。
+ * ⚠️ 踩过的坑：`proc.kill()`（SIGTERM）在 Windows 上只杀掉 spawn 的启动器，
+ *    Edge 的 renderer / gpu 子进程会继续活着并写 --user-data-dir，此时删 profile
+ *    就是在跟活进程抢文件 —— 实测卡 5 分钟。正解 taskkill /T /F。
  */
 const sleepSync = ms => {
   const a = new Int32Array(new SharedArrayBuffer(4));
@@ -57,30 +55,24 @@ function killTree(proc) {
     if (process.platform === 'win32')
       require('child_process').execSync(`taskkill /PID ${proc.pid} /T /F`, { stdio: 'ignore' });
     else proc.kill('SIGKILL');
-  } catch (e) { /* 进程可能已经自己退出了，不是错误 */ }
+  } catch (e) {}
   try { proc.kill(); } catch (e) {}
-  sleepSync(700);            // 等句柄释放，再让 rmTree 上
+  sleepSync(700);
 }
 
 function rmTree(dir) {
   if (!fs.existsSync(dir)) return { ok: true, how: 'absent' };
   const { execFileSync, spawn: sp } = require('child_process');
-
-  // 1) 同步快删：正常情况 < 0.3 秒
   try {
     execFileSync('cmd', ['/c', 'rmdir', '/s', '/q', dir], { stdio: 'ignore', timeout: 5000 });
-  } catch (e) { /* 文件被占用 / 沙箱拦截，都靠下面的「还在不在」判断 */ }
+  } catch (e) {}
   if (!fs.existsSync(dir)) return { ok: true, how: 'cmd' };
-
-  // 2) 换 PowerShell 再试一次（走 Win32 API，同样绕开 Node 的 fs 垫片）
   try {
     execFileSync('powershell', ['-NoProfile', '-NonInteractive', '-Command', 'Remove-Item',
       '-LiteralPath', dir, '-Recurse', '-Force', '-ErrorAction', 'SilentlyContinue'],
       { stdio: 'ignore', timeout: 8000 });
   } catch (e) {}
   if (!fs.existsSync(dir)) return { ok: true, how: 'powershell' };
-
-  // 3) 点火即忘：后台删，判据不等它
   try {
     const c = sp('cmd', ['/c', 'rmdir', '/s', '/q', dir], { detached: true, stdio: 'ignore' });
     c.unref();
@@ -91,9 +83,6 @@ function rmTree(dir) {
 (async () => {
   await new Promise(r => srv.listen(PORT, '127.0.0.1', r));
   const profile = path.resolve(__dirname, '_smokeprof');
-  // 开跑前先清一次：上次被强杀（超时 / Ctrl-C）会留下脏 profile，可能还被残留的
-  // 浏览器进程占着 → Edge 起来会莫名失败，判据报「45s 内没找到页面标签」，
-  // 看起来像**游戏坏了**。先清干净，故障面小一半。（rmTree 现在是外部命令实现，很快）
   rmTree(profile);
   const proc = spawn(EDGE, [
     '--headless=new', '--disable-gpu', '--no-sandbox', '--mute-audio',
@@ -105,19 +94,18 @@ function rmTree(dir) {
 
   const errs = [];
   let ws = null;
-  const deadline = Date.now() + 45000;      // 冷启动容忍上限：exe 大、语言包要初始化
+  const deadline = Date.now() + 45000;
   let tab = null;
   while (Date.now() < deadline) {
     try {
       const tabs = await get('/json/list');
       tab = tabs.find(t => t.type === 'page' && t.url.includes('/g.html'));
       if (tab && tab.webSocketDebuggerUrl) break;
-    } catch (e) { /* 端口还没起来 */ }
+    } catch (e) {}
     await sleep(400);
   }
   if (!tab) { console.log('❌ 45s 内没找到页面标签'); killTree(proc); srv.close(); process.exit(1); }
 
-  // 最小 WebSocket 客户端（不引第三方依赖）
   ws = await connect(tab.webSocketDebuggerUrl);
   ws.onEvent = ev => {
     if (ev.method === 'Runtime.exceptionThrown') {
@@ -151,19 +139,15 @@ function rmTree(dir) {
 
   await send('Runtime.enable');
   await send('Page.enable');
-  // ⚠️ 这里原来是一句固定 sleep（等页面脚本跑完）。
-  //   「找到 CDP tab」**不等于「页面加载完」** —— tab 一出现就能连上，
-  //   但此时 index.html 可能还没执行到 window.__TP = ... 那行。
-  //   症状：读到 undefined，报「暴露测试接口失败」，而游戏逻辑毫无异常。
-  //   踩到的现场：touhou-danmaku 全量回归挂 2 条，__DM 的 typeof=false。
-  // → 改成轮询真正的就绪条件：慢页面自然多等，快页面立刻进。
+
+  // ⚠️「找到 CDP tab」不等于「页面加载完」—— 必须轮询真正的就绪条件。
   let __ready = false;
   for (let __i = 0; __i < 100 && !__ready; __i++) {
     await sleep(200);
-    try { __ready = await evaluate('typeof window.__TP !== "undefined"'); } catch (e) { __ready = false; }
+    try { __ready = await evaluate(`typeof window["${EXPORT}"] !== "undefined"`); }
+    catch (e) { __ready = false; }
   }
-  if (!__ready) console.log('⚠️ 等了 20 秒仍没等到 window.__TP，后续判据大概率会误报');
-
+  if (!__ready) console.log('⚠️ 等了 20 秒仍没等到导出，后续判据大概率会误报');
 
   const report = { errs, steps: [] };
   const step = (name, ok, detail) => {
@@ -172,266 +156,400 @@ function rmTree(dir) {
   };
 
   try {
-    // 1. 启动
+    /* ---------- 0. 启动与时钟 ---------- */
     const hasExport = await evaluate(`typeof ${EXPORT} !== 'undefined'`);
     step('暴露测试接口 ' + EXPORT, hasExport === true, 'typeof=' + hasExport);
     if (hasExport !== true) throw new Error('no export');
 
     await evaluate(`${EXPORT}.start()`);
-    await sleep(300);
+    await sleep(250);
     step('start() 未抛异常', errs.length === 0, errs[0] || '');
 
-    // 1b. ★★ 冻结自带动画循环 —— 本项目踩过最贵的坑，四款游戏全中
-    //
-    // ⚠️ 症状：step(600) 之后 wave 纹丝不动（1->1）、score 全 0，
-    //    看起来像「游戏状态机坏了」。
-    //    真因：页面自己的 rAF 和测试的 step() 在赛跑 → 玩家在原地挨打
-    //    → 掉光残机 → run.over = true → step() 里的 `if (!run.over)` 全不成立
-    //    → 600 帧全空转。**游戏代码一点问题都没有，是测试侧有两个时钟。**
-    //
-    // 我一开始的处理是「把判据放宽」—— 那是在掩盖真因。正确做法是先排除它。
+    // ★★ 冻结自带动画循环。
+    // ⚠️ 全项目最贵的坑：页面自己的 rAF 和测试的 step() 赛跑 → 玩家原地挨打
+    //    → run.over=true → step() 里的判断全不成立 → 看起来像「状态机坏了」。
     const frozen = await evaluate(`(() => {
-      ${EXPORT}.freeze();
-      const hp0 = ${EXPORT}.run.hp, t0 = ${EXPORT}.run.t;
-      ${EXPORT}.step(20);
-      return { hp0, hp1: ${EXPORT}.run.hp,
-               dt: +(${EXPORT}.run.t - t0).toFixed(2),
-               over: ${EXPORT}.run.over };
+      const D = ${EXPORT};
+      D.freeze();
+      const R = D.run;
+      const t0 = R.t, hp0 = R.hp;
+      D.step(20);
+      return { dt: +(R.t - t0).toFixed(2), hp0, hp1: R.hp, over: R.over };
     })()`);
-    // ⚠️ 字段名别照抄别的游戏：符箓版是 run.hp（不是 lives）、也没有 run.frame。
-    //    第一版写成 run.frame / run.lives → 读出 null / undefined，
-    //    输出「20 步推进 null 帧」——判据连被测对象是什么都没搞清，
-    //    报出的错最没意义。
-    step('★★ 冻结 rAF 后 step() 独占时钟（且玩家不会在测试里被打死）',
-         frozen.dt >= 20 && frozen.over === false && frozen.hp1 > 0,
-         `20 步推进游戏时间 ${frozen.dt}s, HP ${frozen.hp0}→${frozen.hp1}, run.over=${frozen.over}`);
+    step('★★ 冻结 rAF 后 step() 独占时钟',
+      frozen.dt >= 19 && frozen.over === false,
+      '20 步推进 ' + frozen.dt + 's，HP ' + frozen.hp0 + '→' + frozen.hp1);
 
-    // 2. 状态推进 —— ⚠️ 这条判据改过三次，结论值得记：
-    //   第 1 版：sleep(2600) 后看 wave 有没有涨。
-    //     结果 wave 1->1 判失败。去看代码才发现 waveTimer = max(5.0, 9.5 - wave*0.22)
-    //     → 第 1 波要 **9.28 秒**才换波，2.6 秒当然换不了。**是判据等太短。**
-    //   第 2 版：改用 step() 推进 600 帧（= 10 秒游戏内时间）。仍然 1->1 失败。
-    //     但 10 秒 > 9.28 秒，应该够啊？—— 因为**判据之间没隔离状态**，
-    //     上一条判据残留的 run.over / paused 让这 600 帧全空转。
-    //   第 4 版：★ 发现了真 bug。第 3 版改成 900 帧后仍然 wave 1->1，
-    //     而冻结判据已证明 step 确实在推进 → 不是测试环境问题，是游戏真问题。
-    //     读代码找到根因：408 行 `if (waveTimer <= 0 && enemies.length === 0) spawnWave()`，
-    //     而重置 waveTimer 的那行**只在 BOSS 被打死时执行**（原 615 行）。
-    //     → 普通波次的敌人死光后没人重置计时器 → 波次永远推不进去。
-    //     已修：任何敌人被清空都给 1.2 秒喘息再进下一波。
-    //
-    //   判据也必须跟着改：**玩家站着不动打不掉敌人**，
-    //   却要求"900 帧内自动换波" = 要求游戏替玩家通关。
-    //   正确做法：模拟玩家清场（主动 kill 敌人），再观察波次是否推进。
-    const before = await evaluate(`({wave:${EXPORT}.run.wave, score:${EXPORT}.run.score})`);
-    const waveOK = await evaluate(`(() => {
-      const R = ${EXPORT}.run;
-      R.over = false; R.paused = false;
-      // 模拟玩家把当前敌人清掉，重复若干轮，看 wave 是否推进。
-      // ⚠️ 顺便把计时器一起输出出来：只报「wave 没动」没法区分
-      //   「边沿标志没初始化」/「重置条件恒假」/「每帧重置到死锁」这三种 bug。
-      //   上一轮就是只报了 wave 不动，导致我在错误的方向上改了两版。
-      const trace = [];
-      for (let round = 0; round < 40; round++) {
-        R.enemies.forEach(e => { e.hp = 0; e.dead = true; });
-        ${EXPORT}.step(80);
-        trace.push({ wave: R.wave, enemies: R.enemies.length,
-                     timer: +R.waveTimer.toFixed(2), ready: !!R.waveReady });
-        if (R.wave > ${before.wave}) break;
+    /* ---------- 1. 符阵（墙）机制 ---------- */
+    const wall0 = await evaluate(`(() => {
+      const D = ${EXPORT};
+      D.start(); D.freeze();
+      const R = D.run;
+      D.step(80);                       // 开局有 1.15s 的喘息间隔
+      return { wave: R.wave, n: R.blocks.length, wallY: +R.wallY.toFixed(1),
+               speed: +R.wallSpeed.toFixed(1) };
+    })()`);
+    step('开局生成第 1 阵符墙', wall0.wave === 1 && wall0.n > 0,
+      '第 ' + wall0.wave + ' 阵，' + wall0.n + ' 块，墙顶 y=' + wall0.wallY);
+
+    // 墙必须真的在「缓慢向下平移」，而不是生成一次就当背景板
+    const descend = await evaluate(`(() => {
+      const D = ${EXPORT};
+      D.start(); D.freeze();
+      const R = D.run;
+      D.step(80);
+      const y0 = R.wallY;
+      D.step(600);                      // 10 秒
+      return { dy: +(R.wallY - y0).toFixed(1), speed: R.wallSpeed };
+    })()`);
+    step('★ 符墙随时间缓慢下压',
+      descend.dy > 60 && descend.dy < 320,
+      '10 秒下移 ' + descend.dy + 'px（≈' + (descend.dy / 10).toFixed(1) + 'px/s，配置 ' + descend.speed + '）');
+
+    // ★ 用户核心诉求：不再是满屏弹幕
+    const noBullets = await evaluate(`(() => {
+      const D = ${EXPORT};
+      D.start(); D.freeze();
+      const R = D.run;
+      D.step(80);
+      let peak = 0;
+      for (let i = 0; i < 900; i++) { D.step(1); peak = Math.max(peak, R.projs.length); }
+      return { peak, blocks: R.blocks.length, wave: R.wave };
+    })()`);
+    step('★ 普通阵不放弹幕（同时在场敌弹峰值）', noBullets.peak === 0,
+      '15 秒内敌弹峰值 ' + noBullets.peak + ' 发（第 ' + noBullets.wave + ' 阵，场上 ' + noBullets.blocks + ' 块）');
+
+    /* ---------- 2. 元素与反应 ---------- */
+    const table = await evaluate(`(() => {
+      const D = ${EXPORT}, r = D.reactionOf;
+      const g = (a, b) => { const x = r(a, b); return x ? x.name + ':' + x.mul : 'none'; };
+      return {
+        vapor: g('hydro', 'pyro'), vapor2: g('pyro', 'hydro'),
+        overload: g('pyro', 'electro'), chain: g('hydro', 'electro'),
+        swirl: g('anemo', 'pyro'), same: g('pyro', 'pyro'),
+      };
+    })()`);
+    step('★ 四元素反应表（蒸发/超载/感电/扩散）',
+      table.vapor === '蒸发:2' && table.vapor2 === '蒸发:1.6' &&
+      table.overload === '超载:1.5' && table.chain === '感电:1.3' &&
+      table.swirl === '扩散:1.25' && table.same === 'none',
+      JSON.stringify(table));
+
+    // 反应真的改变了伤害，而不只是弹个字
+    const dmg = await evaluate(`(() => {
+      const D = ${EXPORT};
+      D.start(); D.freeze();
+      const R = D.run;
+      R.wallY = 300; R.blocks.length = 0;
+      const mk = (col, row, el) => ({ col, row, w: 60, h: 34, el, hp: 100, maxHp: 100,
+        flash: 0, reactCd: 0, alive: true, boss: false });
+      const a = mk(0, 0, 'pyro'), b = mk(2, 0, 'pyro'), c = mk(4, 0, 'hydro');
+      R.blocks.push(a, b, c);
+      D.hitBlock(a, 'pyro', 10);     // 同元素：×1
+      D.hitBlock(b, 'hydro', 10);    // 蒸发（水打火）：×2
+      D.hitBlock(c, 'pyro', 10);     // 蒸发（火打水）：×1.6
+      return { same: a.hp, vapor: b.hp, vapor2: c.hp };
+    })()`);
+    step('★ 蒸发真的改变伤害（×1 / ×2.0 / ×1.6）',
+      dmg.same === 90 && dmg.vapor === 80 && dmg.vapor2 === 84,
+      '同元素 ' + dmg.same + '，水打火 ' + dmg.vapor + '，火打水 ' + dmg.vapor2);
+
+    const aoe = await evaluate(`(() => {
+      const D = ${EXPORT};
+      D.start(); D.freeze();
+      const R = D.run;
+      R.wallY = 300; R.blocks.length = 0;
+      const mk = (col, row, el) => ({ col, row, w: 60, h: 34, el, hp: 200, maxHp: 200,
+        flash: 0, reactCd: 0, alive: true, boss: false });
+      const src = mk(3, 1, 'electro'), near = mk(4, 1, 'electro'), far = mk(7, 4, 'electro');
+      R.blocks.push(src, near, far);
+      D.hitBlock(src, 'pyro', 10);   // 超载
+      return { near: near.hp, far: far.hp, ring: !!R.ring };
+    })()`);
+    step('★ 超载：范围爆炸伤到相邻符块', aoe.near < 200 && aoe.far === 200,
+      '邻块 200→' + aoe.near + '，远处 ' + aoe.far);
+
+    const chain = await evaluate(`(() => {
+      const D = ${EXPORT};
+      D.start(); D.freeze();
+      const R = D.run;
+      R.wallY = 300; R.blocks.length = 0;
+      const mk = (col, row, el) => ({ col, row, w: 60, h: 34, el, hp: 200, maxHp: 200,
+        flash: 0, reactCd: 0, alive: true, boss: false });
+      const src = mk(2, 0, 'hydro'), sameRow = mk(4, 0, 'hydro'), other = mk(2, 3, 'hydro');
+      R.blocks.push(src, sameRow, other);
+      D.hitBlock(src, 'electro', 10);   // 感电：同排连锁
+      return { sameRow: sameRow.hp, other: other.hp, arcs: (R.arcs || []).length };
+    })()`);
+    step('★ 感电：同排连锁', chain.sameRow < 200 && chain.other === 200,
+      '同排 200→' + chain.sameRow + '，异排 ' + chain.other + '，电弧 ' + chain.arcs + ' 条');
+
+    const swirl = await evaluate(`(() => {
+      const D = ${EXPORT};
+      D.start(); D.freeze();
+      const R = D.run;
+      R.wallY = 300; R.blocks.length = 0;
+      const mk = (col, row, el) => ({ col, row, w: 60, h: 34, el, hp: 200, maxHp: 200,
+        flash: 0, reactCd: 0, alive: true, boss: false });
+      const src = mk(3, 0, 'pyro'), nb = mk(4, 0, 'hydro');
+      R.blocks.push(src, nb);
+      D.hitBlock(src, 'anemo', 10);   // 扩散：把火传染给水块
+      return { nbEl: nb.el, nbHp: nb.hp };
+    })()`);
+    step('★ 扩散：邻块被染上同种元素', swirl.nbEl === 'pyro' && swirl.nbHp < 200,
+      '邻块元素 → ' + swirl.nbEl + '，HP 200→' + swirl.nbHp);
+
+    const sw = await evaluate(`(() => {
+      const D = ${EXPORT};
+      D.start(); D.freeze();
+      D.setEl(0); const a = D.run.el;
+      D.setEl(1); const b = D.run.el;
+      D.setEl(2); const c = D.run.el;
+      D.setEl(3); const d = D.run.el;
+      D.cycleEl(); const e = D.run.el;
+      return { a, b, c, d, e };
+    })()`);
+    step('元素切换（1/2/3/4 与 Q 循环）',
+      sw.a === 'pyro' && sw.b === 'hydro' && sw.c === 'electro' && sw.d === 'anemo' && sw.e === 'pyro',
+      [sw.a, sw.b, sw.c, sw.d, '→' + sw.e].join('/'));
+
+    /* ---------- 3. 灵弹物理 ---------- */
+    const bounce = await evaluate(`(() => {
+      const D = ${EXPORT};
+      D.start(); D.freeze();
+      const R = D.run;
+      R.blocks.length = 0;
+      const b = R.ball; b.stuck = false; b.stuckT = 0;
+      b.x = 3; b.y = 400; b.vx = -7; b.vy = 2;
+      D.step(2);
+      return { x: +b.x.toFixed(1), vx: +b.vx.toFixed(2) };
+    })()`);
+    step('灵弹撞侧墙反弹', bounce.vx > 0 && bounce.x >= 8,
+      'x=' + bounce.x + '，vx 由 -7 转正为 ' + bounce.vx);
+
+    const catchBall = await evaluate(`(() => {
+      const D = ${EXPORT};
+      D.start(); D.freeze();
+      const R = D.run;
+      R.blocks.length = 0;
+      const b = R.ball; b.stuck = false; b.stuckT = 0;
+      b.x = D.paddle.x; b.y = D.PADDLE_Y - 30; b.vx = 0; b.vy = 7.4;
+      D.step(6);
+      return { vy: +b.vy.toFixed(2), y: +b.y.toFixed(1), stuck: b.stuck };
+    })()`);
+    step('★ 灵弹被符盘接住并反弹向上', catchBall.stuck === false && catchBall.vy < 0,
+      'vy ' + catchBall.vy + '，y=' + catchBall.y);
+
+    const drop = await evaluate(`(() => {
+      const D = ${EXPORT};
+      D.start(); D.freeze();
+      const R = D.run;
+      R.blocks.length = 0; R.hp = 3; R.hurtCd = 0;
+      const b = R.ball; b.stuck = false; b.stuckT = 0;
+      b.x = 200; b.y = D.H + 20; b.vx = 0; b.vy = 7;
+      D.step(2);
+      return { hp: R.hp, stuck: R.ball.stuck, edge: +R.edge.v.toFixed(2) };
+    })()`);
+    step('★ 灵弹坠底 → 损一命 + 回到符盘',
+      drop.hp === 2 && drop.stuck === true,
+      'HP 3→' + drop.hp + '，重生吸附=' + drop.stuck);
+
+    /* ---------- 4. 关卡递进 ---------- */
+    const nextWave = await evaluate(`(() => {
+      const D = ${EXPORT};
+      D.start(); D.freeze();
+      const R = D.run;
+      R.wave = 1; D.spawnWall(1); R.wallY = 100;
+      const n0 = R.blocks.length;
+      R.blocks.forEach(b => { b.alive = false; });   // 模拟玩家把墙敲光
+      D.step(1);
+      const afterClear = R.blocks.length;
+      D.step(90);                                    // 等喘息时间
+      return { n0, afterClear, wave: R.wave, n1: R.blocks.length, cleared: R.wallsCleared };
+    })()`);
+    step('★ 敲光一面墙 → 进入下一阵（不结束）',
+      nextWave.afterClear === 0 && nextWave.wave === 2 && nextWave.n1 > 0 && nextWave.cleared >= 1,
+      '第 1 阵 ' + nextWave.n0 + ' 块 → 敲光 → 第 ' + nextWave.wave + ' 阵 ' + nextWave.n1 + ' 块');
+
+    const bossWave = await evaluate(`(() => {
+      const D = ${EXPORT};
+      D.start(); D.freeze();
+      D.spawnWall(5);
+      const R = D.run;
+      const boss = R.blocks.filter(b => b.boss);
+      return { boss: boss.length, hp: boss[0] ? boss[0].hp : 0, el: boss[0] ? boss[0].el : '' };
+    })()`);
+    step('第 5 阵是 BOSS 阵（符核）', bossWave.boss === 1 && bossWave.hp > 100,
+      '符核 HP ' + bossWave.hp + '，元素 ' + bossWave.el);
+
+    const rotate = await evaluate(`(() => {
+      const D = ${EXPORT};
+      D.start(); D.freeze();
+      const R = D.run;
+      R.blocks.length = 0; R.wallY = -260;
+      R.blocks.push({ col: 3, row: 0, w: 124, h: 34, el: 'pyro', hp: 400, maxHp: 400,
+        flash: 0, reactCd: 0, alive: true, boss: true });
+      const e0 = R.blocks[0].el;
+      D.step(260);          // ≈4.3 秒
+      return { e0, e1: R.blocks[0] && R.blocks[0].el };
+    })()`);
+    step('★ BOSS 元素 4 秒轮转（迫使玩家换元素）',
+      rotate.e0 === 'pyro' && rotate.e1 === 'hydro',
+      rotate.e0 + ' → ' + rotate.e1);
+
+    const bossFire = await evaluate(`(() => {
+      const D = ${EXPORT};
+      D.start(); D.freeze();
+      const R = D.run;
+      R.blocks.length = 0; R.projs.length = 0; R.wallY = 120;
+      R.blocks.push({ col: 3, row: 0, w: 124, h: 34, el: 'pyro', hp: 400, maxHp: 400,
+        flash: 0, reactCd: 0, alive: true, boss: true });
+      let peak = 0;
+      for (let i = 0; i < 900; i++) { D.step(1); peak = Math.max(peak, R.projs.length); }
+      return { peak };
+    })()`);
+    step('★ BOSS 符矢同时在场 ≤ 4（不是弹幕）',
+      bossFire.peak > 0 && bossFire.peak <= 4,
+      '15 秒内峰值 ' + bossFire.peak + ' 发');
+
+    /* ---------- 5. 无抖屏 / 无闪屏 ---------- */
+    const visuals = await evaluate(`(() => {
+      const D = ${EXPORT};
+      D.start(); D.freeze();
+      const R = D.run;
+      const src = document.documentElement.innerHTML;
+      const hasShakeField = Object.prototype.hasOwnProperty.call(R, 'shake');
+      // 老实现的两个特征串：全屏闪烁的交替 alpha、位移抖动
+      const oldFlash = src.indexOf('Math.floor(run.t * 20) % 2') >= 0;
+      const oldShake = src.indexOf('ctx.translate(rnd(') >= 0;
+      R.hurtCd = 0; R.hp = 3;
+      D.hurt(1);
+      return { hasShakeField, oldFlash, oldShake, edge: +R.edge.v.toFixed(2), hp: R.hp };
+    })()`);
+    step('★ 不存在屏幕位移抖动', visuals.hasShakeField === false && visuals.oldShake === false,
+      'run.shake 字段=' + visuals.hasShakeField + '，位移抖动特征串=' + visuals.oldShake);
+    step('★ 不存在全屏闪烁（改为边缘脉冲）',
+      visuals.oldFlash === false && visuals.edge > 0.5 && visuals.hp === 2,
+      '全屏闪烁特征串=' + visuals.oldFlash + '，受击边缘脉冲 v=' + visuals.edge);
+
+    const decay = await evaluate(`(() => {
+      const D = ${EXPORT};
+      const R = D.run;
+      const v0 = R.edge.v;
+      D.step(40);
+      const v1 = R.edge.v;
+      D.step(60);
+      return { v0: +v0.toFixed(2), v1: +v1.toFixed(2), v2: +R.edge.v.toFixed(2) };
+    })()`);
+    step('边缘脉冲会自行衰减（不残留）',
+      decay.v1 < decay.v0 && decay.v2 === 0,
+      decay.v0 + ' → ' + decay.v1 + ' → ' + decay.v2);
+
+    /* ---------- 6. AI 接管 ---------- */
+    const aiCheat = await evaluate(`(() => {
+      const D = ${EXPORT};
+      D.start(); D.freeze();
+      const R = D.run;
+      R.blocks.length = 0;
+      const c0 = { hw: D.PADDLE_HW, r: D.BALL_R, spd: D.PADDLE_SPD, bspd: D.BALL_SPD };
+      if (!D.AI.on) D.toggleAI();
+      // 造一个「球在左边下落」的场面，逼 AI 必须移动
+      const b = R.ball; b.stuck = false; b.stuckT = 0;
+      b.x = 100; b.y = 600; b.vx = 0; b.vy = 7.4;
+      let maxStep = 0;
+      for (let i = 0; i < 30; i++) {
+        const x0 = D.paddle.x;
+        D.step(1);
+        maxStep = Math.max(maxStep, Math.abs(D.paddle.x - x0));
       }
-      return { wave: R.wave, score: R.score, enemies: R.enemies.length,
-               kills: R.kills, over: R.over,
-               timer: +R.waveTimer.toFixed(2), ready: !!R.waveReady,
-               trace: trace.slice(0, 6) };
+      const c1 = { hw: D.PADDLE_HW, r: D.BALL_R, spd: D.PADDLE_SPD, bspd: D.BALL_SPD };
+      return { same: JSON.stringify(c0) === JSON.stringify(c1),
+               maxStep: +maxStep.toFixed(2), spd: c0.spd,
+               moved: +(D.paddle.x - 260).toFixed(1) };
     })()`);
-    step('状态推进（清场后波次能进下一波）', waveOK.wave > before.wave,
-         `wave ${before.wave}→${waveOK.wave}, 击杀 ${waveOK.kills}, ` +
-         `场上剩 ${waveOK.enemies} 敌, score ${before.score}→${waveOK.score}` +
-         ` | 计时器 ${waveOK.timer} waveReady=${waveOK.ready}` +
-         ` | 前几轮: ${JSON.stringify(waveOK.trace)}`);
+    step('★ AI 不作弊（常量不变 + 单帧位移不超玩家移速）',
+      aiCheat.same === true && aiCheat.maxStep <= aiCheat.spd + 0.01 && aiCheat.maxStep > 1,
+      '玩家移速 ' + aiCheat.spd + 'px/帧，AI 单帧最大位移 ' + aiCheat.maxStep
+      + '，30 帧内移动 ' + aiCheat.moved + 'px');
 
-    // 2b. 开局不该是 BOSS 波。
-    //     ⚠️ 这条是被截图抓出来的真 bug：spawnWave 里先 waveDefn(run.wave) 再 run.wave++，
-    //        而初始 wave=0 → 0%5===0 → 第一波直接出 BOSS。
-    //     「状态推进」那条判据太松，抓不到它，所以这里单独立一条硬判据。
-    const firstWave = await evaluate(`(() => {
-      ${EXPORT}.run.wave = 0; ${EXPORT}.run.enemies.length = 0; ${EXPORT}.run.waveTimer = 0;
-      ${EXPORT}.step(2);
-      return { wave: ${EXPORT}.run.wave, boss: ${EXPORT}.run.enemies.some(e => e.boss) };
+    // AI 真的能打：3 轮各 90 秒，看破阵数（单轮随机性太大，用多轮）
+    const aiRuns = await evaluate(`(() => {
+      const D = ${EXPORT};
+      const out = [];
+      for (let r = 0; r < 3; r++) {
+        D.start(); D.freeze();
+        if (!D.AI.on) D.toggleAI();
+        D.step(5400);          // 90 秒游戏内时间
+        out.push({ wave: D.run.wave, cleared: D.run.wallsCleared,
+                   hp: D.run.hp, over: D.run.over,
+                   blocks: D.run.blocks.length, score: D.run.score });
+      }
+      return out;
     })()`);
-    step('第 1 波不是 BOSS 波', firstWave.wave === 1 && firstWave.boss === false,
-         `wave=${firstWave.wave} boss=${firstWave.boss}`);
+    const clearedList = aiRuns.map(r => r.cleared);
+    step('★★ AI 接管能连续破阵',
+      clearedList.every(n => n >= 2),
+      aiRuns.map((r, i) => '#' + (i + 1) + ' 破阵' + r.cleared + '/第' + r.wave + '阵/HP' + r.hp).join('　'));
 
-    // 2c. 第 5 波必须是 BOSS 波（判据的正向一侧，别只测反例）
-    const fifth = await evaluate(`(() => {
-      ${EXPORT}.run.wave = 4; ${EXPORT}.run.enemies.length = 0; ${EXPORT}.run.waveTimer = 0;
-      ${EXPORT}.step(2);
-      return { wave: ${EXPORT}.run.wave, boss: ${EXPORT}.run.enemies.some(e => e.boss) };
+    /* ---------- 7. 二倍速 ---------- */
+    const speedTest = await evaluate(`(() => {
+      const D = ${EXPORT};
+      D.start(); D.freeze();
+      const R = D.run;
+      if (D.speed === 2) D.toggleSpeed();
+      const t0 = R.t; D.tick(10); const d1 = +(R.t - t0).toFixed(2);
+      D.toggleSpeed();
+      const t1 = R.t; D.tick(10); const d2 = +(R.t - t1).toFixed(2);
+      const b = R.ball;
+      const v = b.stuck ? 0 : Math.hypot(b.vx, b.vy);
+      D.toggleSpeed();   // 还原成常速
+      return { d1, d2, spd: D.BALL_SPD, v: +v.toFixed(2), speed: D.speed };
     })()`);
-    step('第 5 波是 BOSS 波', fifth.wave === 5 && fifth.boss === true,
-         `wave=${fifth.wave} boss=${fifth.boss}`);
+    step('★ 二倍速＝固定步长累加器（不是把 dt 乘 2）',
+      Math.abs(speedTest.d1 - 10) < 1.01 && Math.abs(speedTest.d2 - 20) < 1.01,
+      '同为 10 个显示帧：1x 推进 ' + speedTest.d1 + ' 步 / 2x 推进 ' + speedTest.d2 + ' 步');
+    step('二倍速下灵弹速度常量不变（不会穿透）',
+      speedTest.v === 0 || Math.abs(speedTest.v - speedTest.spd) < 0.01,
+      '球速 ' + speedTest.v + ' / 常量 ' + speedTest.spd);
 
-    // 3. Canvas 真的画了东西（非全黑）
+    /* ---------- 8. 渲染 ---------- */
     const ink = await evaluate(`(() => {
+      const D = ${EXPORT};
+      D.start(); D.freeze(); D.step(60);
       const c = document.querySelector('canvas');
       const g = c.getContext('2d');
-      const d = g.getImageData(0,0,c.width,c.height).data;
+      const d = g.getImageData(0, 0, c.width, c.height).data;
       let n = 0;
-      for (let i=0;i<d.length;i+=4000) if (d[i]>28||d[i+1]>28||d[i+2]>28) n++;
+      for (let i = 0; i < d.length; i += 4000) if (d[i] > 20 || d[i+1] > 20 || d[i+2] > 20) n++;
       return n;
     })()`);
-    step('Canvas 有实际绘制内容', ink > 50, '采样命中 ' + ink);
+    step('Canvas 有实际绘制内容', ink > 100, '采样命中 ' + ink);
 
-    // 4. 玩家输入能改状态
-    const mv = await evaluate(`(() => {
-      const x0 = ${EXPORT}.run.walkerX;
-      ${EXPORT}.key('left', true);  ${EXPORT}.step(30);
-      ${EXPORT}.key('left', false); ${EXPORT}.step(5);
-      return ${EXPORT}.run.walkerX - x0;
-    })()`);
-    step('移动输入生效（行者）', mv < -20, 'Δx=' + mv.toFixed(1));
-
-    // 5. 长时间空跑不崩
-    await evaluate(`${EXPORT}.step(600)`);
-    step('长时间空跑 600 帧', errs.length === 0, errs[0] || '');
-
-    // 5b. 核心机制必须真的发生，而不只是「没崩」。
-    //     ⚠️ 这里的判据改过两轮，值得记一下：
-    //       第 1 版假设「球一直朝发射方向飞」→ 测出 bounce=0，以为游戏有 bug。
-    //       逐帧打印才发现：游戏有个「角度自动回正」机制在把球拽回炮台方向，
-    //       所以球根本撞不到墙。**是测试的假设错了，不是游戏错了。**
-    //       但顺着这条线查出「回正无时限」确实压掉了多次反弹的战术价值，
-    //       于是给回正加了 0.5 秒窗口 —— 那一条是真改进。
-    const mech = await evaluate(`(() => {
-      const R = ${EXPORT}.run;
-
-      // (1) 反弹：把炮台放到球正上方（wantAng 稳定为正下方），球竖直下��，
-      //     会撞到底线被回收；改成朝侧下方，靠左右墙反弹。
-      //     简单可靠的做法：直接给球一个朝右的速度，并让炮台在球右边远处，
-      //     回正在 0.5s 后几乎不干预，球能飞到右墙。
-      R.turretX = 30;
-      R.balls.length = 0;
-      const b = ${EXPORT}.mkBall(30, 300, 0);
-      b.age = 999;                        // 跳过回正窗口，测纯弹道
-      R.balls.push(b);
-      let bounced = 0, minX = 999, maxX = -1;
-      for (let i = 0; i < 200; i++) {
-        ${EXPORT}.step(1);
-        if (!b.dead) { bounced = Math.max(bounced, b.bounce); minX = Math.min(minX,b.x); maxX = Math.max(maxX,b.x); }
-      }
-      const bouncedOK = bounced > 0;
-
-      // (2) 落底自动回收：朝下的球应该消失、场上重新出现一颗新球（位置在炮台带）
-      //     ⚠️ 这里改过两轮，结论值得记：
-      //       第 1 版把球放在 x=260、炮台在 x=200，靠「等 300 帧」判定 ——
-      //         结果测出「没回收」。逐帧打印才发现：球在 y≈420 就被顶带反弹了
-      //         （bounce=2，vy 已变负），它**根本没走到 784 的底线**，
-      //         因为「角度回正」一直在把球往炮台方向拽。
-      //       所以那是**测试假设错了**，不是游戏错了。
-      //       现在改成：炮台与球同轴、垂直下落的球 —— 回正对垂直方向没有横向牵引，
-      //         它一定能在 400 帧内落到底线被回收。
-      R.turretX = 260;                       // 与球同轴 → 消除回正的横向牵引
-      R.balls.length = 0;
-      R.over = false; R.paused = false;      // 隔离：不让上一条判据的状态污染这里
-      const d = ${EXPORT}.mkBall(260, 300, Math.PI/2);
-      d.age = 999;
-      R.balls.push(d);
-      ${EXPORT}.step(2);
-      const goingDown = d.vy > 0;
-      let minY = 999, recycled = false;
-      for (let i = 0; i < 400; i++) {
-        ${EXPORT}.step(1);
-        const live = R.balls[0];
-        if (live) {
-          minY = Math.min(minY, live.y);
-          // 回收后场上是新球（从炮台带顶部 CANVAS_TOP+16 ≈ 124 重新出发）
-          if (live !== d && live.y < 200) { recycled = true; break; }
-        }
-      }
-
-      // (3) 盾向：背面命中伤害应显著高于正面
-      //     ⚠️ 这里也踩了坑：球和敌人同坐标 (260,300)，球第一步就移开了，
-      //     能不能命中取决于当帧的 run.over/paused 状态。
-      //     读出「正面 0 / 背面 0」时第一反应是"背击判定坏了"，
-      //     实际上只是**这一步没跑成**。所以先断言一步确实推进了。
-      const dmgOf = (vx, vy, dir) => {
-        R.enemies.length = 0;
-        R.enemies.push({ x:260, y:300, vx:0, vy:0, r:16, hp:9000, maxHp:9000,
-          shieldDir:dir, baseDir:dir, shieldRot:0, spin:0, flash:0,
-          dead:false, col:'#4a7c6f', fireCd:9999, boss:false });
-        R.balls.length = 0;
-        const ball = ${EXPORT}.mkBall(260, 300, 0);
-        ball.age = 999; ball.vx = vx; ball.vy = vy;
-        R.balls.push(ball);
-        const hp0 = R.enemies[0].hp;
-        R.over = false; R.paused = false;   // 隔离测试环境，别依赖上一条判据的状态
-        ${EXPORT}.step(1);
-        return hp0 - R.enemies[0].hp;
-      };
-      // 盾牌法线朝 +x（dir=0）：正面 = 弹丸也朝 +x；背面 = 弹丸朝 -x
-      const front = dmgOf( 6, 0, 0);
-      const back  = dmgOf(-6, 0, 0);
-
-      return { bouncedOK, bounced, minX:+minX.toFixed(0), maxX:+maxX.toFixed(0),
-               goingDown, recycled, minY:+minY.toFixed(0),
-               front:+front.toFixed(1), back:+back.toFixed(1) };
-    })()`);
-    step('金符撞墙反弹', mech.bouncedOK === true,
-         `bounce=${mech.bounced}, x ${mech.minX}..${mech.maxX}`);
-    step('落底自动回收（球不丢）', mech.goingDown === true && mech.recycled === true,
-         `朝下=${mech.goingDown} 已回收=${mech.recycled}（最低到 y=${mech.minY}，底线 784）`);
-    step('盾向影响伤害（背 > 正）', mech.back > mech.front * 1.8,
-         `正面 ${mech.front} vs 背面 ${mech.back}（应 ≈2.5 倍）`);
-
-    // ── 掉落物：菜单承诺「落到底线会停住，可以先躲完再绕回来捡」──
-    //    那就得真的能捡到、且真的加东西。这条链路原来没有任何判据，
-    //    而它是这个游戏「路线规划 + 风险回收」的核心循环。
-    const loot = await evaluate(`(() => {
-      const D = ${EXPORT};
-      // ⚠️ run 必须在 start() **之后**取。start() 内部会重建整个 run 对象，
-      //   在它之前缓存的引用指向上一局 —— 往旧对象里 push 掉落物，
-      //   新局那边当然什么都没有（读出「场上剩余 1 个、上限 6→6」的假失败）。
-      //   这和 pl / bullets 的过期引用是同一类坑。
-      D.start(); D.freeze(); D.step(2);
-      const R = D.run;
-      const b0 = { bounce: R.maxBounce, shield: R.shield };
-      // 把一枚战符直接摆到行者脚下（就是「已落底停住」的形态），走一步就该被拾取
-      R.drops.length = 0;
-      R.drops.push({ x: R.walkerX, y: R.walkerY, vy: 0, kind: 'talisman',
-                     landed: true, spin: 0, life: 0 });
-      D.step(1);
-      return { b0, b1: { bounce: R.maxBounce, shield: R.shield },
-               leftOnField: R.drops.length };
-    })()`);
-    step('掉落物靠近即拾取（战符真的加了反弹上限）',
-         loot.b1.bounce === loot.b0.bounce + 2 && loot.leftOnField === 0,
-         `反弹上限 ${loot.b0.bounce}→${loot.b1.bounce}，场上剩余 ${loot.leftOnField} 个`);
-
-    // ── ★ 掉光残机 → 游戏必须结束 ──
-    //    注意 hurt() 只扣血，结束判定在 update() 末尾，所以要再走一帧。
+    /* ---------- 9. 死亡 ---------- */
     const died = await evaluate(`(() => {
       const D = ${EXPORT};
-      D.start(); D.freeze(); D.step(2);
-      const R = D.run;              // ← 同上：必须在 start() 之后取
-      R.hp = 1; R.shield = 0; R.hurtCd = 0; R.over = false;
+      D.start(); D.freeze();
+      const R = D.run;
+      R.hp = 1; R.hurtCd = 0; R.over = false;
       const before = R.hp;
-      D.hurt(5, 0, 0);
-      const midOver = R.over;      // 扣血当帧还不该结束
+      D.hurt(5);
+      const mid = R.over;
       D.step(1);
-      return { before, after: R.hp, midOver, over: R.over };
+      return { before, after: R.hp, mid, over: R.over };
     })()`);
     step('★ 掉光残机 → 游戏结束',
-         died.after <= 0 && died.midOver === false && died.over === true,
-         `hp ${died.before}→${died.after}，run.over ${died.midOver}→${died.over}`);
+      died.after <= 0 && died.mid === false && died.over === true,
+      'HP ' + died.before + '→' + died.after + '，over ' + died.mid + '→' + died.over);
 
-    // 6. 无未捕获异常
     step('零未捕获异常', errs.length === 0, errs.slice(0, 2).join(' | '));
   } catch (e) {
-    step('测试执行', false, e.message);
+    // ⚠️ 导出不存在时，真正的病因几乎总是「页面脚本启动就抛错了」。
+    //    只报 'no export' 等于把最关键的异常信息扔掉 —— 这里一并打出来。
+    step('测试执行', false, e.message + (errs.length ? '　｜页面异常：' + errs.slice(0, 2).join(' ⏎ ') : ''));
   }
 
   await evaluate(`try { ${EXPORT}.unfreeze(); } catch(e) {}`);
-  await sleep(700);
+  await sleep(500);
   await send('Page.captureScreenshot', {}).then(r => {
     if (r.result?.data) {
       fs.writeFileSync(path.resolve(__dirname, '_smoke.png'), Buffer.from(r.result.data, 'base64'));
@@ -439,20 +557,13 @@ function rmTree(dir) {
     }
   });
 
-// ── 先出结论，再做收尾 ────────────────────────────────────────────────────
-  // 判据跑完立刻把结论交出去。收尾（杀浏览器 / 删 profile）只是家务，
-  // 它慢或失败都不该影响「这一版验过没有」这个信息 —— 这台机器上删一个
-  // 浏览器 profile 实测 0.9s~170s 不等，曾多次把结论拖到十几分钟后才出现，
-  // 被误判成「游戏测试卡住了」。每一步都独立 try，互相不连坐。
+  // ── 先出结论，再做收尾 ──
   const bad = report.steps.filter(s => !s.ok).length;
   console.log(`\n${bad ? '❌ ' + bad + ' 项失败' : '✅ 全部 ' + report.steps.length + ' 项通过'}`);
   try { ws.close(); } catch (e) {}
   try { killTree(proc); } catch (e) {}
   try { srv.close(); } catch (e) {}
   try { rmTree(profile); } catch (e) {}
-  /* 把 stdout 刷干净再退。Node 写管道是异步的，直接 process.exit() 可能把
-     「✅ 全部 N 项通过」这一行丢掉 —— 那正是档案页用来填断言数的唯一依据。
-     必须用回调而不是 sleepSync：阻塞事件循环反而会让缓冲刷不出去。 */
   await new Promise(r => process.stdout.write('', () => r()));
   process.exit(bad ? 1 : 0);
 })().catch(e => { console.error('崩溃:', e); process.exit(2); });
@@ -472,7 +583,6 @@ function connect(url) {
     });
     req.on('upgrade', (rs, socket) => {
       let buf = Buffer.alloc(0);
-      const handlers = { message: null, close: null };
       const api = {
         onMessage: null, onEvent: null,
         send(str) {

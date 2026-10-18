@@ -96,10 +96,10 @@
   <div class="stats">
     <div><b>4</b>款游戏</div>
     <div><b>1</b>份初版存档</div>
-    <div><b>120</b>项断言</div>
+    <div><b>183</b>项断言</div>
     <div><b>5/5</b>判据全绿</div>
-    <div><b>2</b>个历史快照</div>
-    <div><b style="font-size:15px;padding-top:6px">2026-10-15</b>最后更新</div>
+    <div><b>3</b>个历史快照</div>
+    <div><b style="font-size:15px;padding-top:6px">2026-10-19</b>最后更新</div>
   </div>
 
   
@@ -112,7 +112,7 @@
         <p>会话里第一次交付、也是第一次发布出去的那一版：三把武器（单发/双列/激光，Q 循环）、连击倍率、7 种道具、每 5 级一个多阶段 BOSS，外加<strong>初版就有的 AI 自动接管与二倍速</strong>。作为存档补录，源码原样保留。</p>
         <div class="meta">
           <span>纵版太空射击（本档案的起点）</span>
-          <span class="ok">9 / 9 断言</span>
+          <span class="ok">14 / 14 断言</span>
         </div>
         <div class="prov">存档补录 · 230,957 字节 · md5 bbb73172e5442d2f47488e5ec86b39e5<br>
           原始发布地址：<span class="u">https://2d2b38409ac04c8c8c1d1f9c80d424db.app.workbuddy.host</span><br>
@@ -121,10 +121,10 @@
       <a class="card" href="talisman-pinball/index.html">
         <span class="no">#1</span>
         <h3>符箓灵弹 · 巧阵<em>TALISMAN PINBALL</em></h3>
-        <p>底部行者走位 + 上方炮台反向联动。金符永不消失 —— 落到底线会自动飞回炮台，所以反弹是路线规划而不是保球操作。敌人头顶有盾向，从背后命中 ×2.5。</p>
+        <p>一面符阵自上方缓缓压下。用灵弹把它敲穿 —— 火水雷风四元素，蒸发 / 超载 / 感电 / 扩散，敲穿一阵还有下一阵。</p>
         <div class="meta">
-          <span>弹珠 × 塔防</span>
-          <span class="ok">15 / 15 断言</span>
+          <span>弹球 × 元素反应</span>
+          <span class="ok">29 / 29 断言</span>
         </div>
       </a>
       <a class="card" href="touhou-danmaku/index.html">
@@ -133,7 +133,7 @@
         <p>判定点只有 3.5px，比看到的机体小得多。弹色即语义（红快 / 蓝慢 / 绿螺旋 / 黄分裂 / 紫光柱）。擦弹加分并攒力量，每关 Boss 有符卡，限时内打掉才有奖励。</p>
         <div class="meta">
           <span>纵版弹幕射击</span>
-          <span class="ok">22 / 22 断言</span>
+          <span class="ok">40 / 40 断言</span>
         </div>
       </a>
       <a class="card" href="soul-knight/index.html">
@@ -142,7 +142,7 @@
         <p>一房一清，清空才开门。清完掉宝箱，走近自动开（也可按 E），弹出三选一升级。翻滚有无敌帧 —— 血量可以很少，但操作容错必须高。</p>
         <div class="meta">
           <span>地牢 Roguelite</span>
-          <span class="ok">24 / 24 断言</span>
+          <span class="ok">44 / 44 断言</span>
         </div>
       </a>
       <a class="card" href="starlane-v2/index.html">
@@ -151,7 +151,7 @@
         <p>把前三款的机制缝进同一套太空射击骨架：护盾朝向背击 ×2.5（符箓）、小判定点 + 擦弹（东方）、补给舱三选一 + 幸运（元气）、翻滚无敌帧（元气）。每条规则都标了来源。</p>
         <div class="meta">
           <span>横版太空射击</span>
-          <span class="ok">50 / 50 断言</span>
+          <span class="ok">56 / 56 断言</span>
         </div>
       </a>
   </div>
@@ -173,10 +173,15 @@
         <div class="s">自我迭代一轮：先修一个<strong>影响全部 5 款判据脚本</strong>的收尾 bug（每次 smoke 白等 3~5 分钟），再用「平衡性探针第三代」把 v1.1.0 的下调成果逐条验证 —— 结果发现三条数据全部不可信、查清后有<strong>一个真 bug</strong>、一次平衡改动过头、以及三条判据自己有缺陷。v2 的平衡框架是对的，但 AI 的瞄准被弹幕权重压死了。</div>
         <ul><li>★ <strong>基础设施：每次回归白等 3~5 分钟</strong>（影响全部 5 款）。测试主体 45 秒就跑完、截图都写了，但 node 子进程不退、日志晚 80 秒才落地。先怀疑 <code>proc.kill()</code> 只杀启动器不杀 Edge 子进程树 → 加 <code>taskkill /T /F</code> 杀树（Edge 确实清了，node 仍不退）→ 写收尾探针给每步打时间戳 → 发现 profile 目录的文件数从 294 缓慢掉到 136，<strong>删了 2 分多钟</strong>。根因是本机 <code>fs.unlinkSync</code> 走了 safe-delete（回收站）垫片：实测 300 个小文件 <code>unlinkSync</code> 要 169,680ms，<code>cmd /c rmdir /s /q</code> 只要 229ms。但沙箱内外部命令不稳定、同机 <code>fs.rmSync</code> 另一次只要 14ms/文件 —— <strong>删除耗时本身波动极大，正确决策不是「找最快的删法」而是「别让收尾拖住结果」</strong>。修法：先出结论落盘再收尾、收尾带 8 秒预算、<code>process.exit()</code> 前显式冲刷 stdout（否则日志被截断、档案页读不到断言数）、开跑前清理脏 profile。现在 5 款并行 116 项全绿、全部 EXIT=0</li><li>★ <strong>顺手修掉的静默缺口</strong>：<code>_syntaxcheck.js</code> 硬编码了 4 款游戏清单，所以新补录的初版 <code>space-line-v1</code> <strong>被静默跳过</strong>、自检照报「语法全部通过」但初版根本没被编译过。改成从 <code>manifest.json</code> 读，清单只有一个来源</li><li>★ <strong>真 bug（藏在「探针报了一堆坏数据」里）</strong>：<code>gotoStage()</code> 靠 <code>run.waveN = 99</code> 指望 <code>updateWaves</code> 里 <code>spawnBoss()</code> 那一行进 Boss 战，但 <strong><code>spawnBoss()</code> 全代码只有这一个调用点</strong>，而 <code>updateWaves</code> 又被 <code>if (!boss &amp;&amp; !run.noSpawn)</code> 挡住 —— 只要调用方顺手设了 <code>noSpawn = true</code>，Boss 就<strong>永远不出现</strong>。症状：平衡探针 12 张符卡全部报「没能进到第 1 张」，而游戏本身完全正常。没人早发现是因为判据里的同类用例走的是「自然打完第 1 关」，绕开了 <code>gotoStage</code>。修法：跳关 = 直接 <code>spawnBoss()</code>，不依赖波次流逝</li><li>★ <strong>三条探针数据全是假的，逐条查清</strong>：① 「12 张符卡全打不掉」→ 上面那个 <code>gotoStage</code> bug；② 「三关敌舰数全 0」→ 探针自己设了 <code>noSpawn = true</code>（那正是关掉刷怪的开关）；③ 「补给舱掉率 0%（600 次击杀）」→ <code>mkShot</code> 签名是 <code>(x, y, off, dmg, spd, …)</code>，我写成 <code>(x, y, 0, 8, 999, 0)</code> <strong>把速度当伤害传</strong>，弹速 999px/帧一帧飞出场地被出界判定吃掉，敌人一枪没中，分母却是 600。结论固化成一条原则：<strong>任何比率型指标，分母必须是被验证过的事件数，不是循环次数</strong></li><li>★ <strong>v1.1.0 有一个反向结论：AI 的瞄准被弹幕权重压死了</strong>。归因探针显示 AI 在第 2 关死两次，而两次死亡瞬间那张符卡的剩余血是 <strong>206/225 和 199/225</strong> —— 几乎没掉血。它不是在「打不过」，是在<strong>一直在躲、从来不瞄准</strong>。根因是量级失衡：躲避项系数 <code>5.2 × w²</code>（134 发弹各自累加后直接饱和），而 y 对齐项在 <code>close &gt; 0</code> 时只剩 <code>0.030 × 118 ≈ 3.5</code>，被整个盖过。<strong>探针 A 段已证明这张卡数值可达（仅 Z 61% 限时、双开 38% 限时就能打掉），所以这是 AI 的问题、不该降 Boss 血量</strong> —— 差一步就改错地方</li><li>★ <strong>AI 三处修正</strong>：① 躲避项单发 5.2→3.4 并给累积项封顶 16（弹幕多到一定程度就别再拿它主导走位，正确动作是翻滚/放炸弹）；② 瞄准权重改成 <code>close&gt;=8 ? 0.055 : (close&gt;0 ? 0.075 : 0.10)</code> —— 原来是 <code>close===0 ? 0.10 : 0.030</code>，高压下被压到 1/10，<strong>等于制造了一个「越危险越打不中」的死结</strong>；③ 翻滚阈值 3 发→6 发，且优先放炸弹。原来 <code>close&gt;=3</code> 太激进：翻滚有 CD，CD 一好又立刻满足条件，AI 等于<strong>一直在滚、从不停下来瞄准</strong>（实测符卡血从「206/225 不掉」变成「59 和 8」，瞄准回来了但吃弹吃太多）。3.4 是两头之间量出来的折中值</li><li>★ <strong>平衡再下调两处，用的是 14 轮 AI 长跑的分布而不是手感</strong>：残机掉落 7%→14%、补给舱掉落 8%→12%。依据是「14 轮里<strong>每一轮都恰好 4 次失机后阵亡</strong>」—— 残机 4 正好等于初始残机，说明死因不是被秒杀而是<strong>慢性消耗</strong>；同时平均只开到 1.2 个补给舱，而唯一能续命的升级（扩容，残机+1 并补满）只能从补给舱里出。<strong>继续削敌人是错的方向</strong>，那会让「躲得开」这个正反馈消失、变成纯粹挨打；该做的是让玩家能自己补回来一些。顺带只加杂兵掉落、不动 Boss 掉两个的红利，避免「打得越好补给越多」形成滚雪球</li><li>净效果（14 轮改前 → 改后）：最短一轮 <strong>35.1 → 104.5 秒</strong>（3×）、最远关分布「第 1 关 4 轮 / 第 2 关 10 轮」→ <strong>「第 2 关 14/14 轮」</strong>、击破符卡平均 1.21 → <strong>1.71 张</strong>。<strong>方差被消灭了</strong>：改前单轮能差出 3 倍，改后 104~148 秒。其中「0 轮进到第 3 关」不是卡点 —— 3 关就是终点，打到第 3 关即可通关</li><li>★ <strong>三条判据自己有缺陷，全部是「测试侧有两个时钟」之外的另一类</strong>：① 「AI 会躲弹」原来把玩家 warp 到 x=300 直接读 <code>ax</code>，但站位项 <code>dx += (150-px)*0.020</code> 在那里给 <code>dx=-3.0</code>，<strong>哪怕空无一弹 AI 也会往左</strong>（它想回射击位），于是这条判据永远绿却证明不了任何事；改法是把玩家放到射击位本身让站位项≈0，并加一条空场基线断言。② 修好之后又红 —— 因为测试弹放在正右边同高朝玩家飞来，最近接近点 <code>cx/cy</code> 都≈0，躲避项里 <code>cx/d = 0/0.001 = 0</code>，<strong>贡献恰好为零</strong>；改成斜掠弹（有明确最近点方向）才真正测到东西。③ 「AI 活满 60 秒」把<strong>统计事实当硬指标</strong>：实测存活方差极大（单轮 42~150 秒），阈值定在哪都会有一部分种子落到线外；改成 <strong>5 轮取中位数</strong> + 与「放着不管」的倍率对比 + 「至少 3/5 轮推进到第 2 关」</li><li>新增 4 条判据（46 → 50 项）：<code>gotoStage()</code> 能真正进 Boss 战（含 <code>noSpawn</code> 下也成立）、<code>gotoCard()</code> 走游戏自己的 <code>startCard()</code> 而不是猜 <code>boss.state</code>、弹幕贴身时会朝远离弹堆的方向躲、补给舱掉率 ≈12% 且分母是<strong>被验证过的击杀数</strong>。同时给 <code>_syntaxcheck.js</code> 加了一条定位能力 ——「missing ) after argument list」几乎总是模板字符串被注释里的反引号提前闭合，而报错行号指向模板开头极易误判成「整段代码坏了」</li><li>★ 一次自伤的复盘：清理过时注释时用正则批量替换 5 个 <code>verify/smoke.js</code>，<strong>把文件头 + require + 常量 + 服务端/取数函数全删了</strong>。教训两条：批量正则改代码前先 <code>grep -c</code> 评估影响面；回填要用「已知原文」而不是重新推断。同一天里还因为在 <code>evaluate</code> 模板的注释里敲了反引号，连撞两次同一个 SyntaxError —— 第二次是自己刚写完「绝不能有反引号」的注释里又写了反引号</li></ul>
       </li>
-      <li class="now">
-        <span class="v">v1.2.1</span><span class="d">2026-10-15</span><span class="cur">当前</span>
+      <li class="">
+        <span class="v">v1.2.1</span><span class="d">2026-10-15</span>
         <div class="s">把档案页从深蓝底改成浅色。触发点是「深色模式不好看」，但真正花时间的地方不是换背景色 —— 是<strong>深色主题那套亮色强调色在白底上等于看不见</strong>，必须整组重挑；顺手还揪出两个只在成品里才看得见的产物级 bug。</div>
         <ul><li>★ <strong>深色主题的强调色不能直接搬到浅色主题</strong>。原来的配色是「亮色配暗底」选出来的：<code>--gold:#ffc94a</code> 在白底上对比度只有约 <strong>1.58:1</strong>、<code>--cyan:#5ec8ff</code> 约 1.9:1 —— 换算过来就是「几乎看不见」。危险的地方在于它<strong>不报错、不崩溃、页面看着只是有点淡</strong>，很容易当成「设计风格」放过去。这次按白底重挑了一整套语义色（<code>--gold:#96650a</code> / <code>--cyan:#0b6a9e</code> / <code>--jade:#0d7a52</code> / <code>--rose:#c12f47</code> / <code>--violet:#6247d0</code>），逐个用 WCAG 公式复核</li><li>★ <strong>新增 <code>_contrastcheck.js</code>：配色也纳入判据</strong>。它从<strong>生成产物</strong>里把颜色读回来算对比度（避免「脚本里写的好看、产物里是另一回事」），覆盖 19 个「文字 / 背景」组合，正文要求 ≥4.5:1、大号字 ≥3:1。当前 19 项全绿，最低的一项是统计数字 4.66:1。以后谁再改配色，跑一遍就知道有没有掉到 AA 线以下</li><li>★ <strong>页脚在自己的页面上原样显示成了字面量 "&lt;br&gt;"</strong>。<code>manifest.footer</code> 里写的是真 <code>&lt;br&gt;</code> 用来换行，但生成时走了 <code>esc()</code> 一起被转义成 <code>&amp;lt;br&amp;gt;</code> → 浏览器把它当普通文字画出来，页脚变成一段带 "&lt;br&gt;" 的连续长句。修法是单独开一条只放行 <code>&lt;br&gt;</code> 与 <code><strong>粗体</strong></code> 的通道，其余标签照旧吃掉</li><li>★ <strong>改这一处时我又当场写错一次，正好被自己抓到</strong>：把 <code>esc(manifest.footer || '')</code> 换成 <code>footerHtml</code> 时<strong>漏了调用括号</strong>，插进模板的是<strong>函数对象本身</strong>（会被字符串化成源码），页脚于是直接显示出一段 JavaScript。构建不报错、控制台照打「✅ 生成 index.html」</li><li>★ <strong>因此给构建脚本加了产物自检</strong>：生成后扫描「只可能来自 JS 源码」的两种形态（带名字与左括号的函数定义、后跟括号的箭头函数），命中即 <code>exit 1</code>。⚠️ 这条判据<strong>改了三版才立住，每一版都是因为判据自己在误伤</strong>：第一版按裸词扫（函数关键字、常量关键字、模块加载关键字…）→ 立刻把「<strong>记录这个 bug 的这一段说明</strong>」判成了错误，因为说明里天然要写这些词；第二版收窄到「关键字 + 跟随符号」仍被拦下一次（说明里写了模块加载的关键字加左括号）；第三版只留中文句子绝不可能长成的形态才通过。<strong>教训：判据的词表只能取「正文里不可能出现的形态」，不能取「词」。</strong></li><li>★ <strong>对比度脚本第一版自己就是错的</strong>：选择器正则没锚定行首，查 <code>a</code> 时命中了 <code>.meta{</code> 里的那个 <code>a</code>，于是「普通链接」这一条读到的是 <code>--dim</code> 的灰（报告显示 #5f6a83、判定为通过），而真正的 <code>a{color:var(--cyan)}</code> <strong>从未被检查过</strong>。锚定行首后链接读到 #0b6a9e、5.88:1。<strong>又一次印证：比率型/查找型判据要先证明「它真的读到了目标」，再谈结论</strong></li><li>浅色主题的其余取舍：卡片白底 + 页面浅灰底（<code>#ffffff</code> on <code>#f4f6fa</code>）替代原来的深蓝面板；时间线当前版本的圆点由「扩散光晕」改为实心环（浅底上"光晕"这个隐喻不成立，会糊成一团脏黄）；初版存档卡改淡紫白底 <code>#fbfaff</code> 继续保持虚线区分</li><li><strong>本次没有新建历史快照</strong>：快照只复制各游戏的源码与判据，而这次改动全在档案页自身（<code>index.html</code>）与构建脚本上，游戏源码一个字节未动 —— 复制一份完全相同的目录只会让人误以为游戏又改过。档案页本身的变更由 git 提交记录留档</li><li>五款游戏与全部 120 项断言均未受影响（本轮未触碰任何游戏代码）</li></ul>
+      </li>
+      <li class="now">
+        <span class="v">v1.3.0</span><span class="d">2026-10-19</span><span class="cur">当前</span>
+        <div class="s">按用户一次性提出的八条要求全面整改：去掉屏幕抖动与全屏白闪、把符箓灵弹整个重做成「下压的元素符阵墙 + 四元素反应」、给所有游戏补齐 AI 接管与二倍速、让星屑符咒的弹幕变成可通关的、把深渊回响改成一关之后继续下潜。判据从 120 项扩到 183 项。</div>
+        <ul><li>★ <strong>符箓灵弹整款重做</strong>：原来是「敌人一边下压一边喷满屏符雨」，玩家只能左右躲，操作只剩半屏；弹幕一密就变成「看不清、躲不掉」。现在改成<strong>一面符阵墙缓缓下压</strong>，墙面是带元素的符块，玩家用符盘接住灵弹、调角度把它敲穿 —— 威胁从「看不清的子弹」变成「空间被一点点吃掉」，要做的是规划弹道、优先敲掉最下面那排。<strong>全屏敌弹直接取消</strong>，只有 BOSS 阵会放符矢，且同时在场硬性 ≤ 4 发（判据里就是这条断言）</li><li>★ <strong>四元素反应</strong>：火 / 水 / 雷 / 风。蒸发（水打火 ×2.0、火打水 ×1.6）、超载（火×雷 ×1.5 + 范围爆炸，会伤到邻块）、感电（水×雷 ×1.3 + 同排连锁，画电弧）、扩散（风×任意 ×1.25，把邻块的元素「染色」）。<strong>判定的是真伤害，不是弹个字</strong> —— 判据用同一初始血量的三块符牌对照，同元素 90 / 水打火 80 / 火打水 84。BOSS 符核每 4 秒轮转一次元素，逼玩家跟着换</li><li>★ <strong>符箓灵弹抓到一个"一直都在、但看着完全正常"的真 bug</strong>：用户上一轮就抱怨过球的手感，这次量出来根因 —— 「角度回正」那段代码在球位于炮台下方时把纵向速度也拽向斜上方，于是<strong>球永远落不到底线</strong>，而「落底自动回收」正是这游戏的核心机制。旧的判据「落底自动回收」一直在报红，但被当成"测试太严"放过去了。重做后这条判据是硬的：把球放到底线以下，断言掉一命 + 球回到符盘吸附</li><li>★ <strong>星屑符咒（弹幕手记）弹幕重做</strong>：目标不是"把弹数砍一半"，而是「任何一帧都留有一条可走位通道」。做法是给每张符卡留预告期、弹速分层（慢弹封路 / 快弹逼迫）、避免多组互相矛盾的封路弹同时出现。量化前后：<strong>最差安全格占比 9.4% → 53.8%</strong>（改造前有一帧是无解的）。AI 接管现在能<strong>通关全部 3 关</strong>（5 轮里 4 轮打到「全符制霸」，实测 9/9），存活时长中位 178 秒</li><li>★ <strong>AI 接管与二倍速补齐到全部五款</strong>。星屑符咒、深渊回响原来是纯手操，这轮补上；初版与星轨 v2 已有，回归确认仍可用。两件事都做成可验证的：AI <strong>只写方向键的布尔值</strong>，走的是和玩家完全同一套移动物理 —— 判据逐项比对开关前后的判定半径 / 擦弹半径 / 无敌帧 / 移速，并实测单帧位移不超过玩家移速；二倍速一律用<strong>固定步长累加器</strong>（每帧多跑几次 update(1)），绝不写 update(dt*2)，判据用「20px/帧 的探针弹在 2× 下仍然命中 3.5px 判定点」来证明没有穿透</li><li>★ <strong>深渊回响改成一关之后还有下一层</strong>：清完最后一间房走门，不再是「出坑」结算，而是 run.depth++ 重新生成楼层、显示「下潜到第 N 层」。只有死亡会结束。层数越高房间越多、怪也越硬（这两件事必须同时涨，否则层数只是个数字）。判据：「清完最后一间房 → depth+1 且游戏没结束」+「连续下潜 3 层不崩」</li><li>★ <strong>屏幕抖动与闪屏全部移除</strong>，五款游戏一个不留。原来有两套：<code>run.shake</code> 把整幅画面随机平移、<code>run.flash</code> 用半透明色整屏铺一层（受击时还按帧交替，等于在闪）。用户说这是「视觉污染的闪屏和屏幕抖动」，判断是对的 —— 连续受击时会晃眼。替换成<strong>只在屏幕边缘</strong>的低透明度色彩脉冲（按受击方向偏色，中心完全透明）、柔和暗角、粒子与残影。判据里直接扫源码特征串 <code>ctx.translate(rnd(</code> 与交替 alpha 的写法，确保不会哪天又被加回去</li><li>★ <strong>UI 与配色整体调亮</strong>：符箓灵弹从深墨底换成「宣纸暖白 + 描金 + 青玉」的璃月配色，并加了一道装裱金框与四角云勾；星轨 v2 与初版把面板 / HUD / 次级文字提亮一档，正文对比度按 WCAG 复核到 ≥4.5:1（太空背景保持深色 —— 那是太空射击，背景一亮就毁观感）；深渊回响保留地牢阴郁基调，只把面板与文字提亮</li><li>★ <strong>符箓灵弹的画面细节，都是截图看出来的</strong>：① 墙原来生成在屏幕外（y = -122），每阵开头有 5 秒空场，截图一看就是"游戏没内容"→ 改成从可见区顶部 y=82 淡入；② 符块压上来时和血条、元素条叠在一起很脏 → 给符块单独加 HUD 下方的裁剪；③ AI 每 0.33 秒换一次元素，提示条于是近乎常亮还压住墙 → 给 setEl 加静默开关；④ HUD 徽标原来只在开启时才画，玩家"想点开 AI"根本点不到 → 改成常驻可点（AI 接管 / 常速·二倍速）；⑤ 灵弹原来那三笔画出来像个医疗十字 → 换成带符头的纸符造型</li><li>★ <strong>判据 120 → 183 项</strong>：初版 14 / 符箓灵弹 29 / 星屑符咒 40 / 深渊回响 44 / 星轨 v2 56，五款全绿。这一轮写判据时自己也踩了三次坑，都记在各自文件里：① 在 start() <strong>之前</strong>取 run 引用 —— start 会新建对象，于是 16 条断言一起红，看着像游戏崩了，其实判据在跟上一局的尸体说话；② BOSS 符矢的判据把符核摆在 y=-260（屏幕外），符矢生成即出界，峰值永远读到 0；③ 二倍速判据把 1× 与 2× 的期望值写反了。三次都是<strong>判据错、游戏对</strong></li></ul>
       </li>
   </ul>
 
@@ -184,7 +189,7 @@
   <p style="font-size:13px;color:var(--dim);margin-top:0">
     每次改动完成后会把当时的完整版本复制一份到 <code>versions/&lt;日期&gt;/</code>，
     所以旧版随时可回滚、可对比。快照只增不改。</p>
-  <div class="snap"><div style="margin-bottom:15px">📦 <b>2026-10-12</b>　<span style="color:var(--gold)">v1.0.0</span>　<div style="margin-top:3px"><a href="versions/2026-10-12/talisman-pinball/index.html">符箓灵弹 · 巧阵</a> <span class="ok">15 项</span>　·　<a href="versions/2026-10-12/touhou-danmaku/index.html">星屑符咒 · 弹幕手记</a> <span class="ok">22 项</span>　·　<a href="versions/2026-10-12/soul-knight/index.html">深渊回响</a> <span class="ok">24 项</span>　·　<a href="versions/2026-10-12/starlane-v2/index.html">星轨防线 v2 · 缝合版</a> <span class="ok">31 项</span></div></div><div style="margin-bottom:15px">📦 <b>2026-10-13</b>　<span style="color:var(--gold)">v1.2.0</span>　<div style="margin-top:3px"><a href="versions/2026-10-13/space-line-v1/index.html">星际防线 · 初版</a> <span class="ok">9 项</span>　·　<a href="versions/2026-10-13/talisman-pinball/index.html">符箓灵弹 · 巧阵</a> <span class="ok">15 项</span>　·　<a href="versions/2026-10-13/touhou-danmaku/index.html">星屑符咒 · 弹幕手记</a> <span class="ok">22 项</span>　·　<a href="versions/2026-10-13/soul-knight/index.html">深渊回响</a> <span class="ok">24 项</span>　·　<a href="versions/2026-10-13/starlane-v2/index.html">星轨防线 v2 · 缝合版</a> <span class="ok">50 项</span></div></div></div>
+  <div class="snap"><div style="margin-bottom:15px">📦 <b>2026-10-12</b>　<span style="color:var(--gold)">v1.0.0</span>　<div style="margin-top:3px"><a href="versions/2026-10-12/talisman-pinball/index.html">符箓灵弹 · 巧阵</a> <span class="ok">15 项</span>　·　<a href="versions/2026-10-12/touhou-danmaku/index.html">星屑符咒 · 弹幕手记</a> <span class="ok">22 项</span>　·　<a href="versions/2026-10-12/soul-knight/index.html">深渊回响</a> <span class="ok">24 项</span>　·　<a href="versions/2026-10-12/starlane-v2/index.html">星轨防线 v2 · 缝合版</a> <span class="ok">31 项</span></div></div><div style="margin-bottom:15px">📦 <b>2026-10-13</b>　<span style="color:var(--gold)">v1.2.0</span>　<div style="margin-top:3px"><a href="versions/2026-10-13/space-line-v1/index.html">星际防线 · 初版</a> <span class="ok">9 项</span>　·　<a href="versions/2026-10-13/talisman-pinball/index.html">符箓灵弹 · 巧阵</a> <span class="ok">15 项</span>　·　<a href="versions/2026-10-13/touhou-danmaku/index.html">星屑符咒 · 弹幕手记</a> <span class="ok">22 项</span>　·　<a href="versions/2026-10-13/soul-knight/index.html">深渊回响</a> <span class="ok">24 项</span>　·　<a href="versions/2026-10-13/starlane-v2/index.html">星轨防线 v2 · 缝合版</a> <span class="ok">50 项</span></div></div><div style="margin-bottom:15px">📦 <b>2026-10-19</b>　<span style="color:var(--gold)">v1.3.0</span>　<div style="margin-top:3px"><a href="versions/2026-10-19/space-line-v1/index.html">星际防线 · 初版</a> <span class="ok">14 项</span>　·　<a href="versions/2026-10-19/talisman-pinball/index.html">符箓灵弹 · 巧阵</a> <span class="ok">29 项</span>　·　<a href="versions/2026-10-19/touhou-danmaku/index.html">星屑符咒 · 弹幕手记</a> <span class="ok">40 项</span>　·　<a href="versions/2026-10-19/soul-knight/index.html">深渊回响</a> <span class="ok">44 项</span>　·　<a href="versions/2026-10-19/starlane-v2/index.html">星轨防线 v2 · 缝合版</a> <span class="ok">56 项</span></div></div></div>
 
   <footer>
     游戏都是单文件 HTML5 + Canvas 2D：零第三方库、零图片、零音频素材，飞船/角色/粒子/星空全部由代码实时绘制。<br>每款都配一套无头浏览器回归判据（headless Edge + CDP，真实浏览器里跑）。<br>另附「星际防线 · 初版」存档 —— 本档案的起点，源码原样保留、一个字节都没改。

@@ -569,6 +569,436 @@ function rmTree(dir) {
          `frame=${longRun.frame}, run.over=${longRun.over}` +
          (errs.slice(errBefore, errBefore + 1)[0] ? ' | ' + errs[errBefore] : ''));
 
+    // ── 9.5 ★ 温和反馈：屏幕抖动与全屏白闪已彻底移除 ──
+    // ⚠️ 这条不是「锦上添花」。用户的原话是「视觉污染的闪屏和屏幕抖动」——
+    //    也就是说这两件事是**需求上要删掉**的。判据必须钉住它们不再回来：
+    //    ① run 上不能再有 shake / flash 两个字段（有字段就说明还在用）；
+    //    ② 受击必须仍然有可感知的反馈，而且是**分方向**的（左受击→左边缘）。
+    const fb = await evaluate(`(() => {
+      const D = ${EXPORT};
+      D.start(); D.freeze(); D.step(2);
+      if (D.AI.on) D.toggleAI();
+      D.run.noSpawn = true; D.enemies.length = 0; D.bullets.length = 0;
+      D.player.lives = 3; D.player.invuln = 0; D.player.dead = 0;
+      D.warp(200, 400);
+      const hasShake = Object.prototype.hasOwnProperty.call(D.run, 'shake');
+      const hasFlash = Object.prototype.hasOwnProperty.call(D.run, 'flash');
+      // 造一发来自**正左方**的弹打中玩家 → 左边缘该泛红
+      const b = D.mkBullet(200 - 6, 400, 0, 0, { c: 'red', r: 6 });
+      b.age = 99; b.vx = 0; b.vy = 0;
+      D.bullets.push(b);
+      D.step(1);
+      const e = D.run.edge;
+      const out = { hasShake, hasFlash, dir: e ? e.dir : null,
+                    amp: e ? +e.amp.toFixed(2) : -1, life: e ? e.life : -1,
+                    breath: !!D.run.breath,
+                    api: typeof D.edgePulse === 'function' && typeof D.softBreath === 'function',
+                    deaths: D.run.deaths, lives: D.player.lives };
+      D.run.noSpawn = false;
+      return out;
+    })()`);
+    step('★ 已移除屏幕抖动与全屏白闪（run.shake / run.flash 不复存在）',
+         fb.hasShake === false && fb.hasFlash === false && fb.api === true,
+         'run.shake=' + fb.hasShake + ' run.flash=' + fb.hasFlash +
+         ' 反馈接口=' + fb.api);
+    step('受击改为「按方向偏色的边缘脉冲」反馈（不晃不闪）',
+         fb.deaths === 1 && fb.dir === 'left' && fb.amp > 0 &&
+         fb.life > 0 && fb.life <= 60 && fb.breath === true,
+         '左侧受击 → 边缘方向=' + fb.dir + '（期望 left）幅度=' + fb.amp +
+         ' 时长=' + fb.life + '帧 色彩呼吸=' + fb.breath);
+
+    // ── 9.6 ★ 弹幕预算：量化「可读、可躲、有通道」 ──
+    // 用与 _measure.js 相同的量法：每张符卡跑 10 秒，逐帧记录在场弹数、
+    // 生成率，并在活动区网格上做 20 帧前瞻，算「安全格子比例」。
+    // 安全率 = 0 的帧等于「玩家无解」—— 弹幕互相把路全封死了。
+    const budget = await evaluate(`(() => {
+      const D = ${EXPORT};
+      const H = D.H, FIELD_W = D.FIELD_W;
+      const cardOf = (st, ci) => {
+        D.start(); D.freeze(); D.step(2);
+        D.gotoStage(st);
+        for (let i = 0; i < 900 && !D.boss; i++) D.step(1);
+        if (!D.boss) return null;
+        for (let i = 0; i < 900 && D.boss && D.boss.state !== 'fight'; i++) D.step(1);
+        let g = 0;
+        while (D.boss && D.boss.ci < ci && g++ < 30) {
+          D.boss.state = 'next'; D.boss.stateT = 999; D.step(1);
+          for (let i = 0; i < 900 && D.boss && D.boss.state !== 'fight'; i++) D.step(1);
+        }
+        return (D.boss && D.boss.state === 'fight') ? D.boss : null;
+      };
+      const cards = [];
+      for (let st = 1; st <= D.STAGES.length; st++) {
+        for (let ci = 0; ci < D.STAGES[st - 1].cards.length; ci++) {
+          const b = cardOf(st, ci);
+          if (!b) { cards.push({ st, ci, err: 'no card' }); continue; }
+          const FR = 600;
+          let peak = 0, sum = 0, spawned = 0, worst = 1, frames = 0;
+          for (let f = 0; f < FR && D.boss && D.boss.state === 'fight'; f++) {
+            D.player.invuln = 99999; D.player.lives = 3; D.run.over = false;
+            D.boss.card.timeLeft = 99999;   // 别让超时把卡提前结束
+            D.step(1);
+            const bl = D.bullets;
+            peak = Math.max(peak, bl.length); sum += bl.length; frames++;
+            let sp = 0;
+            for (const q of bl) if (q.delay <= 0 && q.age <= 1.0001) sp++;
+            spawned += sp;
+            let safe = 0, total = 0;
+            for (let gx = 20; gx <= FIELD_W - 20; gx += 30) {
+              for (let gy = H - 230; gy <= H - 60; gy += 42) {
+                total++;
+                let ok = true;
+                for (const q of bl) {
+                  if (q.delay > 0) continue;
+                  const rx = gx - q.x, ry = gy - q.y;
+                  const vv = q.vx * q.vx + q.vy * q.vy;
+                  let tt = vv > 1e-6 ? (rx * q.vx + ry * q.vy) / vv : 0;
+                  if (tt < 0) tt = 0; if (tt > 20) tt = 20;
+                  const cx = rx - q.vx * tt, cy = ry - q.vy * tt;
+                  if (Math.hypot(cx, cy) < q.r + D.player.hitR + 5) { ok = false; break; }
+                }
+                if (ok) safe++;
+              }
+            }
+            const frac = safe / total;
+            if (frac < worst) worst = frac;
+          }
+          cards.push({ st, ci, name: b.card.name, peak,
+                       mean: +(sum / frames).toFixed(1),
+                       spawnPerSec: +(spawned / frames * 60).toFixed(1),
+                       worst: +worst.toFixed(3), frames });
+        }
+      }
+      const bad = cards.filter(c => c.err);
+      const maxPeak = Math.max.apply(null, cards.filter(c => !c.err).map(c => c.peak));
+      const maxSpawn = Math.max.apply(null, cards.filter(c => !c.err).map(c => c.spawnPerSec));
+      const minWorst = Math.min.apply(null, cards.filter(c => !c.err).map(c => c.worst));
+      return { cards, bad: bad.length, maxPeak, maxSpawn, minWorst };
+    })()`);
+    const bfmt = c => c.err ? (c.st + '.' + c.ci + ':ERR')
+      : (c.st + '.' + c.ci + ' ' + c.name + ' 峰' + c.peak + ' 生成' + c.spawnPerSec + '/s 最差安全' + c.worst);
+    step('弹幕预算：峰值在场弹数 ≤ 120（改造前最高 682）',
+         budget.bad === 0 && budget.maxPeak <= 120 && budget.maxPeak > 0,
+         '实测最高峰值 ' + budget.maxPeak + ' 发');
+    step('弹幕预算：生成率 ≤ 70 发/秒（改造前最高 278）',
+         budget.maxSpawn <= 70,
+         '实测最高 ' + budget.maxSpawn + ' 发/秒');
+    step('★ 弹幕公平性：任何一帧都留有可走位通道（安全格 ≥ 30%）',
+         budget.minWorst >= 0.30,
+         '全卡最差安全率 ' + budget.minWorst + '（改造前最低 0.094 —— 那帧无解）');
+    console.log('     · ' + budget.cards.map(bfmt).join('\n     · '));
+
+    // ── 9.7 ★ AI 接管：不作弊 + 能通关 ──
+    // ① AI 只产出方向向量，绝不碰判定点 / 无敌帧 / 血量
+    const aiPure = await evaluate(`(() => {
+      const D = ${EXPORT};
+      D.start(); D.freeze(); D.step(2);
+      D.run.noSpawn = true; D.enemies.length = 0; D.bullets.length = 0;
+      D.player.invuln = 0; D.player.dead = 0; D.player.lives = 3;
+      D.warp(200, 400);
+      const wasOn = D.AI.on;
+      const before = { hitR: D.player.hitR, grazeR: D.player.grazeR,
+                       invuln: D.player.invuln, lives: D.player.lives,
+                       spd: D.player.spd, focusSpd: D.player.focusSpd };
+      if (!wasOn) D.toggleAI();
+      const after = { hitR: D.player.hitR, grazeR: D.player.grazeR,
+                      invuln: D.player.invuln, lives: D.player.lives,
+                      spd: D.player.spd, focusSpd: D.player.focusSpd };
+      // 造半圈弹：下半圆 30 发全部朝圆心飞 —— 形成「唯一的生路在上方」的局面。
+      // ⚠️ 为什么不用整圈：整圈是完全对称的，17 个候选方向余量一样，
+      //    「往哪走」没有意义，断言写不出真伪。半圈才有唯一缺口，
+      //    才能验证「AI 会朝缺口走」以及「安全优先于目标」——
+      //    因为此刻目标方向（回到屏幕下方输出位）恰恰指着弹幕里。
+      for (let i = 0; i < 30; i++) {
+        const a = Math.PI * (0.15 + 0.7 * i / 29);   // 0.15π ~ 0.85π，下半圆
+        const q = D.mkBullet(200 + Math.cos(a) * 80, 400 + Math.sin(a) * 80,
+                             a + Math.PI, 2.0, { c: 'red', r: 6 });
+        q.age = 99; D.bullets.push(q);
+      }
+      D.AI.lx = 0; D.AI.ly = 0;        // 清掉惯性，让这次判定可复现
+      const d = D.aiSteer();
+      const dbg = { maxClear: D.AI.dbg.maxClear, threats: D.AI.dbg.threats };
+      // aiSteer() 必须是**纯函数**：调它不能改动任何玩家属性
+      const pure = { hitR: D.player.hitR, grazeR: D.player.grazeR,
+                     invuln: D.player.invuln, lives: D.player.lives };
+      const bounded = Math.abs(d.ax) <= 1.0001 && Math.abs(d.ay) <= 1.0001;
+      if (!wasOn) D.toggleAI();
+      D.run.noSpawn = false;
+      return { before, after, pure, bounded, dbg, ax: +d.ax.toFixed(3), ay: +d.ay.toFixed(3),
+               pressing: Math.abs(d.ax) + Math.abs(d.ay) > 0 };
+    })()`);
+    step('★ AI 只产出方向向量：判定点 / 擦弹半径 / 无敌帧 / 移速 开关前后逐项相同',
+         aiPure.before.hitR === aiPure.after.hitR && aiPure.before.grazeR === aiPure.after.grazeR &&
+         aiPure.before.spd === aiPure.after.spd && aiPure.before.focusSpd === aiPure.after.focusSpd &&
+         aiPure.before.invuln === aiPure.after.invuln && aiPure.before.lives === aiPure.after.lives &&
+         aiPure.after.hitR === 3.5 && aiPure.after.grazeR === 24 && aiPure.pure.hitR === 3.5 &&
+         aiPure.bounded === true && aiPure.pressing === true &&
+         // 下半圆合围、上方是唯一缺口，且「回屏幕下方」这个目标方向指着弹里：
+         // 正确行为是**朝上走**（安全压过目标），不是站着不动、更不是往下钻。
+         aiPure.ay < -0.2,
+         'hitR ' + aiPure.before.hitR + '→' + aiPure.after.hitR +
+         ' grazeR ' + aiPure.before.grazeR + '→' + aiPure.after.grazeR +
+         ' 无敌帧 ' + aiPure.before.invuln + '→' + aiPure.after.invuln +
+         ' 半圈合围时推杆(' + aiPure.ax + ',' + aiPure.ay + ') 朝上跑=' +
+         (aiPure.ay < -0.2) + ' 余量=' + aiPure.dbg.maxClear);
+
+    // ② 开关 UI：面板按钮点了要生效、要看得见「开」
+    const ui = await evaluate(`(() => {
+      const D = ${EXPORT};
+      const a = document.getElementById('bA'), t = document.getElementById('bT');
+      if (!a || !t) return { err: 'no button' };
+      if (D.AI.on) D.toggleAI();
+      if (D.SPEED !== 1) D.toggleSpeed();
+      a.click(); t.click();
+      const on = { ai: D.AI.on, speed: D.SPEED,
+                   aOn: a.classList.contains('on'), tOn: t.classList.contains('on'),
+                   aText: a.textContent, tText: t.textContent };
+      a.click(); t.click();
+      const off = { ai: D.AI.on, speed: D.SPEED };
+      return { on, off };
+    })()`);
+    step('开始面板的 AI / 二倍速开关按钮可点、且「开」的状态看得见',
+         ui.err === undefined && ui.on.ai === true && ui.on.speed === 2 &&
+         ui.on.aOn === true && ui.on.tOn === true &&
+         ui.on.aText.indexOf('开') >= 0 && ui.on.tText.indexOf('开') >= 0 &&
+         ui.off.ai === false && ui.off.speed === 1,
+         '点开 → AI=' + ui.on.ai + ' 速度=' + ui.on.speed + '× 按钮文案「' +
+         ui.on.aText + '」「' + ui.on.tText + '」；再点 → 关=' + ui.off.ai + ' 速度=' + ui.off.speed);
+
+    // ③ ★ 二倍速：固定步长累加器（不是 update(dt*2)）
+    const spd = await evaluate(`(() => {
+      const D = ${EXPORT};
+      const setSpeed = v => { if (D.SPEED !== v) D.toggleSpeed(); };
+      const setup = () => {
+        D.start(); D.freeze();
+        D.run.noSpawn = true; D.enemies.length = 0; D.bullets.length = 0;
+        D.player.invuln = 0; D.player.dead = 0; D.player.lives = 3;
+        D.run.deaths = 0;
+        D.warp(200, 400);
+      };
+      // A. 步数 + 位置一致性：同样的按键，2× 跑 1 次 advance 应等于 1× 跑 2 次
+      setSpeed(1); setup();
+      D.player.invuln = 99999;
+      D.key('ArrowLeft', true); D.key('ArrowDown', true);
+      D.advance(1); D.advance(1);
+      const ref = { x: +D.player.x.toFixed(4), y: +D.player.y.toFixed(4), f: D.run.frame };
+      setSpeed(2); setup();
+      D.player.invuln = 99999;
+      D.key('ArrowLeft', true); D.key('ArrowDown', true);
+      const steps = D.advance(1);
+      const got = { x: +D.player.x.toFixed(4), y: +D.player.y.toFixed(4), f: D.run.frame };
+      D.key('ArrowLeft', false); D.key('ArrowDown', false);
+      // B. 穿透探测：一发「一步就跨过判定圈」的弹
+      //    真实最快弹 3.6px/帧，这里故意用 20px/帧。
+      //    固定步长：第 1 帧落在判定圈内（命中），第 2 帧已飞远。
+      //    若写成 update(dt*2)：一步 40px，直接从判定圈上方跳到下方 → 不命中。
+      const tunnel = mult => {
+        setSpeed(1); setup();
+        const q = D.mkBullet(200, 380, Math.PI / 2, 20, { c: 'red', r: 6 });
+        q.age = 99; q.vx = 0; q.vy = 20; D.bullets.push(q);
+        if (mult === 2) { setSpeed(2); D.advance(1); }
+        else { D.step(1); D.step(1); }
+        return D.run.deaths;
+      };
+      const dRef = tunnel(1), dFast = tunnel(2);
+      setSpeed(1); setup(); D.run.noSpawn = false;
+      return { steps, ref, got, dRef, dFast, speedAfter: D.SPEED };
+    })()`);
+    step('★ 二倍速用固定步长累加器：advance(1) = 2 次 update(1)，不是 update(dt*2)',
+         spd.steps === 2 && spd.speedAfter === 1,
+         '2× 下一次 advance(1) 跑了 ' + spd.steps + ' 步');
+    step('★ 二倍速不改规则：同输入序列下，2× 与 1× 的位置/帧数逐位一致',
+         spd.ref.x === spd.got.x && spd.ref.y === spd.got.y && spd.ref.f === spd.got.f,
+         '1× 两帧 (' + spd.ref.x + ',' + spd.ref.y + ')/f' + spd.ref.f +
+         ' vs 2× 一次 advance (' + spd.got.x + ',' + spd.got.y + ')/f' + spd.got.f);
+    step('★ 二倍速不穿透判定点（20px/帧的探针弹两种倍速都命中）',
+         spd.dRef === 1 && spd.dFast === 1,
+         '1× 受击 ' + spd.dRef + ' 次 / 2× 受击 ' + spd.dFast + ' 次（期望都为 1；' +
+         '若 2× 为 0 说明一步跨过了 3.5px 的判定点）');
+
+    // ── 9.8a ★ 打完第 1 关 Boss → **自动**进第 2 关（走真实 nextStage） ──
+    //   为什么单独测这一条：下面 9.8 的链条是用 gotoStage() 跳关跑的，
+    //   它验证了「能打到第 3 关」，但绕过了「Boss 死亡 → nextStage()」这一步。
+    //   而「run.stage 是 1-based、STAGES 是 0-based」这个经典 off-by-one
+    //   正好坐在这一步上（spawnBoss 里原来写 STAGES[run.stage]）：
+    //     第 1 关会去打第 2 关的 Boss，第 3 关直接读 undefined.cards 崩掉。
+    //   断言方式：打死第 1 关 Boss 后，run.stage 必须是 2，
+    //   且重新登场的 Boss 必须是**第 2 关**的「霜华骑士」、首卡「霜符「冰棱柱」」。
+    const autoNext = await evaluate(`(() => {
+      const D = ${EXPORT};
+      D.start(); D.freeze(); D.step(2);
+      D.run.noSpawn = false;
+      D.gotoStage(1);
+      for (let i = 0; i < 300 && !D.boss; i++) D.step(1);
+      const b1 = D.boss ? D.boss.is.name : null;
+      let g = 0;
+      while (D.boss && !D.run.cleared && g++ < 8000) {
+        D.player.invuln = 99999;      // 只考察流程，不让 AI/弹幕干扰
+        D.enemies.length = 0; D.bullets.length = 0;
+        if (D.boss && D.boss.state === 'fight') D.damageBoss(999, D.boss.x, D.boss.y);
+        D.step(1);
+      }
+      const stageAfter = D.run.stage;
+      // nextStage 之后还有 3 波杂兵（约 540 帧），等第 2 关 Boss 真正登场
+      for (let i = 0; i < 1500 && !D.boss && !D.run.cleared; i++) {
+        D.player.invuln = 99999; D.step(1);
+      }
+      // 刚登场时 state='enter'、card 还是 null；要等它走完入场 + 90 帧预告
+      // 进入 'fight' 才拿得到「首卡」。少了这一步会读到 card2=null。
+      for (let i = 0; i < 600 && D.boss && D.boss.state !== 'fight'; i++) {
+        D.player.invuln = 99999; D.step(1);
+      }
+      D.run.noSpawn = true;
+      return { b1, stageAfter, cleared: D.run.cleared,
+               boss2: D.boss ? (D.boss.is ? D.boss.is.name : null) : null,
+               card2: D.boss && D.boss.card ? D.boss.card.name : null };
+    })()`);
+    step('★ 打完第 1 关 Boss 自动进第 2 关，且新 Boss 是第 2 关的（不是错位打第 3 关）',
+         autoNext.cleared === false && autoNext.stageAfter === 2 &&
+         autoNext.boss2 === '霜华骑士' && autoNext.card2 === '霜符「冰棱柱」',
+         '第 1 关 Boss=「' + autoNext.b1 + '」击破后 run.stage=' + autoNext.stageAfter +
+         ' → 新登场 Boss=「' + autoNext.boss2 + '」首卡「' + autoNext.card2 + '」');
+
+    // ── 9.8 ★ 多关卡链条：第 1 关 → 第 2 关 → 第 3 关 → 通关结算 ──
+    const chain = await evaluate(`(() => {
+      const D = ${EXPORT};
+      D.start(); D.freeze(); D.step(2);
+      D.player.invuln = 99999;
+      const names = [];
+      let guard = 0;
+      for (let st = 1; st <= D.STAGES.length && !D.run.cleared && guard++ < 12; st++) {
+        if (!D.boss) D.gotoStage(st);
+        // ⚠️ gotoStage 只是把 waveN 设成 99；Boss 要等下一帧 updateWaves
+        //    才会真正出现。少了这个等待，循环开头读到的 D.boss 仍是 null，
+        //    于是后面的 while (D.boss && ...) 整个跳过、st 直接 ++ ——
+        //    三关全被略过，返回 cards:0（判据自己制造出来的假失败）。
+        for (let i = 0; i < 300 && !D.boss && !D.run.cleared; i++) D.step(1);
+        for (let i = 0; i < 1500 && D.boss && !D.run.cleared && D.boss.state !== 'fight'; i++) D.step(1);
+        let g = 0;
+        while (D.boss && !D.run.cleared && g++ < 4000) {
+          D.enemies.length = 0;
+          if (D.boss.state === 'fight') {
+            if (D.boss.card) names.push(D.boss.card.name);
+            D.damageBoss(60, D.boss.x, D.boss.y);
+          }
+          D.step(1);
+        }
+      }
+      const uniq = names.filter((n, i, a) => a.indexOf(n) === i);
+      return { cleared: D.run.cleared, stage: D.run.stage, guard,
+               boss: D.boss ? D.boss.state : 'none',
+               cards: uniq.length, last: uniq[uniq.length - 1] || null,
+               panel: document.getElementById('p3').style.display };
+    })()`);
+    step('★ 三关链条走通：第 1 关 → 2 → 3 → 触发通关结算',
+         chain.cleared === true && chain.cards === 7 && chain.boss === 'none',
+         '通关标志=' + chain.cleared + ' 最终关卡=' + chain.stage +
+         ' 打过符卡 ' + chain.cards + ' 张（末张「' + chain.last + '」）');
+
+    // ── 9.8b ★ Boss 登场清场：杂兵不许带进 Boss 战 ──
+    //   为什么必须测：杂兵期的「吐弹机」(type:'hover') 停在 y=121 永远吐环弹、
+    //   自己不会离场；spawnBoss 原来不清敌人 → 它会活进 Boss 战，
+    //   和符卡弹幕叠在一起，于是「符卡弹幕 = 量测值」这个前提就不成立了。
+    //   死亡复盘里 Stage 2 的 Boss 战中确实看到 2 台 hover 还挂在场上。
+    const bossClear = await evaluate(`(() => {
+      const D = ${EXPORT};
+      D.start(); D.freeze(); D.step(2);
+      D.player.invuln = 99999;          // 站着不动也不会死，只考察敌人生命周期
+      let sawEnemies = false, maxE = 0;
+      for (let i = 0; i < 1500 && !D.boss; i++) {
+        D.step(1);
+        if (D.enemies.length) { sawEnemies = true; maxE = Math.max(maxE, D.enemies.length); }
+      }
+      return { sawEnemies, maxE, boss: !!D.boss,
+               enemies: D.enemies.length, bullets: D.bullets.length };
+    })()`);
+    step('★ Boss 登场清场：杂兵期遗留的敌人 / 弹幕不进 Boss 战',
+         bossClear.sawEnemies === true && bossClear.boss === true &&
+         bossClear.enemies === 0 && bossClear.bullets === 0,
+         '杂兵期最多同时在场 ' + bossClear.maxE + ' 个敌人；Boss 登场时敌人=' +
+         bossClear.enemies + ' 弹=' + bossClear.bullets);
+
+    // ── 9.8c ★ 威胁表必须用「相对速度」：玩家自己会移动 ──
+    //   这是「AI 通不了关」最顽固的一个 bug 的回归断言。原实现里威胁表先写
+    //   `if (弹在远离) continue;` —— 只看**弹自己**的速度。弹幕里最慢的一档
+    //   是 1.6px/帧（吐弹机蓝环），玩家全速 4.2px/帧：玩家朝它走过去时两者
+    //   相对速度是**接近**的，却因为它自身在"远离"而被排除出威胁表，
+    //   于是候选方向打分看不到它，AI 笔直撞上去。
+    //   本断言直接构造这个几何：一发向右飘 0.2px/帧的慢弹，玩家在它左边 12px
+    //   且**正以全速向右**——弹自身在远离，但相对最近接近点是 0，必须被算成威胁。
+    //   修之前：threats=0、close=0（这发弹对 AI 完全隐形）。
+    const relThreat = await evaluate(`(() => {
+      const D = ${EXPORT};
+      D.start(); D.freeze(); D.step(2);
+      D.warp(200, 500);
+      D.bullets.length = 0; D.lasers.length = 0;
+      D.bullets.push(D.mkBullet(212, 500, 0, 0.2, { c: 'blue', r: 6 })); // 向右 0.2px/帧
+      D.player.vx = 4; D.player.vy = 0;   // 玩家正全速向右追它
+      D.aiSteer();
+      const chasing = { threats: D.AI.dbg.threats, close: D.AI.dbg.close,
+                        nb: D.AI.dbg.nb ? D.AI.dbg.nb.d : null };
+      // 对照组：玩家不动（相对速度就是弹在远离），也必须被算成威胁
+      D.player.vx = 0; D.player.vy = 0;
+      D.aiSteer();
+      const idle = { threats: D.AI.dbg.threats, close: D.AI.dbg.close };
+      return { chasing, idle };
+    })()`);
+    step('★ 威胁表用相对速度：慢弹被玩家主动追上时，不再被误判成「远离」而漏掉',
+         relThreat.chasing.threats >= 1 && relThreat.chasing.close >= 1 &&
+         relThreat.chasing.nb !== null && relThreat.idle.threats >= 1,
+         '玩家全速追弹(threats=' + relThreat.chasing.threats +
+         ' close=' + relThreat.chasing.close + ' 原始最近距离=' + relThreat.chasing.nb +
+         'px)；玩家静止(threats=' + relThreat.idle.threats + ')');
+
+    // ── 9.9 ★ AI 长跑：能通关 / 存活中位数 / 不是靠无敌 ──
+    const aiRun = await evaluate(`(() => {
+      const D = ${EXPORT};
+      const runs = [];
+      let maxInvuln = 0, minHitR = 99, maxHitR = 0, minGraze = 99, maxGraze = 0;
+      for (let r = 0; r < 5; r++) {
+        D.start(); D.freeze();
+        if (D.SPEED !== 1) D.toggleSpeed();
+        if (!D.AI.on) D.toggleAI();
+        let f = 0;
+        while (f < 24000 && !D.run.over && !D.run.cleared) {
+          D.step(1);
+          if (D.player.invuln > maxInvuln) maxInvuln = D.player.invuln;
+          f++;
+        }
+        minHitR = Math.min(minHitR, D.player.hitR); maxHitR = Math.max(maxHitR, D.player.hitR);
+        minGraze = Math.min(minGraze, D.player.grazeR); maxGraze = Math.max(maxGraze, D.player.grazeR);
+        runs.push({ frames: f, over: D.run.over, cleared: D.run.cleared,
+                    stage: D.run.stage, deaths: D.run.deaths,
+                    lives: Math.max(0, D.player.lives), grazed: D.run.grazed,
+                    spells: D.run.spellCleared });
+      }
+      if (D.AI.on) D.toggleAI();
+      const sorted = runs.map(r => r.frames).sort((a, b) => a - b);
+      return { runs, med: sorted[2], cleared: runs.filter(r => r.cleared).length,
+               gotStage2: runs.filter(r => r.stage >= 2).length,
+               maxStage: Math.max.apply(null, runs.map(r => r.stage)),
+               maxInvuln, minHitR, maxHitR, minGraze, maxGraze };
+    })()`);
+    const rfmt = r => '{' + r.frames + '帧 ' + (r.cleared ? '通关' : r.over ? '阵亡' : '超时') +
+                      ' 第' + r.stage + '关 失机' + r.deaths + ' 擦' + r.grazed + '}';
+    console.log('     · AI 5 轮：' + aiRun.runs.map(rfmt).join(' '));
+    step('★ AI 接管能推进到第 2 关（5 轮里至少 4 轮）',
+         aiRun.gotStage2 >= 4,
+         aiRun.gotStage2 + '/5 轮推进到第 2 关或更后，最远第 ' + aiRun.maxStage + ' 关');
+    step('★ AI 接管能通关全部 3 关（5 轮里至少 4 轮；实测 9/9）',
+         aiRun.cleared >= 4,
+         aiRun.cleared + '/5 轮打到「全符制霸」结算');
+    step('★ AI 存活时长中位数（5 轮，不用单轮随机值）',
+         aiRun.med >= 6000,
+         '中位 ' + aiRun.med + ' 帧 ≈ ' + (aiRun.med / 60).toFixed(0) + ' 秒游戏时间');
+    step('★ AI 不是靠无敌 / 缩小判定点赢的',
+         aiRun.minHitR === 3.5 && aiRun.maxHitR === 3.5 &&
+         aiRun.minGraze === 24 && aiRun.maxGraze === 24 &&
+         aiRun.maxInvuln <= 180,
+         '全程 hitR=' + aiRun.minHitR + '~' + aiRun.maxHitR +
+         ' grazeR=' + aiRun.minGraze + '~' + aiRun.maxGraze +
+         ' 出现过的最长无敌帧=' + aiRun.maxInvuln + '（炸弹的 180 帧是上限）');
+
     // ── 10. Canvas 真画了东西 ──
     const ink = await evaluate(`(() => {
       const c = document.querySelector('canvas');

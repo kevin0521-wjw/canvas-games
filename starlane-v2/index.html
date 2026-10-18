@@ -6,10 +6,18 @@
 <title>星轨防线 v2 · 缝合版</title>
 <style>
   :root{
-    --void:#05070f; --deep:#0a1024; --panel:#0a0e20;
+    /* ★ 本轮（UI 调亮）：太空背景（--void / --deep）**保持深色不动** ——
+       这是太空射击，背景一提亮观感就毁了。要提亮的只是「面板 / 卡片 / HUD」这一层。
+       改前实测（WCAG 相对亮度 / 对比度）：
+         · 面板底色 #0a0e20 亮度仅 0.005；
+         · 次级文字 --dim(#6a7196) 压在面板上只有 4.03:1 —— **低于 AA 的 4.5:1**；
+       改后：
+         · 面板 #161d3d 亮度 0.014（抬亮一档，仍然远低于战场亮度，不抢戏）；
+         · 正文 --paper(#eef2ff) = 14.7:1，次级 --dim(#a6b0d8) = 7.7:1。 */
+    --void:#05070f; --deep:#0a1024; --panel:#161d3d;
     --cyan:#5fe0ff; --gold:#ffd76e; --rose:#ff6b9d; --violet:#b98cff;
-    --jade:#6effc0; --orange:#ff9d4a; --paper:#e9edff; --dim:#6a7196;
-    --line:#232a4e;
+    --jade:#6effc0; --orange:#ff9d4a; --paper:#eef2ff; --dim:#a6b0d8;
+    --line:#2f3866;
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
   html,body{margin:0;padding:0;height:100%;overflow:hidden;background:var(--void);
@@ -26,7 +34,7 @@
        → 按钮永久够不到，而且**没有任何滚动条能救**。用户报的就是这个。
      修法：居中 + max-height 用百分比（相对 #ui 的视口高，不写「100vh - Npx」这种手算偏移）
      + 面板内部滚动。深色主题下滚动条还必须显式上色，不然细到看不见。 */
-  .panel{position:absolute;pointer-events:auto;background:rgba(8,11,28,.96);
+  .panel{position:absolute;pointer-events:auto;background:var(--panel);
     border:1px solid var(--line);padding:22px 28px;max-width:min(94vw,620px);
     top:50%;left:50%;transform:translate(-50%,-50%);
     max-height:calc(100% - 24px);overflow-y:auto;overflow-x:hidden;
@@ -48,20 +56,20 @@
   ::-webkit-scrollbar-thumb:hover{background:#5c7d92}
   .panel h1{margin:0 0 3px;font-size:27px;letter-spacing:4px;color:var(--gold);font-weight:500}
   .panel h1 small{display:block;font-size:11px;letter-spacing:2px;color:var(--dim);margin-top:5px}
-  .panel p{color:#b9c1e0;font-size:13.5px;margin:8px 0}
+  .panel p{color:#ccd3ee;font-size:13.5px;margin:8px 0}
   .panel b{color:var(--paper)}
-  .panel .k{display:inline-block;min-width:19px;padding:1px 6px;margin:0 2px;background:#161c38;
-    border:1px solid #39406e;border-radius:3px;font-family:Consolas,monospace;font-size:11.5px;color:var(--cyan)}
+  .panel .k{display:inline-block;min-width:19px;padding:1px 6px;margin:0 2px;background:#1e2650;
+    border:1px solid #454e86;border-radius:3px;font-family:Consolas,monospace;font-size:11.5px;color:var(--cyan)}
   .panel hr{border:0;border-top:1px solid var(--line);margin:14px 0}
   .btn{display:inline-block;margin-top:14px;padding:11px 30px;cursor:pointer;
-    background:linear-gradient(180deg,#1e2748,#111731);border:1px solid var(--gold);
+    background:linear-gradient(180deg,#28335c,#182046);border:1px solid var(--gold);
     color:var(--gold);font-size:16px;letter-spacing:3px;font-family:inherit;transition:.15s;font-weight:500}
-  .btn:hover{background:linear-gradient(180deg,#2b3762,#182048);box-shadow:0 0 20px rgba(255,215,110,.28)}
+  .btn:hover{background:linear-gradient(180deg,#364472,#1f2a55);box-shadow:0 0 20px rgba(255,215,110,.28)}
   .btn.sm{padding:7px 16px;font-size:13px;margin:0;letter-spacing:1px}
   /* 开关型按钮（AI 接管 / 二倍速）：开着的时候要一眼看出来，否则玩家不知道自己开没开 */
-  .btn.on{background:linear-gradient(180deg,#1d3a2e,#12271f);border-color:var(--jade);
+  .btn.on{background:linear-gradient(180deg,#24503c,#17352a);border-color:var(--jade);
     color:var(--jade);box-shadow:0 0 16px rgba(110,255,192,.22)}
-  .btn.on:hover{background:linear-gradient(180deg,#254a3a,#162f25)}
+  .btn.on:hover{background:linear-gradient(180deg,#2e6349,#1b3d30)}
   .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
   .note{font-size:12px;color:var(--dim);margin-top:11px;line-height:1.75}
   /* 缝合来源标记 */
@@ -70,21 +78,21 @@
   .s2{background:#1a2a3a;color:#7ad4ff;border:1px solid #2a4a6b}   /* 东方弹幕 */
   .s3{background:#1a3a2a;color:#7dffb8;border:1px solid #2a6b4a}   /* 元气骑士 */
   .cards{display:flex;gap:10px;flex-wrap:wrap;margin-top:8px}
-  .card{pointer-events:auto;cursor:pointer;width:164px;padding:12px;background:#12172a;
-    border:1px solid #2a3156;transition:.12s;position:relative}
+  .card{pointer-events:auto;cursor:pointer;width:164px;padding:12px;background:#1b2242;
+    border:1px solid #3a4372;transition:.12s;position:relative}
   .card:hover{transform:translateY(-4px);border-color:var(--gold);box-shadow:0 8px 22px rgba(0,0,0,.6)}
   .card .ic{width:28px;height:28px;margin-bottom:7px;border-radius:3px;display:flex;align-items:center;
     justify-content:center;font-size:15px;font-weight:500;color:#05070f}
   .card .nm{font-size:13.5px;color:var(--gold);font-weight:500}
-  .card .ds{font-size:11.5px;color:#939bbc;margin-top:4px;line-height:1.5}
+  .card .ds{font-size:11.5px;color:var(--dim);margin-top:4px;line-height:1.5}
   .card .lv{position:absolute;right:8px;top:9px;font-size:10.5px;color:var(--dim);font-family:Consolas,monospace}
-  #tip{position:absolute;left:50%;bottom:10px;transform:translateX(-50%);color:#4a5075;
+  #tip{position:absolute;left:50%;bottom:10px;transform:translateX(-50%);color:#8791c0;
     font-size:11.5px;letter-spacing:.5px;white-space:nowrap}
   #live{position:absolute;top:8px;left:50%;transform:translateX(-50%);display:none;gap:16px;
-    background:rgba(8,11,28,.86);padding:5px 15px;border:1px solid var(--line);font-size:12.5px;white-space:nowrap}
+    background:rgba(22,29,61,.92);padding:5px 15px;border:1px solid var(--line);font-size:12.5px;white-space:nowrap}
   #live i{font-style:normal;color:var(--dim);margin-right:4px}
   #live b{font-weight:500;font-family:Consolas,monospace;color:var(--gold)}
-  .leg{display:flex;align-items:center;gap:9px;margin:4px 0;font-size:13px;color:#b9c1e0}
+  .leg{display:flex;align-items:center;gap:9px;margin:4px 0;font-size:13px;color:#ccd3ee}
   .leg i{width:11px;height:11px;border-radius:50%;flex:none;font-style:normal}
 </style>
 </head>
@@ -258,7 +266,21 @@ function newRun() {
     scene: 'title', over: false, paused: false, choosing: false,
     noSpawn: false,   // 测试开关：关掉刷怪，隔离「弹幕伤害」与「敌人伤害」
     score: 0, hi: +(localStorage.getItem('starline_v2_hi') || 0),
-    stage: 0, t: 0, frame: 0, shake: 0, flash: 0,
+    stage: 0, t: 0, frame: 0,
+    /* ★ 温和受击反馈（本轮替换掉旧的「位移抖动 + 全屏白闪」）：
+       过去有两个字段 ——
+         run.shake  整幅画面随机平移（ctx.translate(rnd(-shake, shake), …)）
+         run.flash  全屏白/亮色叠加（rgba(255,255,255,α) 铺满画布）
+       两者都不是「不看清就要死」的信息，纯粹是视觉污染：抖动会让弹幕的真实位置
+       短暂失真（读弹幕的游戏最怕这个），白闪则是把整个战场盖掉。
+       现在换成**屏幕边缘的柔和脉冲**：
+         edge     强度 0~1，命中后拉满、按帧线性衰减；
+         edgeAng  受击来源方向（弧度）—— 左侧挨打就左边亮，玩家照样知道弹从哪来；
+         edgeOmni true = 无方向事件（炸弹 / 符卡击破），四边均匀泛光；
+         edgeCol  边缘光颜色（按事件性质取色）。
+       ⚠️ 四个字段都必须在这里初始化：本文件踩过「定时器字段没初始化 → NaN →
+         `NaN <= 0` 恒假 → 逻辑静默失效」的坑（见 mkEnemy 的 patT）。 */
+    edge: 0, edgeAng: 0, edgeOmni: true, edgeCol: '#ff6b9d',
     grazed: 0, cleared: 0, deaths: 0, cratesOpened: 0,
     banner: null, bannerT: 0, hint: null, hintT: 0, waveT: 0, waveN: 0,
   };
@@ -676,8 +698,10 @@ function update(dt) {
   run.t += dt; run.frame++;
   if (run.bannerT > 0) run.bannerT -= dt;
   if (run.hintT > 0) run.hintT -= dt;
-  if (run.shake > 0) run.shake *= .88;
-  if (run.flash > 0) run.flash -= dt * 3;
+  // 边缘脉冲按「帧」线性衰减（约 34 帧 ≈ 0.57 秒走完）。
+  // ⚠️ 用 Math.max(0, …) 夹住下界：不加的话会一路减成负数，
+  //    虽然 `> 0` 判断仍然为假、看起来「没事」，但那个负值会随 run 对象流到判据里。
+  if (run.edge > 0) run.edge = Math.max(0, run.edge - dt / 34);
 
   movePlayer(dt);
   // noSpawn 是给测试用的开关：测「弹会不会碰到玩家」这类单点判定时，
@@ -1049,7 +1073,7 @@ function clearBulletsToItem() {
   for (const b of bullets) if (Math.random() < .14) dropPickup(b.x, b.y);
   bullets.length = 0; lasers.length = 0;
   burst(FIELD_W/2, H/2, 24, COL.cyan.glow, 6, .55);
-  run.flash = .5;
+  edgePulse(null, COL.cyan.glow, .5);      // 换卡/清屏：四边均匀的青色柔光
 }
 
 function updateEnemies(dt) {
@@ -1095,7 +1119,8 @@ function updateBullets(dt) {
 
     const d = Math.hypot(b.x - px, b.y - py);
     if (d < b.r + pl.hitR) {
-      hitPlayer();
+      // 把「弹从哪来」传给受击反馈 → 屏幕对应那一侧泛光
+      hitPlayer(Math.atan2(b.y - py, b.x - px));
       if (b.split) doSplit(b);
       b.alive = false; continue;
     }
@@ -1133,7 +1158,8 @@ function updateLasers(dt) {
     const ca = Math.cos(L.ang), sa = Math.sin(L.ang);
     const along = dx * ca + dy * sa;
     const perp = Math.abs(-dx * sa + dy * ca);
-    if (along > -10 && along < L.len && perp < L.w/2 + pl.hitR) hitPlayer();
+    if (along > -10 && along < L.len && perp < L.w/2 + pl.hitR)
+      hitPlayer(Math.atan2(L.y - pl.y, L.x - pl.x));
   }
   lasers = lasers.filter(L => !L.done);
 }
@@ -1207,7 +1233,8 @@ function killEnemy(e) {
   e.alive = false;
   run.score += e.score;
   burst(e.x, e.y, 16, COL.cyan.glow, 4.4, .4);
-  run.shake = Math.max(run.shake, 3.5);
+  // 击毁：朝爆炸所在的那一侧给一点柔光（原来这里是整幅画面抖 3.5px）
+  edgePulse(Math.atan2(e.y - pl.y, e.x - pl.x), COL.cyan.glow, .30);
   for (let i = 0; i < 6; i++) dropPickup(e.x, e.y);
   if (Math.random() < .22) dropPickup(e.x, e.y, 'bomb');
   // ★ 本轮第二次调整：残机掉落 7% → 14%。
@@ -1246,7 +1273,7 @@ function damageBoss(s, b) {
     run.cleared++;
     setBanner('符卡击破', `+${bonus.toLocaleString()}`, COL.gold.glow, 120);
     burst(b.x, b.y, 44, COL.gold.glow, 6, .85);
-    run.flash = .8; run.shake = 9;
+    edgePulse(null, COL.gold.glow, .85);     // 符卡击破：金色四边柔光（原为白闪 + 抖 9px）
     for (let i = 0; i < 8; i++) dropPickup(b.x + rnd(-34, 34), b.y + rnd(-18, 18));
     b.state = 'next'; b.stateT = 0;
   }
@@ -1294,7 +1321,7 @@ function openCrate(c) {
   run.cratesOpened++;
   run.score += { white: 30000, blue: 80000, purple: 160000, red: 400000 }[c.tier.k] || 30000;
   burst(c.x, c.y, 26, c.tier.col, 4.4, .7);
-  run.shake = 6;
+  edgePulse(null, c.tier.col, .55);        // 开箱：按舱品质取色（原为抖 6px）
   const opts = rollUpgrades(c.tier.n, c.tier.k);
   if (opts.length) { pendingUpgrade = { opts, tier: c.tier }; }
   else run.hint = '没有可提升的项目了';
@@ -1377,7 +1404,7 @@ function checkBomb() {
 }
 
 function useBomb() {
-  run.flash = 1; run.shake = 10;
+  edgePulse(null, COL.gold.glow, 1);       // 炸弹：金色四边柔光（原为全屏白闪 + 抖 10px）
   clearBulletsToItem();
   lasers.length = 0;
   if (boss && boss.state === 'fight') {
@@ -1400,12 +1427,16 @@ function b_damageBossByBomb() {
     const bonus = Math.round(180000 * (boss.card.timeLeft / totalF)) + 70000;
     run.score += bonus; run.cleared++;
     setBanner('符卡击破', `+${bonus.toLocaleString()}`, COL.gold.glow, 120);
+    edgePulse(null, COL.gold.glow, .85);
     for (let i = 0; i < 8; i++) dropPickup(boss.x + rnd(-34,34), boss.y + rnd(-18,18));
     boss.state = 'next'; boss.stateT = 0;
   }
 }
 
-function hitPlayer() {
+/** 玩家受击。
+ *  @param {number} [ang] 伤害来源方向（弧度）—— 用来决定屏幕哪一侧泛红。
+ *                       传 null / 不传 = 无方向（判据、脚本直接调用时的默认）。 */
+function hitPlayer(ang) {
   if (pl.invuln > 0 || pl.dead > 0 || pl.rolling > 0) return;
   pl.lives--;
   run.deaths++;
@@ -1414,8 +1445,13 @@ function hitPlayer() {
   // 越到后面越难翻身。改成保底留起始火力、已攒的部分减半，给玩家一个台阶。
   pl.power = Math.max(1.0, pl.power * 0.5);
   pl.bombs = Math.max(0, pl.bombs - 1);
-  run.flash = 1; run.shake = 12;
-  burst(pl.x, pl.y, 26, COL.rose.glow, 5.5, .6);
+  /* ★ 受击反馈：原来这里是 `run.flash = 1; run.shake = 12;`
+     —— 全屏白闪 + 整幅画面抖 12px。现在换成：
+       ① 按受击方向偏色的边缘脉冲（左侧挨打 → 左边缘泛红）；
+       ② 更密的粒子 + 一圈扩散环（「残影/粒子增强」，把量感交还给爆炸本身）。 */
+  edgePulse(ang == null ? null : ang, COL.rose.glow, 1);
+  burst(pl.x, pl.y, 34, COL.rose.glow, 5.5, .6);
+  parts.push({ kind:'ring', x: pl.x, y: pl.y, t:0, life:30, max:180, col: COL.rose.glow });
   // ⚠️ 这里原本写 `if (pl.lives < 0)` —— 与弹幕版**同一个 off-by-one**：
   //   lives 从 1 减到 0 时 `0 < 0` 为假 → 游戏不结束。
   //   症状极隐蔽：HUD 用 `Math.max(0, pl.lives)` 画残机图标，
@@ -1468,6 +1504,70 @@ function burst(x, y, n, col, spd, life) {
 }
 function showFloat(x, y, text, col) { parts.push({ kind:'f', x, y, t:0, life:80, text, col }); }
 
+/* ==========================================================================
+   屏幕边缘脉冲 —— 替代「位移抖动 + 全屏白闪」的温和反馈
+   --------------------------------------------------------------------------
+   为什么换：用户的原话是「视觉污染的闪屏和屏幕抖动」。这两个效果的问题在于
+   它们都在**动整个画面** —— 抖动会让弹幕的真实位置短暂失真（读弹幕的游戏最怕
+   这个），白闪则直接把整个战场盖住。而玩家真正需要的是「我挨打了」+「弹从哪来」，
+   这两件事一个边缘光晕就能说清，中心战场可以保持完全干净。
+   ========================================================================== */
+
+/** 触发一次边缘脉冲。
+ *  @param {number|null} ang 受击来源方向（弧度）；null = 无方向（四边均匀）
+ *  @param {string} col 边缘光颜色（#rrggbb）
+ *  @param {number} p 强度 0~1（与当前值取 max，连续受击不会被削弱） */
+function edgePulse(ang, col, p) {
+  run.edge = Math.max(run.edge, p == null ? 1 : p);
+  run.edgeOmni = (ang == null);
+  if (ang != null) run.edgeAng = ang;
+  if (col) run.edgeCol = col;
+}
+
+/** 四条边的脉冲权重（左 / 右 / 上 / 下，0~1）。
+ *  抽成独立函数是为了让**渲染**和**判据**用同一份真相 ——
+ *  判据要断言「左侧受击时左边缘更亮」，就不能自己再实现一遍这个三角函数
+ *  （各写一份的结果往往是判据跟着错的方向一起「通过」）。
+ *  每边保留 0.12 的底数：不是纯黑切一刀，四边都有一点柔光，观感更自然。 */
+function edgeWeights() {
+  if (run.edge <= 0) return { l: 0, r: 0, t: 0, b: 0 };
+  if (run.edgeOmni) return { l: .7, r: .7, t: .7, b: .7 };
+  const c = Math.cos(run.edgeAng), s = Math.sin(run.edgeAng);
+  return { l: Math.max(0, -c) + .12, r: Math.max(0, c) + .12,
+           t: Math.max(0, -s) + .12, b: Math.max(0, s) + .12 };
+}
+
+/** #rrggbb + alpha → rgba()。COL 里全是 6 位 hex；万一不是就退回一个安全色。 */
+function hexA(hex, a) {
+  const m = /^#([0-9a-f]{6})$/i.exec(hex || '');
+  if (!m) return `rgba(255,107,157,${a.toFixed(3)})`;
+  const n = parseInt(m[1], 16);
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a.toFixed(3)})`;
+}
+
+/** 画四周的脉冲柔光。屏幕坐标系、不参与任何变换 —— 所以它永远不可能造成位移。 */
+function drawEdgePulse() {
+  if (run.edge <= 0) return;
+  const w = edgeWeights();
+  const B = 96;                              // 光带厚度（px）
+  const A = .40 * Math.min(1, run.edge);     // 峰值透明度：刻意压到 0.4 以下，不刺眼
+  const c = run.edgeCol;
+  const band = (x0, y0, x1, y1, dx, dy, bw, bh, k) => {
+    if (k <= 0) return;
+    const g = ctx.createLinearGradient(x0, y0, x1, y1);
+    g.addColorStop(0, hexA(c, A * Math.min(1, k)));
+    g.addColorStop(1, hexA(c, 0));
+    ctx.fillStyle = g;
+    ctx.fillRect(dx, dy, bw, bh);
+  };
+  ctx.save();
+  band(0, 0, B, 0, 0, 0, B, H, w.l);            // 左边缘
+  band(W, 0, W - B, 0, W - B, 0, B, H, w.r);    // 右边缘
+  band(0, 0, 0, B, 0, 0, W, B, w.t);            // 上边缘
+  band(0, H, 0, H - B, 0, H - B, W, B, w.b);    // 下边缘
+  ctx.restore();
+}
+
 function updateParts(dt) {
   for (const p of parts) {
     p.t += dt;
@@ -1481,9 +1581,13 @@ function updateParts(dt) {
    绘制
    ========================================================================== */
 function draw() {
-  const sx = run.shake > .4 ? rnd(-run.shake, run.shake) : 0;
-  const sy = run.shake > .4 ? rnd(-run.shake, run.shake) : 0;
-  ctx.save(); ctx.translate(sx, sy);
+  /* ★ 这里原本是「位移抖动」的现场：
+       const sx = run.shake > .4 ? rnd(-run.shake, run.shake) : 0;
+       const sy = …;
+       ctx.save(); ctx.translate(sx, sy);
+     已彻底移除 —— 世界坐标系不再有任何平移，弹幕画在哪就在哪。
+     受击反馈改由 drawEdgePulse()（屏幕坐标系）承担，见函数注释。 */
+  ctx.save();
 
   ctx.fillStyle = '#060812';
   ctx.fillRect(-10, -10, W + 20, H + 20);
@@ -1500,6 +1604,8 @@ function draw() {
   drawLasers(); drawCrates(); drawEnemies(); drawBoss();
   drawBullets(); drawShots(); drawPlayer(); drawParts();
   ctx.restore();
+  // 边缘脉冲画在 HUD 之下：它只占四条边，HUD 面板/文字不会被它糊住
+  drawEdgePulse();
   drawHUD();
   drawBanner();
   drawModeBadge();
@@ -1512,10 +1618,9 @@ function draw() {
     ctx.fillText(run.hint, FIELD_W / 2, 30);
     ctx.restore();
   }
-  if (run.flash > 0) {
-    ctx.fillStyle = `rgba(255,255,255,${Math.min(.75, run.flash*.7).toFixed(3)})`;
-    ctx.fillRect(0, 0, W, H);
-  }
+  /* ★ 这里原本是「全屏白闪」：
+       if (run.flash > 0) { ctx.fillStyle = rgba(255,255,255,run.flash*.7); ctx.fillRect(0,0,W,H); }
+     已彻底移除 —— drawEdgePulse() 只在四周画低透明度柔光，中心战场保持完全干净。 */
 }
 
 function drawBullets() {
@@ -1605,14 +1710,15 @@ function drawEnemies() {
   for (const e of enemies) {
     ctx.save();
     ctx.translate(e.x, e.y);
-    const c = e.flash > 0 ? '#fff' : COL.white;
     ctx.globalCompositeOperation = 'lighter';
     ctx.globalAlpha = .18; ctx.fillStyle = COL.blue.glow;
     ctx.beginPath(); ctx.arc(0, 0, e.r * 2.1, 0, TAU); ctx.fill();
     ctx.globalCompositeOperation = 'source-over';
     ctx.globalAlpha = 1;
     // 机体：朝左的箭头形
-    ctx.fillStyle = e.flash > 0 ? '#fff' : '#1b2246';
+    // ★ 中弹瞬间取「浅蓝」而不是纯白：纯白会把机体糊成一块没有轮廓的亮斑
+    //   （用户说的「整体泛白」），换成同色系的提亮既能看清打中了，又保住了形状。
+    ctx.fillStyle = e.flash > 0 ? '#cfe0ff' : '#1b2246';
     ctx.strokeStyle = COL.blue.edge; ctx.lineWidth = 1.8;
     ctx.beginPath();
     ctx.moveTo(e.r, 0); ctx.lineTo(-e.r*.7, -e.r*.75);
@@ -1659,7 +1765,8 @@ function drawBoss() {
   ctx.beginPath(); ctx.arc(0, 0, 52, 3.6, 5.6); ctx.stroke();
   ctx.globalAlpha = 1;
   ctx.rotate(-b.rot);
-  ctx.fillStyle = b.flash > 0 ? '#fff' : '#191f42';
+  // ★ 同上：Boss 体积大，纯白闪一下几乎等于「半屏泛白」，改成同色系提亮。
+  ctx.fillStyle = b.flash > 0 ? '#e6d8ff' : '#191f42';
   ctx.strokeStyle = c.glow; ctx.lineWidth = 2.5;
   ctx.beginPath();
   for (let i = 0; i < 6; i++) {
@@ -1799,20 +1906,20 @@ function drawParts() {
 function drawHUD() {
   const x = FIELD_W + 8, w = W - FIELD_W - 8;
   ctx.save();
-  ctx.fillStyle = 'rgba(6,8,22,.9)';
+  ctx.fillStyle = 'rgba(16,21,44,.92)';
   ctx.fillRect(FIELD_W + 1, 0, w - 1, H);
   let y = 10;
-  const lab = t => { ctx.fillStyle = '#5c6296'; ctx.font = '9px Consolas,monospace';
+  const lab = t => { ctx.fillStyle = '#8f98c6'; ctx.font = '9px Consolas,monospace';
                      ctx.fillText(t, x, y); y += 11; };
   const val = (t, c, sz) => { ctx.fillStyle = c; ctx.font = (sz||14)+'px Consolas,monospace';
                               ctx.fillText(t, x, y); y += (sz||14) + 5; };
 
   lab('SCORE'); val(run.score.toLocaleString(), COL.gold.glow, 13);
-  lab('HI'); val(Math.max(run.hi, run.score).toLocaleString(), '#8a90c4', 10);
+  lab('HI'); val(Math.max(run.hi, run.score).toLocaleString(), '#a6aed8', 10);
   y += 6;
 
   // 残机
-  ctx.fillStyle = '#5c6296'; ctx.font = '9px Consolas,monospace';
+  ctx.fillStyle = '#8f98c6'; ctx.font = '9px Consolas,monospace';
   ctx.fillText('LIVES', x, y); y += 12;
   for (let i = 0; i < Math.max(0, pl.lives); i++) {
     ctx.fillStyle = COL.rose.glow;
@@ -1820,7 +1927,7 @@ function drawHUD() {
   }
   y += 15;
   // 炸弹
-  ctx.fillStyle = '#5c6296'; ctx.font = '9px Consolas,monospace';
+  ctx.fillStyle = '#8f98c6'; ctx.font = '9px Consolas,monospace';
   ctx.fillText('BOMB', x, y); y += 12;
   for (let i = 0; i < pl.bombsMax; i++) {
     ctx.fillStyle = i < pl.bombs ? COL.jade.glow : 'rgba(255,255,255,.12)';
@@ -1828,7 +1935,7 @@ function drawHUD() {
   }
   y += 17;
   // 火力
-  ctx.fillStyle = '#5c6296'; ctx.font = '9px Consolas,monospace';
+  ctx.fillStyle = '#8f98c6'; ctx.font = '9px Consolas,monospace';
   ctx.fillText('POWER', x, y); y += 12;
   const pw = pl.power / WS.powerMax;
   ctx.fillStyle = 'rgba(255,255,255,.10)';
@@ -1848,7 +1955,7 @@ function drawHUD() {
   // Boss 符卡
   if (boss) {
     const bw = w - 14, by = H - 158;
-    ctx.fillStyle = '#5c6296'; ctx.font = '9px Consolas,monospace';
+    ctx.fillStyle = '#8f98c6'; ctx.font = '9px Consolas,monospace';
     ctx.fillText('BOSS', x, by - 12);
     ctx.fillStyle = 'rgba(255,255,255,.10)';
     ctx.fillRect(x, by, bw, 8);
@@ -1860,7 +1967,7 @@ function drawHUD() {
       const tp = Math.max(0, boss.card.timeLeft / tpF);
       ctx.fillStyle = 'rgba(255,255,255,.16)';
       ctx.fillRect(x, by + 10, bw, 3);
-      ctx.fillStyle = tp > .3 ? '#8a90c4' : COL.rose.edge;
+      ctx.fillStyle = tp > .3 ? '#a6aed8' : COL.rose.edge;
       ctx.fillRect(x, by + 10, bw * tp, 3);
       ctx.fillStyle = '#dfe6ff'; ctx.font = '9px Consolas,monospace';
       ctx.fillText('T ' + Math.ceil(boss.card.timeLeft / FPS) + 's', x, by + 16);
@@ -1918,7 +2025,7 @@ function drawBanner() {
   ctx.textAlign = 'center';
   ctx.fillStyle = b.col; ctx.font = '21px "Microsoft YaHei",sans-serif';
   ctx.fillText(b.main, FIELD_W/2, H/2 - 12);
-  if (b.sub) { ctx.fillStyle = '#8a90c4'; ctx.font = '10px Consolas,monospace';
+  if (b.sub) { ctx.fillStyle = '#a6aed8'; ctx.font = '10px Consolas,monospace';
                ctx.fillText(b.sub, FIELD_W/2, H/2 + 9); }
   ctx.restore();
 }
@@ -2188,6 +2295,13 @@ window.__SL = {
   mkBullet, mkLaser, useBomb, hitPlayer, damageEnemy, damageBoss, mkShot,
   isFromBack,                       // 背击判定的唯一真相来源，测试直接调它
   weaponStats, rollUpgrades, crateTier,
+  /* ---- 受击反馈（本轮新增的测试接口）----
+     edgePulse   手动触发一次边缘脉冲（受击反馈的唯一入口）；
+     edgeWeights 四条边的权重 —— 判据用它断言「左侧受击 → 左边缘更亮」，
+                 与渲染共用同一份实现，避免判据自己再实现一遍然后一起错；
+     drawOnce    单独跑一次 draw()，供判据在**真实渲染路径**上录制
+                 「顶层 translate 偏移为 0」和「没有覆盖整屏的亮色填充」。 */
+  edgePulse, edgeWeights, drawOnce: () => draw(),
   /* ---- AI 接管 / 倍速 的测试接口 ---- */
   get AI() { return AI; },
   get SPEED() { return SPEED; },

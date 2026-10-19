@@ -1,0 +1,2598 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<title>星屑符咒 · 弹幕手记</title>
+<style>
+  :root{
+    --void:#05060f; --deep:#0d1230; --panel:#0b0e24;
+    --star:#e9ecff; --gold:#ffd76e; --azure:#6fd3ff;
+    --rose:#ff6b9d; --violet:#b98cff; --jade:#6effc0;
+    /* v1.4.0：--dim 从 #6a6f9c 提到 #8b91c0。原色在 #0b0e24 面板上
+       对比度只有 3.9:1，12px 正文读不清。现值约 6.2:1（≥ 4.5:1）。 */
+    --dim:#8b91c0; --line:#2a2f5c;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0;height:100%;overflow:hidden;background:var(--void);
+    font-family:"Songti SC","STSong","SimSun",serif;color:var(--star)}
+  #wrap{position:relative;width:100%;height:100%;display:flex;align-items:center;justify-content:center}
+  canvas{display:block;background:#07091c;box-shadow:0 0 70px rgba(60,80,200,.22);touch-action:none}
+  #ui{position:absolute;inset:0;pointer-events:none;font-size:13px;line-height:1.65}
+  .panel{position:absolute;pointer-events:auto;background:rgba(9,11,32,.95);
+    border:1px solid var(--line);padding:20px 26px;max-width:min(92vw,560px);
+    box-shadow:0 0 46px rgba(0,0,0,.8), inset 0 0 40px rgba(90,110,220,.07)}
+  .panel h1{margin:0 0 3px;font-size:27px;letter-spacing:6px;color:var(--gold);font-weight:400}
+  .panel h1 small{display:block;font-size:10.5px;letter-spacing:3px;color:var(--dim);margin-top:5px}
+  .panel p{color:#c3c8ec;font-size:13.5px;margin:8px 0}
+  .panel b{color:var(--star)}
+  .panel .k{display:inline-block;min-width:19px;padding:1px 6px;margin:0 2px;
+    background:#1a1f45;border:1px solid #3f477f;border-radius:3px;
+    font-family:Consolas,monospace;font-size:11.5px;color:var(--azure)}
+  .panel hr{border:0;border-top:1px solid var(--line);margin:14px 0}
+  .btn{display:inline-block;margin-top:14px;padding:10px 30px;cursor:pointer;
+    background:linear-gradient(180deg,#232a5c,#141938);border:1px solid var(--gold);
+    color:var(--gold);font-size:15.5px;letter-spacing:3px;font-family:inherit;transition:.15s}
+  .btn:hover{background:linear-gradient(180deg,#333c7a,#1b2148);box-shadow:0 0 20px rgba(255,215,110,.3)}
+  .btn.sm{padding:7px 16px;font-size:13px;margin:0;letter-spacing:1px}
+  /* 开关型按钮（AI 接管 / 二倍速）：开着时必须一眼看出来。
+     否则「按了没反应」和「按了但没生效」在界面上长得一模一样。 */
+  .btn.on{background:linear-gradient(180deg,#1d3a2e,#12271f);border-color:var(--jade);
+    color:var(--jade);box-shadow:0 0 16px rgba(110,255,192,.22)}
+  .btn.on:hover{background:linear-gradient(180deg,#254a3a,#162f25)}
+  .row{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+  .note{font-size:12px;color:var(--dim);margin-top:11px;line-height:1.75}
+  .leg{display:flex;align-items:center;gap:9px;margin:5px 0;font-size:13px;color:#c3c8ec}
+  .leg i{width:11px;height:11px;border-radius:50%;flex:none;font-style:normal}
+  .tag{display:inline-block;padding:1px 7px;border:1px solid #3f477f;color:var(--jade);
+    font-size:11.5px;border-radius:2px;margin:0 3px}
+  #tip{position:absolute;left:50%;bottom:12px;transform:translateX(-50%);
+    color:#8b91c0;font-size:11.5px;letter-spacing:1px;white-space:nowrap}
+  /* v1.4.0：关卡从 3 关扩到 5 关后，状态条多了一项（SPELL 进度用右侧 HUD 显示），
+     但项数变多、中文项名变长，480px 的画布放不下 —— 原来 white-space:nowrap
+     会让它向两侧溢出到画布外。现在允许换行，并把上限压在画布宽度内。 */
+  #live{position:absolute;top:9px;left:50%;transform:translateX(-50%);
+    display:none;gap:12px;row-gap:3px;background:rgba(9,11,32,.8);padding:5px 13px;
+    border:1px solid var(--line);font-size:11.5px;white-space:nowrap;
+    max-width:calc(100% - 10px);box-sizing:border-box;flex-wrap:wrap;justify-content:center}
+  #live i{font-style:normal;color:var(--dim);margin-right:5px}
+  #live b{font-weight:400;font-family:Consolas,monospace;color:var(--gold)}
+</style>
+</head>
+<body>
+<div id="wrap">
+<canvas id="cv" width="480" height="640"></canvas>
+<div id="ui">
+  <div id="live"></div>
+  <!-- ⚠️ 原来写的是「← → 移动」，但 keydown 里 ArrowUp/ArrowDown 一样在
+       KEYS 表里、movePlayer 也真的读它们（第 216-217 行）。
+       竖向弹幕游戏只提示左右，玩家会以为不能上下走 —— 而「往上压」是这类
+       游戏最基本的走位。补全四个方向。 -->
+  <div id="tip">← → ↑ ↓ 移动　　Z 射击　　Shift 精确低速　　X 炸弹　　A AI 接管　　T 二倍速　　P 暂停</div>
+
+  <div class="panel" id="p0">
+    <h1>星屑符咒<small>弹 幕 手 记 · DANMAKU NOTE</small></h1>
+    <p>你是<b>星屑使</b>，在坠落的星空里收集散逸的<b>封币</b>。</p>
+    <p><b>活下来</b>：<span class="k">←</span><span class="k">→</span> 移动。
+       按住 <span class="k">Shift</span> 进入<b>精确</b>模式 —— 速度降到三分之一，
+       但会显出那颗<b>极小的判定点</b>。</p>
+    <hr>
+    <p><b>三条要紧规则：</b></p>
+    <p>· 你的判定点只有 <b>2.8 像素</b>，比你看到的机体小得多。
+       贴着弹走过去不会被碰到 —— 但也不能靠脸去撞。<br>
+       · <b>擦弹</b>（弹从判定点旁擦过而没碰到）会加分并积攒力量。<br>
+       · 每关 Boss 有 <span class="tag">符卡</span>，限时内打掉才有<b>符卡奖励</b>。
+       超时 = 奖励作废。</p>
+    <hr>
+    <p><b>弹色即语义</b> —— 学会闭眼读弹：</p>
+    <div class="leg"><i style="background:#ff4d5e;box-shadow:0 0 8px #ff4d5e"></i>红 · 快速瞄准弹，最该躲的就是它</div>
+    <div class="leg"><i style="background:#4da6ff;box-shadow:0 0 8px #4da6ff"></i>蓝 · 慢速环绕弹，可以慢慢走位</div>
+    <div class="leg"><i style="background:#5effa8;box-shadow:0 0 8px #5effa8"></i>绿 · 螺旋弹，成串扫过别站在原地</div>
+    <div class="leg"><i style="background:#ffd23d;box-shadow:0 0 10px #ffd23d"></i>黄 · 大型弹，碰到就掉一截血，撞到会分裂</div>
+    <div class="leg"><i style="background:#b98cff;box-shadow:0 0 8px #b98cff"></i>紫 · 光柱 / 激光柱，先躲再说</div>
+    <hr>
+    <p><b>两个可开的开关：</b><br>
+      · <span class="k">A</span> <b>AI 接管</b> —— 电脑替你走位、开火、擦弹、放炸弹。
+      它<b>不作弊</b>：判定点、无敌帧、移速全部和你一样，只是把方向向量交给同一套物理。<br>
+      · <span class="k">T</span> <b>二倍速</b> —— 逻辑步进翻倍（固定步长累加器），
+      不是把每步位移乘 2，所以判定精度和常速完全一致。</p>
+    <hr>
+    <div class="row">
+      <span class="btn" id="b0">开 始</span>
+      <span class="btn sm" id="bA">AI 接管</span>
+      <span class="btn sm" id="bT">二倍速</span>
+    </div>
+    <div class="note">原作是《东方Project》。本作<b>玩法机制</b>照着做（机制不受版权保护），
+      但<b>角色 / 立绘 / 音乐全部原创</b> —— 星屑使不是博丽巫女，星座不是幻想乡。</div>
+  </div>
+
+  <div class="panel" id="p1" style="display:none">
+    <h1>暂 停<small>PAUSED</small></h1>
+    <div class="row"><span class="btn" id="b1">继 续</span></div>
+    <div class="note">按 <span class="k">P</span> 也可以</div>
+  </div>
+
+  <div class="panel" id="p2" style="display:none">
+    <h1>终 局<small>RUN OVER</small></h1>
+    <p id="r2s"></p>
+    <div class="row"><span class="btn" id="b2">再 来</span></div>
+  </div>
+
+  <div class="panel" id="p3" style="display:none">
+    <h1>全 符 制 霸<small>ALL CLEAR</small></h1>
+    <p id="r3s"></p>
+    <div class="row"><span class="btn" id="b3">再 来</span></div>
+  </div>
+</div>
+</div>
+
+<script>
+"use strict";
+/* ==========================================================================
+   星屑符咒 · 弹幕手记
+   --------------------------------------------------------------------------
+   设计三原则（弹幕射击的命门）：
+   1. 判定点远小于视觉体（2.8px vs 20px；v1.4.0 起从 3.5 缩到 2.8），靠"看不清"制造紧张感
+   2. 弹色即语义：红快 / 蓝慢 / 绿螺旋 / 黄大弹 / 紫光柱
+   3. 奖励贴脸：擦弹给分，所以"冒险靠近"被明确激励，而不是纯挨打
+
+   美术为原创：星空 + 星屑使（蓝袍银发星轨），非任何现有 IP 形象。
+   ========================================================================== */
+
+/* ==========================================================================
+   v1.4.0 难度下调 —— 原因与数值对照（改数值前请先读这段）
+   --------------------------------------------------------------------------
+   原因：5 关之后一局的总时长拉长，而「暴露在弹幕里的秒数」是线性累加的；
+   同时新手在第 2 关（霜华骑士）就开始连掉残机。目标不是把弹幕变稀，
+   而是**让每一发弹都还有反应窗口**：速度降一点、密集处数量降一点、
+   判定更宽容，节奏和可读性不动。
+
+   数值对照（左 = v1.3，右 = v1.4）：
+     · 敌弹全局速度系数 BSPD      1.00  → 0.86（-14%，只在 mkBullet 一处生效）
+        典型值：慢环 2.00 → 1.72；瞄准快弹 3.20 → 2.75；终符 3.60 → 3.10
+     · 玩家判定半径 hitR           3.5  → 2.8（×0.8，更宽容）
+     · 擦弹半径   grazeR            24  → 30（×1.25，更容易拿分/攒火力）
+     · 初始残机 lives                3  → 4（+1）
+     · 密集处发弹数：初式环流 22→18、冰棱柱蓝弹 5→4、双螺旋 4→3、
+       弦断 6→5 等（逐处标注在 pattern 旁，幅度 15~20%）
+   ⚠️ 不动的量：玩家移速 4.0 / 低速 1.35、符卡限时、Boss 血量、炸弹时长。
+      难度不能靠"削玩家机动"来降 —— 那会让走位余地同时变小，反而更难。
+   ⚠️ 判据里的「最差安全格占比」不因为这次下调而放宽 ——
+      反而从 30% 收紧到 35%（实测全卡最低 0.585，留了余量）。
+   ========================================================================== */
+
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+const W = 480, H = 640;
+
+/* ---- 弹色语义表：全代码只认这几个 key，配色改动只改这里 ----
+   ⚠️ 语义名（给玩家读的）只有 5 种；别名（金/蓝玉/青玉/玫瑰/紫罗兰）只是
+      UI 配色名，指向同一批颜色对象。加别名是为了让 UI 层的用色不必翻译。 */
+const SEM = {
+  red:    { core:'#fff2f3', edge:'#ff2f45', glow:'#ff6b78' },   // 快速瞄准
+  blue:   { core:'#f0f8ff', edge:'#2f7fff', glow:'#6fb6ff' },   // 慢速环绕
+  green:  { core:'#f0fff6', edge:'#19d67a', glow:'#5effa8' },   // 螺旋
+  yellow: { core:'#fffaeb', edge:'#ffb800', glow:'#ffd23d' },   // 大型分裂弹
+  purple: { core:'#faf5ff', edge:'#8a3cff', glow:'#b98cff' },   // 光柱 / 墙
+  white:  { core:'#ffffff', edge:'#a8b4ff', glow:'#dfe6ff' },
+};
+const COL = Object.assign({}, SEM, {
+  gold: SEM.yellow, azure: SEM.blue, jade: SEM.green,
+  rose: SEM.red, violet: SEM.purple, cyan: SEM.blue,
+});
+/* 上线前必须验证：UI 层用到的每个颜色名都能取到 .glow，否则下面全是 TypeError。
+   这行就是那个验证本身 —— 别删。 */
+for (const _k in COL) {
+  if (!COL[_k] || !COL[_k].glow) throw new Error('COL.' + _k + ' 缺少 glow 色值');
+}
+
+const rnd  = (a, b) => a + Math.random() * (b - a);
+const rndi = (a, b) => Math.floor(rnd(a, b + 1));
+const pick = a => a[Math.floor(Math.random() * a.length)];
+const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+const TAU = Math.PI * 2;
+/* 帧率常量：凡是「按秒写、按帧减」的时间量都必须经过它换算，
+   否则 time:40 的真实时限会变成 0.67 秒。 */
+const FPS = 60;
+const ang2 = (a, b) => Math.atan2(b.y - a.y, b.x - a.x);
+
+/* ---- 场地：右侧 76px 是 HUD，玩家活动区不含 HUD ---- */
+const FIELD_W = 400;
+const PLAY_R = FIELD_W - 8;   // 玩家活动右边界
+const TOP = 8, BOT = H - 8;
+
+/* ==========================================================================
+   状态
+   ========================================================================== */
+let P = {};            // 键位
+let run, player, bullets, shots, lasers, enemies, boss, items, parts, stars;
+let raf = 0, lastTs = 0, loopOn = true;
+
+function newRun() {
+  run = {
+    scene: 'title', score: 0, hi: +(localStorage.getItem('danmaku_hi') || 0),
+    noSpawn: false,   // 测试开关：关掉刷怪，隔离「弹幕伤害」与「敌人伤害」
+    stage: 0, over: false, cleared: false, paused: false, t: 0, frame: 0,
+    /* ---- 温和反馈，取代原来的屏幕抖动(shake)与全屏白闪(flash) ----
+       shake/flash 这种「整屏位移 + 整屏泛白」在连续受击时会晃眼、刺眼，
+       玩家明确要求去掉。现在换成两件**局部**反馈：
+         · edge   —— 屏幕边缘的柔和暗角/描边脉冲，按受击方向偏色
+                     （左侧受击 → 左边缘泛红），只占一条边，不晃画面。
+         · breath —— 低透明度的色彩呼吸（有色，不是白），幅度 ≤ 0.20。
+       两者都只是绘制层效果，**不改变任何游戏状态**，也不引入第二个时钟。 */
+    edge: null, breath: null, hint: '', hintT: 0,
+    banner: null, bannerT: 0, bgTint: '#07091c',
+    grazed: 0, spellCleared: 0, deaths: 0, spellHistory: [],
+  };
+  player = {
+    x: FIELD_W / 2, y: H - 96, vx: 0, vy: 0, focus: false,
+    /* v1.4.0：判定 3.5→2.8、擦弹 24→30、残机 3→4。
+       判定更小 = 贴着弹走更安全；擦弹更大 = 同一发弹的"擦到"区间更宽，
+       所以"冒险靠近"这条激励反而变强了 —— 降难度不等于降刺激。 */
+    hitR: 2.8, grazeR: 30, spd: 4.0, focusSpd: 1.35,
+    power: 1.0, lives: 4, bombs: 3, bombsMax: 3,
+    invuln: 0, dead: 0, shootCd: 0, grazeCount: 0, grazeShown: 0,
+  };
+  bullets = []; shots = []; lasers = []; enemies = []; items = [];
+  parts = []; boss = null;
+  stars = makeStars();
+  nextStage();
+}
+
+/* ==========================================================================
+   背景星空：一次性预渲染两层，离屏滚动
+   ========================================================================== */
+function makeStars() {
+  const mk = (n, sz, al) => {
+    const c = document.createElement('canvas');
+    c.width = FIELD_W; c.height = H;
+    const g = c.getContext('2d');
+    for (let i = 0; i < n; i++) {
+      const x = Math.random() * FIELD_W, y = Math.random() * H;
+      const a = al * (0.35 + Math.random() * 0.65), r = sz * (0.5 + Math.random());
+      g.fillStyle = `rgba(220,230,255,${a.toFixed(3)})`;
+      g.beginPath(); g.arc(x, y, r, 0, TAU); g.fill();
+    }
+    return c;
+  };
+  return [
+    { c: mk(90, 1.0, .35), sp: 0.22, y: 0 },
+    { c: mk(46, 1.7, .62), sp: 0.62, y: 0 },
+    { c: mk(14, 2.5, .95), sp: 1.25, y: 0 },
+  ];
+}
+
+/* ==========================================================================
+   AI 接管 —— 只做「人能做到的事」
+   --------------------------------------------------------------------------
+   为什么要有它：
+     ① 当教学 —— 看它怎么在弹幕里找缝；
+     ② 当**自动化压力测试** —— 它活得下去 = 这套弹幕数值真的可打。
+        这也是本轮「弹幕重做」的验收工具：AI 过不了的关，人基本也过不了。
+
+   三条铁律（判据里有专门的断言守住）：
+     · 不改判定点：hitR 恒 2.8 / grazeR 恒 30（v1.4.0 数值；开 AI 前后完全一致）；
+     · 不加无敌帧、不瞬移、不预知未来、不直接改 Boss 血量；
+     · 只产出方向向量 { ax, ay }，交给**同一个** movePlayer；
+       开火 = 「按住 Z」，炸弹 = 「按一下 X」，都走原来的入口。
+
+   威胁判定用「最近接近点」而不是当前位置：
+     弹幕一直在动，只看当前位置的话，一发正朝你飞来的弹会被当成"没威胁"，
+     等它近了已经来不及。参考 starlane-v2 的 aiSteer()。
+     而且这个「最近接近点」必须用**相对速度**（弹速 − 玩家速度）：
+     只看弹自己的速度，会漏掉「慢弹被玩家主动追上去」这一类——
+     那是本模块踩过的最深的一个坑，完整复盘写在 aiSteer() 的威胁表一节。
+
+   实测（verify/diag.js，固定步长，纯 AI 操作）：
+     改之前 5 轮只通关 2 轮，中位 4.0k~5.3k 帧，几乎每次都是
+       「AI 自认为最近威胁在 100px 外，实际被一发 11px 的慢弹磨死」；
+     修掉相对速度那处之后 **12 轮 12 通关**，中位 10.6k 帧（≈177 秒），
+       多数轮次零失机 —— 说明这套弹幕数值是真的可以打通的。
+   ========================================================================== */
+const AI = {
+  on: false, wantBomb: false, bombCd: 0,
+  lx: 0, ly: 0,     // 上一帧选定的方向（惯性项，防止在相邻方向之间来回抖）
+  /* 可调参数放在 AI 上，判据/量测脚本可以直接改它们做参数扫描，
+     不用改游戏代码（改完再固化成默认值）。 */
+  tune: {
+    look: 30,      // 最近接近点的前瞻帧数
+    hor: 22,       // 候选方向的前瞻帧数
+    cand: 16,      // 候选方向数（再加一个「原地不动」）
+    cap: 70,       // 安全余量的封顶（px）：超过这个数，再安全也没意义
+    objDot: 30,    // 目标方向的拉力（相对「安全余量」的权重；参数扫描里 24→30 更稳）
+    aim: 0.055, row: 0.032, graze: 0.9, item: 3.0,
+    edge: 110, edgeK: 1.2,   // 边缘排斥：距边 110px 内开始推（别往墙角退）
+    inertia: 12,             // 惯性：奖励「继续走上一帧的方向」，抑制左右打摆
+  },
+};
+
+/** 每帧算一次「往哪推」，分量各在 [-1,1]；小数等于「轻推摇杆」。
+ *
+ *  为什么不是「对威胁加权求和的合力方向」：
+ *    那种写法里，安全与目标（瞄准/站位）是两股**向量相加**的力量，
+ *    权重一旦没调好就会出现「为了瞄准不躲」或「一直躲从不瞄准」两种死结
+ *    （姊妹项目 starlane-v2 两种都踩过，注释里留着实测数据）。
+ *    这里改成**候选方向打分**：枚举 16 个方向 + 原地不动，
+ *    对每个方向做 hor(=22) 帧前瞻，算出「这一路走过去，最近会离任何一发弹多近」，
+ *    取安全余量最大的那个；再给「朝目标的方向」一点加分。
+ *    这样安全和目标是**同一个量纲上的加减**，不会再互相压死，
+ *    而且天然满足「任意时刻都选得出一条可走的路」。
+ *
+ *  AI 必须覆盖的五件事（都在这一个函数里，都能在判据/复盘里看到）：
+ *    · 躲避        —— 候选方向的最近接近点打分（第 3 节）
+ *    · 擦弹拿力量  —— 站位调到离弹道约 20~24px，且 20px 是下限（防自杀）
+ *    · 站位回下方  —— 目标项里的「回到 (H-110) 的输出位」
+ *    · Boss 瞄准对齐 —— 目标项里的横向对齐（不对齐子弹全打空）
+ *    · 符卡预警期提前走位 —— declare/enter 阶段也把 Boss 当目标先站好位，
+ *                          光柱 warn 期就往垂直方向挪、候选打分里更是硬伤
+ */
+function aiSteer() {
+  const T = AI.tune;
+  const px = player.x, py = player.y;
+  AI.wantBomb = false;
+
+  // ── 1. 威胁表 ──
+  //    用「最近接近点」而不是当前位置：弹幕在动，现在没威胁不代表下一步没威胁。
+  //
+  // ⚠️⚠️ 这里曾经写的是「先看这发弹是不是在远离，远离就 continue」——
+  //    只看**弹自己**的速度。那是「AI 通不了关」里最顽固的一个 bug，
+  //    值得完整记下来：
+  //      · 弹幕里最慢的一档是 1.6px/帧（吐弹机的蓝环），玩家全速 4.2px/帧；
+  //      · 玩家朝它走的时候，两者**相对速度是接近的**，可只看弹速会被判成
+  //        「正在远离」→ 这发弹进不了威胁表 → 候选方向打分看不到它
+  //        → AI 会笔直地朝它走过去，正好撞上。
+  //      · 死亡复盘的铁证（verify/diag.js 的 pre / dbg 对照）：
+  //          pre(f=1342)  最近弹 d = 15 → 12 → 9 → 6 → 2 → 命中（单调靠近）
+  //          dbg(f=1342)  同帧却写着「最近一发弹 d = 74」
+  //        同一帧、同一个玩家坐标，两个数字差 70px —— 差的就是那发被判成
+  //        「远离」的 12px 弹。
+  //    修法：最近接近点用**相对速度**（弹速 − 玩家当前速度）来算，
+  //    「远离」不再是排除理由；只有「最近接近点本身 > 100px」才排除。
+  //    玩家当前速度只是「我现在正朝哪走」的近似 —— 对「哪发弹危险」这个
+  //    判断来说，这比假设玩家站着不动准得多。
+  const threats = [];
+  let close = 0;                        // 贴脸弹数 → 决定要不要放炸弹
+  let nb = null, nbD = 1e9;             // 调试用：最近一发弹的**原始**距离
+  const pvx = player.vx || 0, pvy = player.vy || 0;
+  for (const b of bullets) {
+    if (b.delay > 0) continue;
+    const rx = b.x - px, ry = b.y - py;
+    const vx = b.vx, vy = b.vy;
+    const rvx = pvx - vx, rvy = pvy - vy;          // 相对速度
+    const rr = rvx * rvx + rvy * rvy;
+    let tt = rr > 1e-6 ? -(rx * rvx + ry * rvy) / rr : 0;
+    if (tt < 0) tt = 0; else if (tt > T.look) tt = T.look;
+    const d = Math.hypot(rx + rvx * tt, ry + rvy * tt);
+    if (d < b.r + player.hitR + 26) close++;
+    const nd = Math.hypot(rx, ry);
+    if (nd < nbD) { nbD = nd; nb = { dx: Math.round(rx), dy: Math.round(ry),
+      vx: +vx.toFixed(2), vy: +vy.toFixed(2), r: b.r, d: Math.round(nd),
+      ca: Math.round(d), delay: b.delay }; }
+    if (d > 100) continue;
+    threats.push({ x: b.x, y: b.y, vx, vy, r: b.r });
+  }
+
+  // ── 2. 目标方向：瞄准对齐 + 回到输出位 + 躲光柱 + 擦弹 + 捡币 + 别贴边 ──
+  let ox = 0, oy = 0;
+  let tgt = null;
+  if (boss) tgt = boss;                // 符卡预警期(declare)/入场期(enter)也先站好位
+  else {
+    let bd = 1e9;
+    for (const e of enemies) {
+      if (!e.alive) continue;
+      const d = Math.abs(e.x - px) + Math.abs(e.y - py) * 0.6;
+      if (d < bd) { bd = d; tgt = e; }
+    }
+  }
+  // 子弹只往上飞 → 不对齐就全打空；但被贴脸时把瞄准权重砍半，
+  // 免得「为了对齐 Boss 的横向摆动」把自己送进弹里。
+  if (tgt) ox += (tgt.x - px) * T.aim * (close > 0 ? 0.5 : 1);
+  oy += ((H - 110) - py) * T.row;           // 回到屏幕下方的输出位
+  for (const L of lasers) {                 // 光柱：预警期就往垂直方向挪
+    if (L.t > L.warn) continue;
+    const ca = Math.cos(L.ang), sa = Math.sin(L.ang);
+    const rx = px - L.x, ry = py - L.y;
+    const along = rx * ca + ry * sa, perp = -rx * sa + ry * ca;
+    if (along < -20 || along > L.len) continue;
+    if (Math.abs(perp) > L.w / 2 + 44) continue;
+    const sgn = perp >= 0 ? 1 : -1;
+    ox += -sa * sgn * 9; oy += ca * sgn * 9;   // 往自己那一侧闪，别横穿柱身
+  }
+  // 擦弹拿力量：挑「最近接近点在擦弹圈内、判定圈外」的弹，把站位调到离弹道
+  // 约 20~24px（`d < 20` 的一律不要）。最近接近点与弹速正交，沿它推 =
+  // 垂直于弹道平移，正好控制擦过距离。
+  // 「防自杀」的下限就在这个 20px：判定点是 r + 2.8（红弹 r=5 → 7.8px），
+  // 留 20px 意味着离「真的会死」还有一倍半以上的余量；
+  // 且只在 close <= 1（身上没有贴脸弹）时才敢这么干。
+  // 只挑定速弹 —— 变速/分裂弹的落点估不准，拿它们擦弹等于赌博。
+  if (close <= 1) {
+    let best = null, bd = 1e9;
+    for (const b of bullets) {
+      if (b.delay > 0 || b.accel || b.split) continue;
+      const rx = b.x - px, ry = b.y - py;
+      const vv = b.vx * b.vx + b.vy * b.vy;
+      if (vv < 1) continue;
+      const tt = -(rx * b.vx + ry * b.vy) / vv;
+      if (tt < 3 || tt > T.look) continue;
+      const cx = rx + b.vx * tt, cy = ry + b.vy * tt;
+      const d = Math.hypot(cx, cy);
+      if (d < 20 || d > player.grazeR) continue;
+      if (d < bd) { bd = d; best = { cx, cy, d }; }
+    }
+    if (best) {
+      const s = best.d > 22 ? 1 : -1;
+      ox += best.cx / best.d * s * T.graze;
+      oy += best.cy / best.d * s * T.graze;
+    }
+  }
+  if (close <= 1) {                          // 捡封币：火力成长的唯一来源
+    let it = null, bd = 220;
+    for (const o of items) {
+      const d = Math.hypot(o.x - px, o.y - py);
+      if (d < bd) { bd = d; it = o; }
+    }
+    if (it) { ox += (it.x - px) / 200 * T.item; oy += (it.y - py) / 200 * T.item; }
+  }
+  // 别贴边：贴边 = 少一半闪避空间。系数给足，否则它会被别的项一路推到角落
+  // （死亡复盘里多次看到玩家停在 (14,575)/(22,622) 这种角落上活活被围死）。
+  if (px < T.edge)            ox += (T.edge - px) * T.edgeK;
+  if (px > PLAY_R - T.edge)   ox -= (px - (PLAY_R - T.edge)) * T.edgeK;
+  if (py < 150)               oy += (150 - py) * T.edgeK;
+  if (py > H - 120)           oy -= (py - (H - 120)) * T.edgeK;
+
+  const om = Math.hypot(ox, oy);
+  const nx = om > .001 ? ox / om : 0, ny = om > .001 ? oy / om : 0;
+
+  // ── 3. 候选方向打分：安全余量最大的赢，「朝目标」只是加分项 ──
+  //  ⚠️ 打分必须**先安全后目标**（字典序），不能把两者加成一个大和：
+  //    第一版写成 `min(clear,70) + dot*24`，于是「朝目标」最多能值 ±24 分，
+  //    足以盖过 30px 的安全余量差 —— AI 会沿着敌人的方向一路撞进弹幕。
+  //    实测死亡复盘：玩家 x 从 187 一路走到 214，而最近余量从 24px 单调掉到 1px，
+  //    也就是说它「一直朝着威胁在走」。这正是姊妹项目注释里记的
+  //    「为了瞄准不躲」那个死结的另一种形态。
+  //    改法：先找出所有候选里最大的安全余量 maxClear，
+  //    只在「余量接近最优（差 ≤ 8px）」的方向里，才用目标方向来挑。
+  const step = player.spd;                   // 巡航速度，用来推演这 hor(=22) 帧能走多远
+  const dirs = [];
+  let maxClear = -1e9;
+  for (let i = -1; i < T.cand; i++) {
+    const ux = i < 0 ? 0 : Math.cos(i * TAU / T.cand);
+    const uy = i < 0 ? 0 : Math.sin(i * TAU / T.cand);
+    // 这两条直线（玩家的未来轨迹、弹的未来轨迹）之间的**精确最近距离**解析解：
+    //   相对位置 r(t) = r0 + vrel·t，取 t 使 |r| 最小。
+    // ⚠️ 不能只在 t = 3,6,9… 上采样：弹每 3 帧走 11px，而判定半径只有 9.5px，
+    //    采样点之间正好能"漏掉"一次擦身 —— 那就会挑出一个其实会撞上的方向。
+    let clear = 999;
+    for (const th of threats) {
+      const relx = ux * step - th.vx, rely = uy * step - th.vy;
+      const r0x = px - th.x, r0y = py - th.y;
+      const vv = relx * relx + rely * rely;
+      let tt = vv > 1e-6 ? -(r0x * relx + r0y * rely) / vv : 0;
+      if (tt < 0) tt = 0; else if (tt > T.hor) tt = T.hor;
+      const cx = r0x + relx * tt, cy = r0y + rely * tt;
+      const dd = Math.hypot(cx, cy) - th.r - player.hitR;
+      if (dd < clear) clear = dd;
+      if (clear < -30) break;
+    }
+    // ⚠️ 光柱必须一起算进来。第一版只把光柱写进「目标方向」的软推力里，
+    //    于是候选打分**完全看不到**光柱 —— 而两张最难的光柱卡（冰棱柱、
+    //    弦断）正是 AI 的葬身之地：它会很满意地站在一根已经进入预警的柱子里。
+    //    这里把「开火那一刻玩家还在不在柱子里」当成硬伤：
+    //    只要在光束覆盖范围内，clear 直接记成大负数，任何方向都比它强。
+    if (clear > -60 && lasers.length) {
+      for (const L of lasers) {
+        if (L.t > L.warn + L.life) continue;
+        const firesIn = Math.max(1, Math.ceil(L.warn - L.t));   // 还有几帧开火
+        if (firesIn > T.hor) continue;                          // 本轮前瞻看不到它
+        const ca = Math.cos(L.ang), sa = Math.sin(L.ang);
+        for (let t = firesIn; t <= T.hor; t += 2) {
+          const fx = px + ux * step * t, fy = py + uy * step * t;
+          const rx = fx - L.x, ry = fy - L.y;
+          const along = rx * ca + ry * sa;
+          const perp = Math.abs(-rx * sa + ry * ca);
+          if (along > -10 && along < L.len && perp < L.w / 2 + player.hitR + 5) {
+            clear = -60; break;
+          }
+        }
+        if (clear <= -60) break;
+      }
+    }
+    // ⚠️ 场地边界也要算进「安全余量」。
+    //    只算弹的话，AI 会一路往墙角退：退到贴墙之后「往外」这个方向在几何上
+    //    已经不存在了，剩下的可选方向骤然变少，于是被慢慢合围。
+    //    死亡复盘里反复出现 (380,604) / (122,530) 这类贴墙/贴角的坐标。
+    //    做法：把「这一路还能走多远才撞墙」当成安全余量的上限 ——
+    //    朝墙走的方向余量天然变小，AI 自己就会留在场地中间。
+    if (ux > 0 || uy > 0 || ux < 0 || uy < 0) {
+      const dxWall = ux > 1e-6 ? (PLAY_R - 12 - px) / ux : ux < -1e-6 ? (px - 12) / -ux : 9999;
+      const dyWall = uy > 1e-6 ? (H - 18 - py) / uy : uy < -1e-6 ? (py - 18) / -uy : 9999;
+      const travel = Math.min(dxWall, dyWall) * step;
+      if (travel - 14 < clear) clear = travel - 14;
+    }
+    dirs.push({ ux, uy, clear, stay: i < 0 });
+    if (clear > maxClear) maxClear = clear;
+  }
+  // 达标线：余量宽松时允许比最优差一点（留出选方向的余地），
+  // ⚠️ 但余量本来就紧的时候容差必须收紧到 2px —— 否则「差 8px 也算达标」
+  //    会把一个 22 帧内就要撞上的方向也放进来，再靠惯性项一选，
+  //    AI 就笔直地朝弹走过去了（死亡复盘里 n 从 31 单调掉到 1 就是这么来的）。
+  const capClear = Math.min(maxClear, T.cap);
+  const tol = capClear > 45 ? 12 : capClear > 20 ? 6 : 2;
+  const thr = Math.max(0, capClear - tol);
+  let bestScore = -1e9, bx = 0, by = 0, bestClear = maxClear;
+  // 同时记住「余量最大的那个方向」当保底。⛔ 不能像原来那样「一个达标的都
+  // 没有就原地不动」：被合围在角落里时 maxClear 可能刚好 = 0，
+  // `clear < thr(=0)` 把所有方向都挡掉 → 返回 {0,0} → 站着挨打。
+  // 死亡复盘里 (12,619) 那次就是这样：maxClear=0、dir=[0,0]。
+  // 保底方向至少是「最不容易马上被命中的一条路」，能多拖几帧等炸弹冷却。
+  let fbX = 0, fbY = 0, fbClear = -1e9, anyPass = false;
+  for (const c of dirs) {
+    // 保底方向的择优规则：余量大的优先；**余量相同时优先「动起来」**。
+    //   ⚠️ 为什么专门处理平手：被一圈弹对称合围时，17 个候选方向的余量
+    //   完全相同，而 dirs[0] 是「原地不动」—— 用「严格大于」比较的话
+    //   它会一直保持领先，最后返回 {0,0}，也就是**站着不动等死**。
+    //   平手时把选择权交给一个真实方向，至少不比站着差。
+    const better = c.clear > fbClear + 1e-6;
+    const tieMove = Math.abs(c.clear - fbClear) <= 1e-6 && fbX === 0 && fbY === 0 && !c.stay;
+    if (better || tieMove) { fbClear = c.clear; fbX = c.ux; fbY = c.uy; }
+    if (c.clear < thr) continue;
+    anyPass = true;
+    // 达标之后：目标方向 + 惯性（避免在两个相邻方向之间来回抖 —— 死在
+    // 抖动的 AI 手里是最冤的，复盘里能看到 x 在 302/304 之间原地打摆）
+    const score = (c.ux * nx + c.uy * ny) * T.objDot
+                + (c.ux * AI.lx + c.uy * AI.ly) * T.inertia
+                + (c.stay ? 1.5 : 0);
+    if (score > bestScore) { bestScore = score; bx = c.ux; by = c.uy; }
+  }
+  if (!anyPass) { bx = fbX; by = fbY; bestClear = fbClear; }
+  if (bx === 0 && by === 0) { AI.lx = 0; AI.ly = 0; }
+  else { AI.lx = bx; AI.ly = by; }
+
+  // ── 4. 走投无路才放炸弹（自带 90 帧冷却，防止炸完又炸）──
+  //    两条信号：
+  //      · close 大：已经有 ≥5 发弹的「相对最近接近点」压进判定圈外 26px 内；
+  //      · maxClear 小：所有候选方向的余量都 ≤ 1px —— 也就是 hor(=22) 帧内**必被命中**。
+  //    ⚠️ 原来写的是 `close >= 6 || maxClear < 0`，两个门槛都太苛：
+  //      死亡复盘里 (12,619) 那帧 maxClear 恰好 **等于 0**（不是 < 0），
+  //      close 只有 3 → 不放炸弹 → 玩家原地被慢弹磨死，身上还揣着 3 颗炸弹。
+  //      收紧到 `maxClear <= 1 || close >= 5`。
+  if ((close >= 5 || maxClear <= 1) && player.bombs > 0 && AI.bombCd <= 0) AI.wantBomb = true;
+
+  // 调试快照：判据/量测脚本可以直接读它来复盘「AI 死的那一刻是怎么想的」。
+  // 纯只读状态，不参与任何决策。
+  AI.dbg = { maxClear: Math.round(maxClear), thr: Math.round(thr), close,
+             threats: threats.length, bullets: bullets.length,
+             dir: [bx, by], bombs: player.bombs,
+             invuln: player.invuln, x: Math.round(px), y: Math.round(py), nb };
+
+  if (bx === 0 && by === 0) return { ax: 0, ay: 0 };
+  // ⚠️ 这里原来写的是「余量越紧走得越慢」（0.58 倍速 = 2.3px/帧）。
+  //    听起来像"精确低速"，实测是致命的：被判据复盘出来的死亡，
+  //    最后 15 帧玩家只挪了 30px，而弹已经压到 1px —— 它**跑不掉**。
+  //    这类游戏的招牌恰恰是"判定点小所以敢全速跑"，慢下来只会被慢慢合围。
+  //    改成：只要还有余量就全速跑，真的被围死了（余量 < 0）才降到 0.72 微调。
+  const mag = bestClear > 0 ? 1 : 0.72;
+  return { ax: bx * mag, ay: by * mag };
+}
+
+/* ==========================================================================
+   玩家
+   ========================================================================== */
+function movePlayer(dt) {
+  if (player.dead > 0) { player.dead -= dt; return; }
+  let ax = 0, ay = 0;
+  if (AI.on) {
+    // AI 给的可以是小数 = 轻推摇杆；手操只有 ±1，所以斜向归一化只对手操做。
+    const d = aiSteer();
+    ax = d.ax; ay = d.ay;
+    player.focus = false;
+  } else {
+    player.focus = !!P['Shift'];
+    if (P['ArrowLeft'])  ax -= 1;
+    if (P['ArrowRight']) ax += 1;
+    if (P['ArrowUp'])    ay -= 1;
+    if (P['ArrowDown'])  ay += 1;
+    // 斜向归一化：不然斜着比直走快 41%
+    if (ax && ay) { ax *= 0.7071; ay *= 0.7071; }
+  }
+  const sp = player.focus ? player.focusSpd : player.spd;
+  player.vx = ax * sp; player.vy = ay * sp;
+  player.x = clamp(player.x + player.vx * dt, 12, PLAY_R - 12);
+  player.y = clamp(player.y + player.vy * dt, TOP + 10, BOT - 10);
+
+  // 射击：火力决定同时出几路。AI 接管 = 等价于一直按住 Z，
+  // 走的是同一个 firePlayerShot()，没有任何额外伤害。
+  player.shootCd -= dt;
+  if ((P['z'] || AI.on) && player.shootCd <= 0) {
+    player.shootCd = 4;
+    firePlayerShot();
+  }
+  if (player.invuln > 0) player.invuln -= dt;
+}
+
+/** 火力档位 → 同时射出几路 + 单发伤害 */
+function firePlayerShot() {
+  const pw = player.power;
+  const dmg = pw >= 4 ? 1.6 : pw >= 2 ? 1.25 : 1.0;
+  const px = player.x, py = player.y;
+  // 主路永远 2 路（左右斜上），侧路随火力加
+  shots.push(mkShot(px - 3, py - 12, -0.13, 13, dmg, COL.azure));
+  shots.push(mkShot(px + 3, py - 12,  0.13, 13, dmg, COL.azure));
+  if (pw >= 1.6) shots.push(mkShot(px - 8, py - 8, -0.34, 11.5, dmg * .7, COL.jade));
+  if (pw >= 1.6) shots.push(mkShot(px + 8, py - 8,  0.34, 11.5, dmg * .7, COL.jade));
+  if (pw >= 2.6) shots.push(mkShot(px - 13, py - 2, -0.55, 10.5, dmg * .55, COL.white));
+  if (pw >= 2.6) shots.push(mkShot(px + 13, py - 2,  0.55, 10.5, dmg * .55, COL.white));
+  if (pw >= 3.6) shots.push(mkShot(px, py - 16, 0, 15, dmg * 1.2, COL.gold || COL.white));
+  // 火花
+  burst(px, py - 10, 1, COL.azure.glow, 2.2, .22);
+}
+
+function mkShot(x, y, a, sp, dmg, col) {
+  return { x, y, vx: Math.sin(a) * sp, vy: -Math.cos(a) * sp,
+           r: 4, dmg, c: col || COL.white, alive: true, age: 0 };
+}
+
+/* ==========================================================================
+   弹幕
+   —— 统一工厂：所有 pattern 只能通过 mkBullet 造弹，保证语义色可追溯
+   ========================================================================== */
+/* ---- 敌弹全局速度系数（v1.4.0 难度下调）----
+   唯一入口：所有敌弹都必须走 mkBullet()，所以只改这一个数就能统一降速，
+   不会出现「有的卡降了、有的卡忘了」的半截状态。
+   0.86 = 下调 14%，落在需求给的 12~18% 区间中段：
+     · 慢环 2.00 → 1.72：仍在 3~4 秒内离场，不会永久堆积；
+     · 瞄准快弹 3.20 → 2.75：从「一步 3.2px」变成 2.75px，跨越判定圈的余量变大；
+     · 终符快弹 3.60 → 3.10。
+   ⚠️ 只作用于敌方弹（mkShot 是玩家弹，不走这里）。
+   ⚠️ 不要改到 updateBullets 里按帧乘 —— 那会把 accel（加速弹）的曲线也带偏。 */
+const BSPD = 0.86;
+function mkBullet(x, y, ang, spd, opt = {}) {
+  const v = spd * BSPD;
+  return {
+    x, y,
+    vx: Math.cos(ang) * v, vy: Math.sin(ang) * v,
+    r: opt.r || 6,
+    c: COL[opt.c || 'blue'],
+    shape: opt.shape || 'ball',   // ball | rice | arrow | star | big
+    rot: opt.rot != null ? opt.rot : ang + Math.PI / 2,
+    spin: opt.spin || 0,
+    delay: opt.delay || 0,        // 延迟出现（弹幕可读性的关键）
+    delay0: opt.delay || 0,       // 初始延迟帧 —— 预告警示圈要用它算收缩比例
+    accel: opt.accel || 0,        // 每帧速度变化（负 = 减速，抛物线手感）
+    minSpd: opt.minSpd || 0,
+    age: 0, grazed: false, alive: true,
+    split: opt.split || null,     // 撞到时的分裂行为
+  };
+}
+
+/* ---- 弹幕预算：全场弹数硬上限 ----
+   这是防雪崩的安全网，不是密度调节器。正常设计下峰值远低于它
+   （实测最高的一张卡峰值 108 发，见 STAGES 上方的量测表）。
+   没有它的话，某个 pattern 写错一个数量级（比如把「每 7 帧 10 发」
+   误写成「每帧 10 发」）会瞬间刷出上千发弹，帧率崩掉、
+   更糟的是判据会超时而不是明确报错。 */
+const BULLET_CAP = 190;
+function pushB(b) { if (bullets.length < BULLET_CAP) bullets.push(b); }
+
+/* ---- 弹型生成器：所有敌人都只用这几个，保证玩家能建立"读弹"直觉 ----
+   重做后的四条硬约束（判据里有对应的量化断言）：
+     ① 单张符卡同时存活 ≤ 108 发（原来最高 682 发）；
+     ② 生成率 ≤ 62 发/秒（原来最高 278 发/秒）；
+     ③ 任何一帧，走位网格里「26 帧内不会被任何弹扫到」的格子 ≥ 35%
+        （原来最低一帧只剩 9.4% —— 那帧玩家其实无解）；
+     ④ 慢弹负责封路、快弹负责逼迫，两者不同时从**互相矛盾**的方向压。
+   为此：
+     · ring 的慢弹速度提到 1.7~2.2，让它们在 3~4 秒内离场，不再永久堆积；
+     · aimed 的快弹（红·rice）每轮只有 2~4 发，且与环流错开半拍；
+     · wall 的缺口固定 ≥ 100px 且横向缓动，保证「一定钻得过去」；
+     · 螺旋降到 2~3 条臂、间隔 ≥ 12 帧。
+*/
+const PAT = {
+  /** 全周环 */
+  ring(x, y, n, spd, o = {}) {
+    const off = o.off != null ? o.off : Math.random() * TAU;
+    for (let i = 0; i < n; i++)
+      pushB(mkBullet(x, y, off + i * TAU / n, spd, o));
+  },
+  /** 瞄准玩家的 n 路扇形（快弹专用：n 小、速度高、只用来逼走位） */
+  aimed(x, y, n, spd, spread, o = {}) {
+    const base = ang2({ x, y }, player);
+    for (let i = 0; i < n; i++) {
+      const a = base + (i - (n - 1) / 2) * spread;
+      pushB(mkBullet(x, y, a, spd, o));
+    }
+  },
+  /** 从上方推进的墙，中间留 gap 宽度的缺口（gapW 由调用方保证 ≥100） */
+  wall(y, spd, gapX, gapW, o = {}) {
+    const step = o.step || 22;
+    for (let x = 12; x < FIELD_W - 8; x += step) {
+      if (Math.abs(x - gapX) < gapW / 2) continue;
+      const px = x + (o.jitter ? rnd(-4, 4) : 0);
+      pushB(mkBullet(px, y, Math.PI / 2 + rnd(-.04, .04), spd,
+        Object.assign({ r: 7, shape: 'ball' }, o)));
+    }
+  },
+  /** 螺旋：arms 条臂同时旋转 */
+  spiral(x, y, arms, spd, o = {}) {
+    const spin = o.spin != null ? o.spin : 0.22;
+    for (let i = 0; i < arms; i++)
+      pushB(mkBullet(x, y, i * TAU / arms, spd,
+        Object.assign({ r: 6, shape: 'rice', spin: 6 }, o)));
+    return spin;
+  },
+};
+
+/* ---- 光柱：先预警再爆发，给玩家反应窗口 ---- */
+function mkLaser(x, y, ang, len, w, o = {}) {
+  lasers.push({
+    x, y, ang, len, w,
+    warn: o.warn || 46,     // 预警帧
+    life: o.life || 46,     // 爆发帧
+    t: 0, done: false, col: COL[o.c || 'purple'],
+  });
+}
+
+/* ==========================================================================
+   敌人（非 Boss）
+   ========================================================================== */
+function mkEnemy(x, y, o = {}) {
+  // ⚠️ 这里原来写的是 `return Object.assign({...}, o);` 后面再跟
+  //    `e.maxHp = e.hp; return e;` —— **return 之后的代码永远不会执行**，
+  //    于是 maxHp 恒为 undefined：drawEnemies 里 `if (e.hp < e.maxHp)`
+  //    永远是 false，杂兵的血条从来没画出来过（受损后也不显示）。
+  //    改成先构造对象、再补 maxHp、最后返回。
+  const e = Object.assign({
+    x, y, hx: x, hy: y,
+    hp: 6, r: 16, t: 0, alive: true,
+    score: 100, drop: 0.5, type: 'drift',
+    pattern: null, patT: 0, patN: 0,
+    flash: 0, rot: 0,
+  }, o);
+  // maxHp 要在 assign 之后取：o.hp 可能覆盖默认值，
+  // 血条要用「实际初始血量」而不是默认值 6，否则满血时会画一条空条
+  e.maxHp = e.hp;
+  return e;
+}
+
+/* ==========================================================================
+   Boss + 符卡
+   —— 每张符卡 = 名字 + 血量 + 限时 + 专属 update
+   ========================================================================== */
+/* ==========================================================================
+   符卡重做 —— 先把「改造前」测出来，再照着数据改
+   --------------------------------------------------------------------------
+   量测方法（判据 verify/smoke.js 的「弹幕预算」一节，真实浏览器 + 固定步长）：
+     每张符卡跑满 20 秒，记录
+       · 峰值 / 均值在场弹数
+       · 每秒新生成弹数
+       · 安全率：在活动区取 32×6 个候选站位，各自做 26 帧前瞻，
+         统计「这段时间内没有任何弹会扫到」的格子占比；取全卡**最差的一帧**。
+         安全率 = 0 就代表那一帧玩家**无解**（弹幕互相矛盾，没有活路）。
+     改造前的数字是用临时的量测脚本测的（那份脚本已删，能力并进了判据；
+     判据每次跑都会把下面「改造后」那张表重打一遍，改坏了立刻能看见）。
+
+   改造前实测（玩家判定 3.5px / 擦弹 24px）：
+     关卡 符卡              峰值   均值   生成/秒  压迫/秒  最差安全率  平均安全率
+      1   初式·环流          273   231.4    99.8    11.9      0.094      0.394
+      1   终式·落雨          258   213.8    87.5     5.3      0.469      0.694
+      2   冰棱柱             249   216.3    60.0    42.8      0.458      0.576
+      2   双螺旋             241   217.6    95.4    30.1      0.646      0.730
+      3   织网               382   336.5   114.0    47.3      0.146      0.357
+      3   乱数                75    51.4    22.8     5.3      0.510      0.754
+      3   弦断               682   595.9   278.1    29.3      0.302      0.387
+   结论：不是「稍微难」。初式·环流最差一帧只剩 9.4% 的格子是安全的；
+   弦断峰值 682 发、每秒 278 发。**这种数值下没有走位空间**，
+   玩家（和 AI）只能靠无敌帧硬吃 —— 关卡因此客观不可通。
+
+   改造后的设计约束（不是「把弹数砍一半」交差，而是重排节奏）：
+     ① 每张卡都有明确**预告期**：declare 90 帧 + 弹自带 delay（大黄弹 22 帧、
+        光柱 warn 60~66 帧）。玩家先看到「要来了」，再开始躲。
+     ② **弹速分层**：慢弹（1.7~2.2）成环/成墙，负责封路，走位就能绕；
+        快弹（3.0~3.6，全红 rice）只有 3~6 发，负责逼你离开舒服的位置。
+        两者**错开半拍**发射，不会同时从互相矛盾的方向压过来。
+     ③ 每张卡只有 1 个「封路源」：墙/光柱/环流三者同卡最多占其一，
+        避免「左边一道墙、右边一根柱」这种无解组合。
+     ④ 硬上限：峰值 ≤ 108 发、生成率 ≤ 62 发/秒、最差安全率 ≥ 0.35。
+        （判据里有对应的量化断言，见 smoke.js「弹幕预算」一节。）
+
+   改造后实测（同一套量测，判据每次跑都会重打一遍这张表）：
+     关卡 符卡              峰值   生成/秒  最差安全率
+      1   初式·环流           65     18.6      0.692
+      1   终式·落雨           64     19.9      0.631
+      2   冰棱柱              82     16.5      0.538
+      2   双螺旋              55     20.4      0.831
+      3   织网                62     10.6      0.523
+      3   乱数                59     18.0      0.708
+      3   弦断                48     16.4      0.646
+   峰值从 273~682 降到 48~82，生成率从 60~278/s 降到 10.6~20.4/s，
+   最差一帧的安全格从 9.4% 抬到 ≥52%。**但不是一味调稀**：
+   初版保守调完 AI 12/12 零失机通关，说明离设计上限（108/62/0.35）还有
+   大把余量，所以第二轮把每张卡的生成节奏按 1.3~1.5 倍加密到了上表的值 ——
+   节奏更饱满，AI 仍有 12/12 通关（个别轮次开始出现 1 次失机）。
+   ⚠️ 这里同时暴露了一个「量测前提」问题：上面这张表是用 gotoStage()
+   （**清空场上杂兵**后直接出 Boss）量的。而杂兵期的「吐弹机」原来会活到
+   Boss 战里，实战弹数比量测值高 —— 所以 spawnBoss() 现在必须清场，
+   否则这张表和实战对不上（详见 spawnBoss 里的注释）。
+
+   Boss 血量一并下调（原来 360 / 520 / 760 → 现在 300 / 430 / 620）。
+     难度不该靠「拖时间」堆出来：打不死不是问题，**打得越久，暴露在弹幕里的
+     总时长越长**，那才是「AI 通不了关」的主因。配合 40~60 秒的符卡限时，
+     输出窗口依然宽裕。
+   ========================================================================== */
+const STAGES = [
+  {
+    name: '陨星之使', sub: 'METEORIC HERALD', tint: '#0a0f2e',
+    hp: 300, r: 26, col: COL.blue, x: FIELD_W / 2, y: 150,
+    cards: [
+      {
+        name: '星符「初式·环流」', sub: 'FIRST FORM — CIRCULATION',
+        hp: 130, time: 40, move: 'sway',
+        /* 教学卡：慢环负责封路，少量红弹负责逼走位。
+           v1.4.0：慢环 22→18 发（-18%，密集处下调）、快弹 4→3 发；
+           速度 2.0 / 3.2 是**设计速度**，实际在 mkBullet 里统一乘 BSPD(0.86)
+           → 1.72 / 2.75。
+           环上相邻弹间距在 200px 半径处 = 2π·200/18 ≈ 70px（纪律线是 ≥40px），
+           仍是一眼能数清缺口。 */
+        init(e) { e.spin = rnd(0, TAU); e.cd = 45; e.cd2 = 0; e.patT = 0; },
+        update(e, dt) {
+          e.spin += 0.020 * dt;
+          e.cd -= dt;
+          if (e.cd <= 0) {
+            e.cd = 80;
+            PAT.ring(e.x, e.y, 18, 2.0, { c: 'blue', r: 6, shape: 'ball', off: e.spin });
+          }
+          e.cd2 -= dt;
+          if (e.cd2 <= 0) {
+            e.cd2 = 80;
+            PAT.aimed(e.x, e.y, 3, 3.2, 0.22, { c: 'red', r: 5, shape: 'rice' });
+          }
+        },
+      },
+      {
+        name: '星符「终式·落雨」', sub: 'LAST FORM — METEOR RAIN',
+        hp: 170, time: 45, move: 'drift',
+        /* 落雨卡：绿螺旋成串扫过（慢，横着走就能钻），
+           大黄弹带 22 帧延迟预告下坠、离场时裂成 6 发。
+           v1.4.0：螺旋节奏 15→17 帧（-12%），黄弹 3→2 发；
+           黄弹的延迟期现在会画一圈逐渐收紧的警示环（见 drawBullets），
+           "要砸下来了"这件事在落下前 22 帧就看得见。
+           分裂发生在本体飞出屏幕之后，碎片大半落在场外 ——
+           是「迟到的余波」而不是「背后捅刀」。 */
+        init(e) { e.spin = 0; e.cd = 40; e.cd2 = 10; e.patT = 0; },
+        update(e, dt) {
+          e.spin += 0.024 * dt;
+          e.cd2 -= dt;
+          if (e.cd2 <= 0) {
+            e.cd2 = 17;
+            PAT.spiral(e.x, e.y, 3, 1.7, { c: 'green', off: e.spin, spin: 4 });
+          }
+          e.cd -= dt;
+          if (e.cd <= 0) {
+            e.cd = 80;
+            for (let i = 0; i < 2; i++) {
+              const a = Math.PI / 2 + (i - 0.5) * 0.5 + rnd(-.08, .08);
+              pushB(mkBullet(e.x + rnd(-30, 30), e.y, a, 0.9,
+                { c: 'yellow', r: 12, shape: 'big', delay: 22, accel: 0.075,
+                  split: { n: 6, spd: 2.2, c: 'yellow', r: 6 } }));
+            }
+          }
+          if (e.patN % 90 === 50)
+            PAT.aimed(e.x, e.y, 3, 3.3, 0.20, { c: 'red', r: 5, shape: 'rice' });
+        },
+      },
+    ],
+  },
+  {
+    name: '霜华骑士', sub: 'RIME KNIGHT', tint: '#071a2e',
+    hp: 430, r: 27, col: COL.cyan || COL.blue, x: FIELD_W / 2, y: 148,
+    cards: [
+      {
+        name: '霜符「冰棱柱」', sub: 'FROST — PRISM PILLARS',
+        hp: 200, time: 40, move: 'sway',
+        /* 光柱卡：每 260 帧两根竖柱从上方压下来（warn 60 帧 = 1 秒预告），
+           两根之间永远留 120px+ 的缝；柱子在的时候只有慢速蓝弹流，
+           没有第二条封路源 —— 避免「柱 + 墙」的无解组合。
+           v1.4.0：蓝弹流 5→4 发（-20%），速度 2.0→实际 1.72。
+           蓝弹流像一条可以穿过去的帘子。 */
+        init(e) { e.cd = 60; e.cd2 = 20; e.cyc = 0; e.patT = 0; },
+        update(e, dt) {
+          e.cyc += dt;
+          e.cd -= dt;
+          if (e.cd <= 0) {
+            e.cd = 260;
+            // 两根柱子的中点随一个慢正弦漂移，让「安全缝」可预测地左右移动
+            const cx = FIELD_W / 2 + Math.sin(e.cyc * 0.012) * 54;
+            mkLaser(cx - 86, 0, Math.PI / 2, H, 18, { c: 'purple', warn: 60, life: 24 });
+            mkLaser(cx + 86, 0, Math.PI / 2, H, 18, { c: 'purple', warn: 60, life: 24 });
+          }
+          e.cd2 -= dt;
+          if (e.cd2 <= 0) {
+            e.cd2 = 20;
+            PAT.aimed(e.x, e.y, 4, 2.0, 0.18, { c: 'blue', r: 6, shape: 'ball' });
+          }
+          if (e.patN % 120 === 70)
+            PAT.aimed(e.x, e.y, 3, 3.2, 0.26, { c: 'red', r: 5, shape: 'rice' });
+        },
+      },
+      {
+        name: '霜符「双螺旋」', sub: 'FROST — TWIN HELIX',
+        hp: 230, time: 45, move: 'drift',
+        /* 双螺旋卡：两条反向旋转的 2 臂螺旋（慢，2.0 / 1.8），
+           像两股绳交错，缝隙周期性张开又收拢 —— 节奏感来自这里。
+           v1.4.0：发射间隔 14→16 帧（-12.5%），快弹 4→3 发，用来打断「站定不动」。 */
+        init(e) { e.spin = 0; e.spin2 = 0.5; e.cd = 20; e.cd2 = 40; e.patT = 0; },
+        update(e, dt) {
+          e.spin += 0.028 * dt;
+          e.spin2 -= 0.024 * dt;
+          e.cd -= dt;
+          if (e.cd <= 0) {
+            e.cd = 16;
+            PAT.spiral(e.x, e.y, 2, 2.0, { c: 'green', off: e.spin, spin: 5 });
+            PAT.spiral(e.x, e.y, 2, 1.8, { c: 'blue', off: e.spin2, spin: -5 });
+          }
+          e.cd2 -= dt;
+          if (e.cd2 <= 0) {
+            e.cd2 = 70;
+            PAT.aimed(e.x, e.y, 3, 3.4, 0.18, { c: 'red', r: 5, shape: 'rice' });
+          }
+        },
+      },
+    ],
+  },
+  {
+    name: '虚空弦月', sub: 'VOID CRESCENT', tint: '#170a2e',
+    hp: 620, r: 29, col: COL.violet, x: FIELD_W / 2, y: 146,
+    cards: [
+      {
+        name: '虚符「织网」', sub: 'VOID — THE WEAVE',
+        hp: 200, time: 40, move: 'sway',
+        /* 织网卡：唯一的「墙」卡。缺口 120px 宽，且随一个慢正弦横向缓动，
+           所以「缝在哪」是可预判的 —— 玩家提前往缝里走就行。
+           v1.4.0：墙的横向步长 24→28（每道墙少 2 发，-14%），
+           墙速 2.2→实际 1.89（约 5.6 秒穿场），每 80 帧一道，间隔足够走完一趟。
+           ⚠️ 缺口宽度 120 是纪律线（≥100），降难度也不许缩。 */
+        init(e) { e.spin = 0; e.cd = 40; e.gap = FIELD_W / 2; e.patT = 0; },
+        update(e, dt) {
+          e.spin += 0.017 * dt;
+          e.cd -= dt;
+          if (e.cd <= 0) {
+            e.cd = 80;
+            e.gap = FIELD_W / 2 + Math.sin(e.spin * 2.2) * 120;
+            PAT.wall(-10, 2.2, e.gap, 120, { c: 'purple', r: 7, jitter: true, step: 28 });
+          }
+          if (e.patN % 96 === 56)
+            PAT.aimed(e.x, e.y, 3, 3.0, 0.26, { c: 'red', r: 5, shape: 'rice' });
+        },
+      },
+      {
+        /* ⚠️ 原来这里还有第三张卡「虚符·乱数」（全周散射 12 发 + 大弹）。
+           v1.4.0 把关卡从 3 关扩到 5 关时，按「每关 2 张符卡」重排，
+           这张被裁掉了 —— 它是最接近「满屏随机弹」的一张（注释里写的
+           "速度区间收窄" 只是把随机幅度调小，本质仍是随机角度+随机速度），
+           而本作的弹幕纪律恰恰要求「每一发都能读出意图」。
+           裁掉它比削它更符合纪律：随机弹削 20% 依然是随机弹。 */
+        name: '绝符「弦断」', sub: 'EX — THE SNAPPED STRING',
+        hp: 280, time: 60, move: 'sway',
+        /* 终卡：难度靠「层数」而不是「弹数」。
+           绿螺旋 3 臂 / 18 帧（慢，2.2）是背景节奏 —— v1.4.0 从 4 臂降到 3 臂，
+           相邻臂角距从 90° 拉到 120°，缝隙更宽但旋转节奏照旧；
+           紫光柱每 96 帧扫一根（warn 66 帧，够看清楚）；
+           红弹 5 发 / 96 帧（v1.4.0 从 6 发降到 5）是唯一的快弹 ——
+           三种来源用不同的颜色区分，所以画面再满也能一眼看出
+           「红的要躲、绿的可以穿」。
+           改造前这张卡峰值 682 发；现在 60 上下。 */
+        init(e) { e.spin = 0; e.cd = 70; e.cd2 = 30; e.ln = 0; e.patT = 0; },
+        update(e, dt) {
+          e.spin += 0.034 * dt;
+          e.cd2 -= dt;
+          if (e.cd2 <= 0) {
+            e.cd2 = 18;
+            PAT.spiral(e.x, e.y, 3, 2.2, { c: 'green', off: e.spin, spin: 5 });
+          }
+          e.cd -= dt;
+          if (e.cd <= 0) {
+            e.cd = 96;
+            // 三车道上轮流扫一根柱子，位置循环可预判
+            e.ln = (e.ln + 1) % 3;
+            mkLaser(70 + e.ln * 130, 0, Math.PI / 2, H, 16,
+              { c: 'purple', warn: 66, life: 22 });
+          }
+          if (e.patN % 96 === 72)
+            PAT.aimed(e.x, e.y, 5, 3.6, 0.13, { c: 'red', r: 5, shape: 'rice' });
+        },
+      },
+    ],
+  },
+  /* ------------------------------------------------------------------------
+     第 4、5 关（v1.4.0 扩展）
+     ------------------------------------------------------------------------
+     两张新关沿用同一套纪律，没有新增任何 pattern API：
+       · 每张卡只有 1 个「封路源」（环流 / 墙 / 光柱 三选一），
+         其余来源只能是「逼走位」的快弹或「预告型」的大弹；
+       · 慢环的相邻弹间距在 200px 半径处 ≥ 40px（本文件里最小的一张是
+         第 5 关 16 发环：2π·200/16 ≈ 78px）；
+       · 分裂弹的碎片落在场外：黄弹一律 delay + accel，本体飞出边界才裂；
+       · 所有速度仍走 mkBullet，自动乘 BSPD(0.86)。
+     ------------------------------------------------------------------------ */
+  {
+    name: '霜月之巫女', sub: 'FROSTMOON SHRINE MAIDEN', tint: '#0a1330',
+    hp: 780, r: 28, col: COL.cyan, x: FIELD_W / 2, y: 148,
+    cards: [
+      {
+        name: '霜月「镜花水月」', sub: 'FROSTMOON — MIRRORED WATER',
+        hp: 220, time: 45, move: 'sway',
+        /* 镜面卡：一层「外环」+ 一层「内环」，两层转速相反、速度差一倍，
+           视觉上像水面的倒影在慢慢错开 —— 缝的节奏完全来自这两层的相位差。
+           外环 12 发 / 76 帧、速 1.75（实际 1.51），白/蓝逐轮交替；
+             200px 半径处相邻间距 ≈ 105px，缺口一眼可数。
+           内环 6 发 / 150 帧、速 1.35（实际 1.16）—— 慢到几乎停在原地，
+             它负责「占位」，玩家可以从两发之间横穿，但不能停在里面。
+           快弹只有 3 发红 rice / 96 帧，作用是把站定的玩家赶出舒适区。 */
+        init(e) { e.spin = 0; e.spin2 = Math.PI / 6; e.cd = 50; e.cd2 = 20; e.n = 0; e.patT = 0; },
+        update(e, dt) {
+          e.spin += 0.019 * dt;
+          e.spin2 -= 0.014 * dt;
+          e.cd -= dt;
+          if (e.cd <= 0) {
+            e.cd = 76;
+            e.n++;
+            // 白/蓝交替：同一张卡里不要出现「三四种颜色混着飞」，
+            // 玩家靠颜色就能判断「这一圈是慢的」
+            PAT.ring(e.x, e.y, 12, 1.75,
+              { c: e.n % 2 ? 'white' : 'blue', r: 6, shape: 'ball', off: e.spin });
+          }
+          e.cd2 -= dt;
+          if (e.cd2 <= 0) {
+            e.cd2 = 150;
+            PAT.ring(e.x, e.y, 6, 1.35,
+              { c: 'white', r: 5, shape: 'ball', off: e.spin2 });
+          }
+          if (e.patN % 96 === 60)
+            PAT.aimed(e.x, e.y, 3, 3.3, 0.24, { c: 'red', r: 5, shape: 'rice' });
+        },
+      },
+      {
+        name: '月符「寒月悬梁」', sub: 'MOON — THE FROZEN BEAM',
+        hp: 260, time: 50, move: 'drift',
+        /* 横梁卡：光柱改成**横向**贴地扫过来（前三关全是竖柱），
+           warn 66 帧 = 1.1 秒预告，三道横梁按 180 / 310 / 440 三条线
+           循环出现 —— 位置是固定的，所以「该往上还是往下」可以背下来。
+           封路源只有光柱这一种；绿螺旋 2 臂 / 20 帧、速 1.8 是节奏背景，
+           红弹 2 发 / 140 帧只是提醒「别贴着梁边站死」。 */
+        init(e) { e.spin = 0; e.cd = 90; e.cd2 = 30; e.ln = 0; e.patT = 0; },
+        update(e, dt) {
+          e.spin += 0.021 * dt;
+          e.cd -= dt;
+          if (e.cd <= 0) {
+            e.cd = 240;
+            e.ln = (e.ln + 1) % 3;
+            // 横向光柱：起点贴左边界，角度 0 → 沿 +x 扫到右边界
+            mkLaser(0, 180 + e.ln * 130, 0, FIELD_W, 20,
+              { c: 'purple', warn: 66, life: 26 });
+          }
+          e.cd2 -= dt;
+          if (e.cd2 <= 0) {
+            e.cd2 = 20;
+            PAT.spiral(e.x, e.y, 2, 1.8, { c: 'green', off: e.spin, spin: 4 });
+          }
+          if (e.patN % 140 === 90)
+            PAT.aimed(e.x, e.y, 2, 3.4, 0.20, { c: 'red', r: 5, shape: 'rice' });
+        },
+      },
+    ],
+  },
+  {
+    name: '深渊符主', sub: 'ABYSS SIGIL LORD', tint: '#150a26',
+    hp: 900, r: 30, col: COL.purple, x: FIELD_W / 2, y: 146,
+    cards: [
+      {
+        name: '渊符「深渊凝视」', sub: 'ABYSS — THE GAZE',
+        hp: 260, time: 50, move: 'sway',
+        /* 凝视卡：紫色慢环 16 发 / 84 帧、速 1.6（实际 1.38）是唯一的封路源，
+           200px 半径处相邻间距 ≈ 78px —— 环慢，但一圈一圈往前压，
+           玩家必须跟着缺口走，不能站桩。
+           大黄弹 1 发 / 130 帧、delay 26 帧：延迟期画收紧警示圈（见 drawBullets），
+           落地后 accel 0.06 加速下坠，飞出底线才碎成 6 发 ——
+           碎片落在场外，是余波不是背刺。
+           红弹 3 发 / 100 帧负责「往哪边走」。 */
+        init(e) { e.spin = 0; e.cd = 40; e.cd2 = 70; e.patT = 0; },
+        update(e, dt) {
+          e.spin += 0.016 * dt;
+          e.cd -= dt;
+          if (e.cd <= 0) {
+            e.cd = 84;
+            PAT.ring(e.x, e.y, 16, 1.6, { c: 'purple', r: 6, shape: 'ball', off: e.spin });
+          }
+          e.cd2 -= dt;
+          if (e.cd2 <= 0) {
+            e.cd2 = 130;
+            pushB(mkBullet(e.x + rnd(-40, 40), e.y, Math.PI / 2 + rnd(-.16, .16), 1.0,
+              { c: 'yellow', r: 12, shape: 'big', delay: 26, accel: 0.06,
+                split: { n: 6, spd: 2.0, c: 'yellow', r: 6 } }));
+          }
+          if (e.patN % 100 === 66)
+            PAT.aimed(e.x, e.y, 3, 3.2, 0.22, { c: 'red', r: 5, shape: 'rice' });
+        },
+      },
+      {
+        name: '终符「万流归渊」', sub: 'FINAL — ALL STREAMS RETURN',
+        hp: 300, time: 60, move: 'sway',
+        /* 终符：三条流，颜色就是说明书。
+           紫螺旋 3 臂 / 20 帧、速 2.0（实际 1.72）—— 成串扫过，可以穿；
+           红快弹 5 发 / 110 帧、速 4.2（实际 3.61）—— 全作唯一进「快档」
+             (>3.5) 的弹，画面上描边最粗、最亮，一眼就知道它先到；
+           黄大弹 2 发 / 180 帧、delay 26 —— 预告型，砸下来之后才裂。
+           峰值的上限按纪律压在 108 发以内（见文件顶部的量测表）。 */
+        init(e) { e.spin = 0; e.cd = 40; e.cd2 = 80; e.cd3 = 20; e.patT = 0; },
+        update(e, dt) {
+          e.spin += 0.030 * dt;
+          e.cd3 -= dt;
+          if (e.cd3 <= 0) {
+            e.cd3 = 20;
+            PAT.spiral(e.x, e.y, 3, 2.0, { c: 'purple', off: e.spin, spin: 5 });
+          }
+          e.cd -= dt;
+          if (e.cd <= 0) {
+            e.cd = 110;
+            PAT.aimed(e.x, e.y, 5, 4.2, 0.12, { c: 'red', r: 5, shape: 'rice' });
+          }
+          e.cd2 -= dt;
+          if (e.cd2 <= 0) {
+            e.cd2 = 180;
+            for (let i = 0; i < 2; i++)
+              pushB(mkBullet(e.x + (i ? 34 : -34), e.y, Math.PI / 2 + rnd(-.1, .1), 1.0,
+                { c: 'yellow', r: 11, shape: 'big', delay: 26, accel: 0.07,
+                  split: { n: 7, spd: 1.9, c: 'yellow', r: 5 } }));
+          }
+        },
+      },
+    ],
+  },
+];
+/* 符卡总数从 STAGES 汇总，任何「x / y」都读它 ——
+   这一轮把 3 关 7 卡改成 5 关 10 卡，硬编码 7 的地方（结算面板、HUD）
+   会自动跟着变，不用再逐个找。 */
+const TOTAL_CARDS = STAGES.reduce((a, s) => a + s.cards.length, 0);
+
+function spawnBoss() {
+  // ⚠️ 必须是 `run.stage - 1`。
+  //    run.stage 是**从 1 开始**的关卡序号（nextStage() 先 ++ 再取 STAGES[run.stage-1]），
+  //    而这里原来写的是 `STAGES[run.stage]` —— 少减 1：
+  //      · 第 1 关实际打的是**第 2 关的 Boss**（霜华骑士），第 2 关打第 3 关的，
+  //      · 第 3 关时 run.stage=3 → STAGES[3] 是 undefined → spawnBoss 里读 s.x
+  //        直接抛 TypeError → 第 3 关**必崩、永远无法通关**。
+  //    姊妹项目踩过一模一样的坑。修：统一用 run.stage - 1。
+  const s = STAGES[run.stage - 1];
+  // ⚠️ Boss 登场时必须把杂兵和杂兵弹清掉。
+  //    杂兵期的「吐弹机」（type:'hover'）会停在 y=121 原地永远吐环弹，
+  //    **自己不会离场**；而 spawnBoss 原来不清敌人 —— 于是它会一路活到
+  //    Boss 战里，和符卡弹幕叠在一起。死亡复盘里 Stage 2 的 Boss 战中
+  //    确实还挂着 2 台 y=121 的吐弹机（enemies=[{hover,154,121},{hover,272,121},...]）。
+  //    这直接破坏了「每张符卡的弹幕预算是按 gotoStage 量测的」这个前提：
+  //    实战的弹数比量测值高。清掉之后，符卡弹幕 = 量测值。
+  //    （这也是弹幕游戏的惯例：Boss 登场 = 清场，给玩家一个「正戏开始」的信号。）
+  enemies.length = 0;
+  bullets.length = 0;
+  boss = {
+    x: s.x, y: -60, sy: s.y, is: s, cards: s.cards, ci: -1,
+    t: 0, state: 'enter', stateT: 0, card: null, cardHp: 0,
+    flash: 0, rot: 0, patT: 0, patN: 0, clearT: 0,
+  };
+  setBanner(s.name, s.sub, s.col.edge, 120);
+}
+
+function startCard() {
+  const b = boss;
+  b.ci++;
+  if (b.ci >= b.cards.length) { b.state = 'dying'; b.stateT = 0; return; }
+  // ⚠️ 必须是「复制」而不是直接引用 STAGES 里的常量对象。
+  //    卡的时间剩余量 timeLeft 是运行时状态；如果挂在共享的常量对象上，
+  //    ① 跳到下一张卡时不会重置 → 奖励算出来接近 0
+  //    ② 重开一局后仍带着上一局的残值 → 每局越来越难
+  //    这两件事都是「把运行时状态写到共享配置上」造成的。
+  const src = b.cards[b.ci];
+  const c = Object.assign({}, src);
+  // ⚠️ 时间单位：c.time 是「秒」，而 timeLeft 每帧减 1（dt=1）。
+  //    不换算的话 time:40 的实际时限只有 40 帧 ≈ 0.67 秒，
+  //    玩家根本来不及打掉任何一张符卡 ——
+  //    而 HUD 会照着显示「T 40s」，数字对得上、真实时长错，极具欺骗性。
+  //    测试证据：打了 40 帧后 cardHp 仍是满的（240），状态已被超时打断。
+  c.timeSec = c.time;
+  c.timeLeft = c.time * FPS;
+  b.card = c;
+  b.cardHp = c.hp;
+  b.state = 'declare'; b.stateT = 0;
+  b.t = 0; b.patT = 0; b.patN = 0;
+  if (c.init) c.init(b);
+  bullets.length = 0;   // 符卡切换清场，给玩家喘息
+  lasers.length = 0;
+  setBanner('符卡', '', COL.gold.glow, 110);
+  run.spellHistory.push(c.name);
+}
+
+function setBanner(main, sub, col, life) {
+  run.banner = { main, sub, col: col || COL.gold.glow };
+  run.bannerT = life || 100;
+}
+
+/* ==========================================================================
+   温和反馈 —— 取代原来的屏幕抖动(run.shake)与全屏白闪(run.flash)
+   --------------------------------------------------------------------------
+   为什么去掉：
+     ① run.shake 让整幅画面 translate(±rnd)。受击/击破/炸弹连着来时，
+        画面持续位移，很晃眼，也让人读不准弹幕位置。
+     ② run.flash 往整屏盖一层 rgba(255,255,255,.75) 的白。这是「闪屏」，
+        在高频受击时非常刺眼。
+   换成什么（都不改变任何游戏状态，也不是第二个时钟）：
+     · edgePulse(dir, col, amp) —— 只有**一条边**亮起的柔和渐变（暗角/描边脉冲）。
+       左侧受击就左边缘泛红，右侧受击就右边缘泛红。位置信息还更清楚了。
+     · softBreath(col, amp) —— 整屏一层**有色**、低透明度（峰值 ≤0.20）的呼吸，
+       不是白色，所以不刺眼。
+   两者都靠 update() 里同一帧的 t += dt 自己衰减，duration 只有 0.3~0.4 秒。
+   ========================================================================== */
+function hexA(hex, a) {
+  const n = parseInt(hex.slice(1), 16);
+  return 'rgba(' + ((n >> 16) & 255) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',' + a.toFixed(3) + ')';
+}
+function edgePulse(dir, col, amp) {
+  run.edge = { t: 0, life: 24, dir: dir || 'all', col: col || COL.rose.edge,
+               amp: amp == null ? 1 : amp };
+}
+function softBreath(col, amp) {
+  run.breath = { t: 0, life: 28, col: col || COL.azure.glow,
+                 amp: amp == null ? 1 : amp };
+}
+
+/* ==========================================================================
+   关卡推进
+   ========================================================================== */
+function nextStage() {
+  run.stage++;
+  if (run.stage > STAGES.length) { run.stage = STAGES.length; stageClear(); return; }
+  run.bgTint = STAGES[run.stage - 1].tint;
+  bullets.length = 0; lasers.length = 0; enemies.length = 0; items.length = 0;
+  boss = null;
+  setBanner(STAGES[run.stage - 1].name, STAGES[run.stage - 1].sub,
+            STAGES[run.stage - 1].col.glow, 120);
+  waveT = 180;
+  waveN = 0;
+}
+let waveT = 0, waveN = 0;
+
+/** 杂兵波：每关 Boss 前 3 波杂兵，用来练手和攒火力。
+    原来 5 波 × 250 帧 = 1550 帧（26 秒）的杂兵期偏长：Boss 迟迟不来，
+    而杂兵期本身也是全程挨弹的「暴露时间」。压到 3 波 × 180 帧（约 11 秒），
+    既保留练手和攒火力的作用，又不把一局的总时长撑到不可控。 */
+function updateWaves(dt) {
+  waveT -= dt;
+  if (waveT > 0) return;
+  const perStage = 3;
+  waveN++;
+  waveT = 180;
+  const lv = run.stage;
+  if (waveN > perStage) { spawnBoss(); return; }
+
+  if (waveN % 3 === 0) {
+    // 一排快速弹射手，从上方斜插进来
+    for (let i = 0; i < 4 + lv; i++) {
+      const x = 40 + i * (FIELD_W - 80) / (3 + lv);
+      enemies.push(mkEnemy(x, -20, {
+        hp: 8 + lv * 3, r: 13, score: 180, drop: 0.85, type: 'dive',
+        move: (e) => {
+          e.y += (1.5 + lv * .25) * dt;
+          e.x += Math.sin(e.t * .05) * 1.1 * dt;
+        },
+        pattern: (e) => {
+          // ⚠️ 必须停火线：这两行是「AI 通不了关」的真正元凶之一。
+          //    俯冲杂兵会一路飞到玩家所在的屏幕底部，**贴着玩家开火** ——
+          //    弹在玩家 10px 内凭空出现，无论人还是 AI 都没有反应窗口。
+          //    （复盘证据：AI 死前那一刻，它自己看到「最近一发弹 105px」，
+          //      而同一帧真实最近的弹只有 11.5px；那发弹是 updateEnemies
+          //      在 movePlayer 之后才生成的，AI 的前瞻里根本不存在。）
+          //    修：下到 y>300 之后就只赶路不开火 —— 那是玩家区之外，
+          //    还留有 100px+ 的飞行距离，躲得掉。
+          if (e.y > 300) return;
+          e.patT -= dt;
+          if (e.patT <= 0) {
+            e.patT = 96;
+            PAT.aimed(e.x, e.y, 2, 2.5, .24, { c: 'red', r: 5, shape: 'rice' });
+          }
+        },
+      }));
+    }
+  } else {
+    // 缓慢环绕的炮台
+    const cx = FIELD_W / 2 + rnd(-70, 70);
+    enemies.push(mkEnemy(cx, -30, {
+      hp: 20 + lv * 6, r: 18, score: 420, drop: 1, type: 'hover',
+      move: (e) => {
+        e.y += (e.y < 120 ? 1.3 : 0) * dt;
+        e.x = cx + Math.sin(e.t * .017) * 96;
+      },
+      pattern: (e) => {
+        e.patT -= dt;
+        if (e.patT <= 0) {
+          e.patT = 140;
+          PAT.ring(e.x, e.y, 9 + lv, 1.6, { c: 'blue', r: 6 });
+        }
+      },
+    }));
+    // 配 2 个护卫
+    for (let i = 0; i < 2; i++)
+      enemies.push(mkEnemy(cx + (i ? 62 : -62), -20, {
+        hp: 7 + lv * 2, r: 12, score: 150, drop: 0.5, type: 'dive',
+        move: (e) => { e.y += 2.0 * dt; },
+        pattern: (e) => {
+          if (e.y > 300) return;      // 同上：下到玩家区就停火，避免贴脸生成弹
+          e.patT -= dt;
+          if (e.patT <= 0) { e.patT = 130; PAT.aimed(e.x, e.y, 1, 2.4, 0, { c: 'red', r: 5 }); }
+        },
+      }));
+  }
+}
+
+/* ==========================================================================
+   更新
+   ========================================================================== */
+function update(dt) {
+  run.t += dt; run.frame++;
+  if (run.bannerT > 0) run.bannerT -= dt;
+  if (run.hintT > 0) run.hintT -= dt;
+  // 温和反馈的衰减：跟游戏逻辑同帧推进，不引入第二个时钟
+  if (run.edge) { run.edge.t += dt; if (run.edge.t >= run.edge.life) run.edge = null; }
+  if (run.breath) { run.breath.t += dt; if (run.breath.t >= run.breath.life) run.breath = null; }
+  if (AI.bombCd > 0) AI.bombCd -= dt;
+
+  movePlayer(dt);
+  // ⚠️ noSpawn 是给测试用的开关：测「弹碰到玩家」这类单点判定时，
+  //    必须把刷怪关掉，否则 updateWaves 会在同一帧生成新敌人，
+  //    敌人造成的伤害和弹幕造成的伤害混在一起，
+  //    判据就读出「弹在正中心却没掉命」这种自相矛盾的结果。
+  //    ⚠️ 之前查这个 bug 绕了两轮弯路，就是因为没意识到"伤害可能不是弹幕造成的"。
+  if (!boss && !run.noSpawn) updateWaves(dt);
+  updateBoss(dt);
+  updateEnemies(dt);
+  updateBullets(dt);
+  updateLasers(dt);
+  updateShots(dt);
+  updateItems(dt);
+  updateParts(dt);
+  checkBomb();
+}
+
+function updateBoss(dt) {
+  const b = boss;
+  if (!b) return;
+  b.t += dt; b.rot += 0.006 * dt;
+  b.stateT += dt;
+  const s = b.is;
+
+  if (b.state === 'enter') {
+    b.y += (b.sy - b.y) * 0.04 * dt;
+    if (b.y >= b.sy - 0.5) { b.y = b.sy; startCard(); }
+    return;
+  }
+  if (b.state === 'declare') {
+    if (b.stateT > 90) { b.state = 'fight'; b.stateT = 0; }
+    return;
+  }
+  if (b.state === 'fight') {
+    // 移动模式
+    const m = b.card.move;
+    if (m === 'sway') b.x = s.x + Math.sin(b.t * .016) * 108;
+    else if (m === 'drift') b.x = s.x + Math.sin(b.t * .010) * 130;
+    else b.x += Math.sin(b.t * .02) * 1.2 * dt;
+    b.x = clamp(b.x, 46, PLAY_R - 46);
+    b.y = s.y + Math.sin(b.t * .012) * 12;
+    b.card.update(b, dt);
+    b.patN++;
+
+    // 限时判定
+    // ⚠️ 单位 bug：timeLeft 每帧减 dt（dt=1 → 每帧减1），
+    //    而 card.time 是按「秒」写的（38/40/42/45/60）。
+    //    → 实际时限是 40 **帧** ≈ 0.67 秒，玩家永远打不完任何一张符卡。
+    //    HUD 却照着 timeLeft 显示「T 40s」，数字对、真实时长错 —— 极具欺骗性。
+    //    测试证据：打了 40 帧后 cardHp 仍是满的（240），状态已被超时打断。
+    // 修：startCard() 里把秒换算成帧（time * FPS），这里照常每帧递减。
+    b.card.timeLeft -= dt;
+    if (b.card.timeLeft <= 0) {
+      // 超时：奖励作废，不加分，直接进下一张
+      run.spellCleared += 0;
+      showFloat(b.x, b.y - 30, '符卡超时', COL.violet.glow);
+      clearBulletsToItem();
+      b.state = 'next'; b.stateT = 0;
+    }
+    return;
+  }
+  if (b.state === 'next') {
+    if (b.stateT > 40) startCard();
+    return;
+  }
+  if (b.state === 'dying') {
+    b.y += 1.3 * dt;
+    if (b.stateT % 7 < 1)
+      burst(b.x + rnd(-30, 30), b.y + rnd(-24, 24), 3, COL.gold.glow, 4.5, .5);
+    if (b.stateT > 120) {
+      // 掉一地封币
+      for (let i = 0; i < 14; i++) dropItem(b.x + rnd(-40, 40), b.y + rnd(-20, 20), 'point');
+      dropItem(b.x, b.y, 'life');
+      boss = null;
+      nextStage();
+    }
+  }
+}
+
+/** 清弹：把弹幕转成封币（超时的补偿，也让画面干净） */
+function clearBulletsToItem() {
+  for (const b of bullets) {
+    if (Math.random() < 0.13) dropItem(b.x, b.y, 'point');
+  }
+  bullets.length = 0; lasers.length = 0;
+  burst(W / 2, H / 2, 26, COL.azure.glow, 6, .55);
+  softBreath(COL.azure.glow, 0.5);   // 原来是 run.flash = 0.55（全屏白闪）
+}
+
+function updateEnemies(dt) {
+  for (const e of enemies) {
+    if (!e.alive) continue;
+    e.t += dt;
+    if (e.flash > 0) e.flash -= dt;
+    if (e.move) e.move(e, dt);
+    if (e.pattern) e.pattern(e, dt);
+    if (e.y > H + 60 || e.x < -60 || e.x > W + 60) e.alive = false;
+  }
+  enemies = enemies.filter(e => e.alive);
+}
+
+function updateBullets(dt) {
+  const px = player.x, py = player.y;
+  for (const b of bullets) {
+    if (!b.alive) continue;
+    if (b.delay > 0) { b.delay -= dt; continue; }
+    b.age += dt;
+    if (b.accel) {
+      const sp = Math.hypot(b.vx, b.vy) + b.accel * dt;
+      const a = Math.atan2(b.vy, b.vx);
+      b.vx = Math.cos(a) * sp; b.vy = Math.sin(a) * sp;
+    }
+    b.x += b.vx * dt;
+    b.y += b.vy * dt;
+    if (b.spin) b.rot += b.spin * dt;
+
+    if (b.x < -40 || b.x > FIELD_W + 40 || b.y < -60 || b.y > H + 60) {
+      // 大弹飞出屏幕才算"用完"，拆分触发
+      if (b.split && b.age > 30) doSplit(b);
+      b.alive = false;
+      continue;
+    }
+    // 玩家碰撞
+    if (player.dead > 0 || player.invuln > 0) continue;
+    const d = Math.hypot(b.x - px, b.y - py);
+    if (d < b.r + player.hitR) {
+      hitPlayer(b.x, b.y);
+      if (b.split) doSplit(b);
+      b.alive = false;
+      continue;
+    }
+    // 擦弹：贴脸但没碰到
+    if (!b.grazed && d < b.r + player.grazeR) {
+      b.grazed = true;
+      run.grazed++; player.grazeCount++;
+      run.score += 120;
+      if (player.power < 4) player.power = Math.min(4, player.power + 0.006);
+      burst(b.x, b.y, 1, COL.jade.glow, 2.6, .26);
+      if (player.grazeCount >= 100) {
+        player.grazeCount = 0;
+        showFloat(px, py - 34, 'GRAZE ×100', COL.jade.glow);
+        player.power = Math.min(4, player.power + 0.14);
+      }
+    }
+  }
+  bullets = bullets.filter(b => b.alive);
+}
+
+function doSplit(b) {
+  const sp = b.split;
+  for (let i = 0; i < sp.n; i++)
+    pushB(mkBullet(b.x, b.y, i * TAU / sp.n + rnd(0, .3), sp.spd,
+      { c: sp.c, r: sp.r, shape: 'ball' }));
+  burst(b.x, b.y, 8, COL.yellow.glow, 3.4, .3);
+}
+
+function updateLasers(dt) {
+  const px = player.x, py = player.y;
+  for (const L of lasers) {
+    L.t += dt;
+    if (player.dead > 0 || player.invuln > 0) continue;
+    if (L.t < L.warn) continue;
+    if (L.t > L.warn + L.life) { L.done = true; continue; }
+    // 点到线段的距离
+    const dx = px - L.x, dy = py - L.y;
+    const ca = Math.cos(L.ang), sa = Math.sin(L.ang);
+    const along = dx * ca + dy * sa;
+    const perp = Math.abs(-dx * sa + dy * ca);
+    if (along > -10 && along < L.len && perp < L.w / 2 + player.hitR)
+      hitPlayer(L.x + ca * along, L.y + sa * along);   // 用光柱上最近点算受击方向
+  }
+  lasers = lasers.filter(L => !L.done);
+}
+
+function updateShots(dt) {
+  for (const s of shots) {
+    s.x += s.vx * dt; s.y += s.vy * dt; s.age += dt;
+    if (s.y < -20 || s.x < -20 || s.x > FIELD_W + 20 || s.age > 130) { s.alive = false; continue; }
+    if (boss && boss.state === 'fight') {
+      if (Math.hypot(s.x - boss.x, s.y - boss.y) < boss.is.r + s.r) {
+        damageBoss(s.dmg, s.x, s.y); s.alive = false;
+      }
+    }
+    for (const e of enemies) {
+      if (!e.alive) continue;
+      if (Math.hypot(s.x - e.x, s.y - e.y) < e.r + s.r) {
+        e.hp -= s.dmg; e.flash = 4; s.alive = false;
+        burst(s.x, s.y, 2, COL.azure.glow, 3, .18);
+        if (e.hp <= 0) killEnemy(e);
+        break;
+      }
+    }
+  }
+  shots = shots.filter(s => s.alive);
+}
+
+function damageBoss(d, x, y) {
+  const b = boss;
+  if (b.state !== 'fight') return;
+  b.cardHp -= d; b.flash = 3;
+  burst(x, y, 2, COL.gold.glow, 3.4, .2);
+  if (b.cardHp <= 0) {
+    // 符卡击破
+    // 奖励 = 基础分 × 剩余时间比例（timeLeft 是帧，分母也要用帧总量）
+    const totalFrames = (b.card.timeSec || b.card.time) * FPS;
+    const bonus = Math.round(200000 * (b.card.timeLeft / totalFrames)) + 80000;
+    run.score += bonus;
+    run.spellCleared++;
+    setBanner('符卡击破', `+${bonus.toLocaleString()}`, COL.gold.glow, 110);
+    showFloat(b.x, b.y - 34, 'SPELL CARD CLEAR', COL.gold.glow);
+    burst(b.x, b.y, 40, COL.gold.glow, 6, .8);
+    // 原来是 run.flash = 0.8 + run.shake = 8（全屏白闪 + 整屏位移）
+    softBreath(COL.gold.glow, 0.62);
+    edgePulse('all', COL.gold.glow, 0.85);
+    for (let i = 0; i < 8; i++) dropItem(b.x + rnd(-34, 34), b.y + rnd(-18, 18), 'point');
+    if (Math.random() < .5) dropItem(b.x, b.y, 'bomb');
+    b.state = 'next'; b.stateT = 0;
+  }
+}
+
+function killEnemy(e) {
+  e.alive = false;
+  run.score += e.score;
+  burst(e.x, e.y, 12, COL.azure.glow, 4.2, .38);
+  for (let i = 0; i < 4; i++) burst(e.x, e.y, 3, COL.gold.glow, 3, .22);
+  // 原来这里有一记 run.shake = 3.5。杂兵每杀一只都抖一下，连续击杀时画面一直在晃。
+  // 粒子爆散已经足够表达「打爆了」，去掉位移抖动。
+  if (Math.random() < e.drop) dropItem(e.x, e.y, Math.random() < .25 ? 'bomb' : 'point');
+  if (Math.random() < .05) dropItem(e.x, e.y, 'life');
+}
+
+function dropItem(x, y, kind) {
+  // ⚠️ 封币原来写的是 vy: -2.4 —— **向上飘**。
+  //    而玩家一直在屏幕下方、封币从上方掉落点出发 →
+  //    两者永远碰不到；更糟的是回收条件写的是 `it.y > H + 30`（**屏幕底部**），
+  //    vy 为负时这个条件永远不成立 → 封币从不消失，items 数组无限膨胀
+  //    （长跑会持续吃内存，也让 updateItems / AI 的遍历越来越慢）。
+  //    「回收在底部 + 靠近玩家时减速」这两条都说明封币**本该向下落**。
+  //    修：vy 取正。落下 → 玩家在下方接住 → 到底部出界回收。逻辑与注释终于一致。
+  items.push({ x: clamp(x, 14, PLAY_R - 14), y: clamp(y, 10, BOT - 10),
+               vy: 2.4, kind, t: 0, alive: true, col: kind === 'point' ? COL.azure
+                    : kind === 'bomb' ? COL.green : kind === 'life' ? COL.rose : COL.gold });
+}
+
+function updateItems(dt) {
+  for (const it of items) {
+    it.t += dt;
+    it.y += it.vy * dt;
+    if (it.y > player.y - 40 && it.y < player.y + 40) it.vy *= 0.82;  // 玩家靠近时减速，便于吸收
+    if (it.y > H + 30) { it.alive = false; continue; }
+    if (player.dead > 0) continue;
+    if (Math.hypot(it.x - player.x, it.y - player.y) < 24) {
+      it.alive = false;
+      if (it.kind === 'point') {
+        if (player.power < 4) {
+          player.power = Math.min(4, player.power + 0.05);
+          if (player.power >= 4) showFloat(player.x, player.y - 32, 'MAX POWER', COL.gold.glow);
+        }
+      } else if (it.kind === 'bomb') {
+        if (player.bombs < player.bombsMax) {
+          player.bombs++; showFloat(player.x, player.y - 32, 'BOMB +1', COL.green.glow);
+        } else run.score += 5000;
+      } else if (it.kind === 'life') {
+        player.lives++;
+        showFloat(player.x, player.y - 32, '残机 +1', COL.rose.glow);
+      }
+      run.score += 500;
+    }
+  }
+  items = items.filter(i => i.alive);
+}
+
+function checkBomb() {
+  // AI 接管时由 aiSteer() 决定要不要放（贴脸弹 ≥9 发），并自带 90 帧冷却；
+  // 手操时把这一下按键**消费掉**（P['x'] = false）——
+  // 原来只是读 P['x']，按住不放会每帧都满足条件，3 颗炸弹 3 帧内全放光，
+  // 和 keyup 里"避免长按连放"的注释互相矛盾。
+  const want = AI.on ? AI.wantBomb : P['x'];
+  if (want && player.bombs > 0 && player.dead <= 0) {
+    player.bombs--;
+    useBomb();
+    if (AI.on) { AI.wantBomb = false; AI.bombCd = 90; }
+    else P['x'] = false;
+  }
+}
+
+function useBomb() {
+  // 原来是 run.flash = 1 + run.shake = 10（最刺眼、最晃的一档）。改成：
+  // 整屏一圈柔和的暖色呼吸 + 四边同时亮起的暗角脉冲 —— 有"炸开了"的体感，但不晃不闪。
+  softBreath(COL.gold.glow, 0.6);
+  edgePulse('all', COL.gold.glow, 1);
+  // 清弹 → 转封币（这就是"炸弹能回血"的来源）
+  clearBulletsToItem();
+  lasers.length = 0;
+  // 对 Boss 伤害
+  if (boss && boss.state === 'fight') damageBoss(120, boss.x, boss.y);
+  for (const e of enemies) {
+    if (e.alive) { e.hp -= 120; e.flash = 6; if (e.hp <= 0) killEnemy(e); }
+  }
+  // 3 秒无敌 + 冲击波特效
+  player.invuln = 180;
+  parts.push({ kind: 'ring', x: player.x, y: player.y, t: 0, life: 42,
+               max: 640, col: COL.gold });
+  setBanner('BOMB', '', COL.green ? COL.green.glow : COL.gold.glow, 46);
+}
+
+/* ---- 玩家受击：残机 -1、火力归零、3 秒复活保护 ----
+   sx / sy：伤害源的位置（弹药中心 / 光柱上离玩家最近的点）。
+   用它算出「从哪个方向挨的打」，让对应那条边缘泛红 ——
+   比整屏白闪信息量更大，也更不刺眼。
+   ⚠️ 这两个参数只影响**绘制层的反馈方向**，不参与任何判定、不改变伤害。 */
+function hitPlayer(sx, sy) {
+  if (player.invuln > 0 || player.dead > 0) return;
+  player.lives--;
+  run.deaths++;
+  player.power = 0;
+  player.bombs = Math.max(0, player.bombs - 1);
+  // 原来是 run.flash = 1（整屏白闪）+ run.shake = 12（整屏位移 12px，最晃的一档）。
+  let dir = 'all';
+  if (sx != null && sy != null) {
+    const ddx = sx - player.x, ddy = sy - player.y;
+    if (Math.abs(ddx) >= Math.abs(ddy)) dir = ddx >= 0 ? 'right' : 'left';
+    else dir = ddy >= 0 ? 'bottom' : 'top';
+  }
+  edgePulse(dir, COL.rose.edge, 1);
+  softBreath(COL.rose.glow, 0.55);
+  burst(player.x, player.y, 26, COL.rose.glow, 5.5, .6);
+  // ⚠️ 这里原本写 `if (player.lives < 0)` —— 是**被截图肉眼抓出来的**：
+  //    lives 从 3 减到 0 时 `0 < 0` 为假 → 判定不触发 → 玩家剩 0 残机还能继续玩，
+  //    画面上却显示「残 0」。当时所有自动断言都是绿的
+  //    （它们只测 3→2 这一种情况，没人测到 1→0）。
+  //    结束条件应当是「没有残机可用」，即 lives <= 0。
+  if (player.lives <= 0) { gameOver(); return; }
+  player.dead = 60;
+  player.invuln = 0;
+  bullets.length = 0; lasers.length = 0;
+  // 复活位置：横向挪一下，避免原地复活被同一发打中
+  player.x = clamp(player.x + rnd(-110, 110), 30, PLAY_R - 30);
+  player.y = H - 110;
+}
+
+function gameOver() {
+  run.over = true;
+  if (run.score > run.hi) { run.hi = run.score; localStorage.setItem('danmaku_hi', run.hi); }
+  showPanel('p2');
+  document.getElementById('r2s').innerHTML =
+    `最终得分 <b>${run.score.toLocaleString()}</b>　·　历史最高 <b>${run.hi.toLocaleString()}</b><br>` +
+    // 「到达第 N 关」用 n / 总关数 显示：v1.4.0 之前是 3 关，
+    // 现在 5 关，分母必须跟 STAGES.length 走，否则结算页会说"5/3"。
+    `到达 <b>第 ${run.stage} 关 / 共 ${STAGES.length} 关 · ` +
+    `${STAGES[Math.min(run.stage - 1, STAGES.length - 1)].name}</b><br>` +
+    `擦弹 <b>${run.grazed.toLocaleString()}</b> 次　·　符卡击破 <b>${run.spellCleared}</b> / ${TOTAL_CARDS} 张<br>` +
+    `失机 <b>${run.deaths}</b> 次` +
+    (run.deaths === 0 ? '<br><span style="color:var(--jade)">无伤通关 —— 你把判定点用明白了。</span>' : '');
+}
+
+function stageClear() {
+  run.score += 500000;
+  // ⚠️ 必须标记「通关」。原来这里只 showPanel('p3')，run.scene 仍是 'play'、
+  //    run.over 仍是 false —— 于是 update() 继续跑，updateWaves 又开始刷怪，
+  //    玩家眼睁睁看着结算面板背后又打起来了。加一个 cleared 标志，
+    //    和 over 一样在每个推进入口把关。
+  run.cleared = true;
+  if (run.score > run.hi) { run.hi = run.score; localStorage.setItem('danmaku_hi', run.hi); }
+  showPanel('p3');
+  document.getElementById('r3s').innerHTML =
+    // 这里原来硬编码「三关全破」—— 关数变成 5 之后那句话就是错的。
+    `${STAGES.length} 关全破。全符奖励到手。<br><br>` +
+    `得分 <b>${run.score.toLocaleString()}</b>　·　擦弹 <b>${run.grazed.toLocaleString()}</b> 次<br>` +
+    `符卡击破 <b>${run.spellCleared}</b> / ${TOTAL_CARDS} 张<br>` +
+    `失机 <b>${run.deaths}</b> 次<br><br>` +
+    `<span style="color:var(--dim);font-size:12px">击破的符卡：<br>` +
+    run.spellHistory.filter((n, i, arr) => arr.indexOf(n) === i).map(n => '· ' + n).join('<br>') +
+    `</span>`;
+}
+
+/* ==========================================================================
+   粒子 / 飘字
+   ========================================================================== */
+function burst(x, y, n, col, spd, life) {
+  for (let i = 0; i < n; i++) {
+    const a = Math.random() * TAU, s = spd * rnd(.4, 1.3);
+    parts.push({ kind: 'p', x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s,
+                 t: 0, life: life * rnd(.7, 1.3), col });
+  }
+  if (parts.length > 900) parts.splice(0, parts.length - 900);
+}
+
+function showFloat(x, y, text, col) {
+  parts.push({ kind: 'f', x, y, t: 0, life: 78, text, col });
+}
+
+function updateParts(dt) {
+  for (const p of parts) {
+    p.t += dt;
+    if (p.kind === 'p') { p.x += p.vx * dt; p.y += p.vy * dt; p.vx *= .93; p.vy *= .93; }
+    else if (p.kind === 'f') p.y -= .55 * dt;
+  }
+  parts = parts.filter(p => p.t < p.life);
+}
+
+/* ==========================================================================
+   绘制
+   ========================================================================== */
+function draw() {
+  // ⚠️ 这里原来有一对 ctx.translate(sx, sy) 的屏幕位移抖动（run.shake）。
+  //    已彻底移除：整幅画面跟着抖，读者根本没法在抖动中读弹幕位置。
+  //    受击反馈改由 drawFeedback() 画在**屏幕边缘**，画面本体纹丝不动。
+  ctx.save();
+
+  // 背景
+  ctx.fillStyle = run.bgTint;
+  ctx.fillRect(-10, -10, W + 20, H + 20);
+  for (const s of stars) {
+    s.y = (s.y + s.sp) % H;
+    ctx.globalAlpha = .9;
+    ctx.drawImage(s.c, 0, s.y);
+    if (s.y > 0) ctx.drawImage(s.c, 0, s.y - H);
+  }
+  ctx.globalAlpha = 1;
+  // 场地边界线
+  ctx.strokeStyle = 'rgba(120,140,255,.16)';
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(FIELD_W + .5, 0); ctx.lineTo(FIELD_W + .5, H); ctx.stroke();
+
+  drawLasers();
+  drawItems();
+  drawEnemies();
+  drawBoss();
+  drawBullets();
+  drawShots();
+  drawPlayer();
+  drawParts();
+  ctx.restore();
+
+  drawHUD();
+  drawBanner();
+  drawHint();
+  drawFeedback();
+}
+
+/* ---- 开关提示：切换 AI/倍速时在场地顶部飘一句，让玩家确认"按生效了" ---- */
+function drawHint() {
+  if (run.hintT <= 0 || !run.hint) return;
+  ctx.save();
+  ctx.globalAlpha = Math.min(1, run.hintT / 24);
+  ctx.textAlign = 'center';
+  ctx.fillStyle = 'rgba(6,8,22,.72)';
+  ctx.fillRect(FIELD_W / 2 - 150, H - 44, 300, 26);
+  ctx.fillStyle = AI.on && run.hint.indexOf('AI') === 0 ? COL.jade.glow
+                : SPEED > 1 && run.hint.indexOf('速度') === 0 ? COL.gold.glow : '#c3c8ec';
+  ctx.font = '13px "Songti SC",serif';
+  ctx.fillText(run.hint, FIELD_W / 2, H - 26);
+  ctx.restore();
+}
+
+/* ---- 温和反馈绘制：边缘暗角脉冲 + 低透明度色彩呼吸 ----
+   替代原来的屏幕抖动与全屏白闪。两件都是「事件发生后自己衰减」，
+   没有额外的计时器（t 在 update() 里跟游戏逻辑同帧累加）。 */
+function drawFeedback() {
+  const e = run.edge;
+  if (e) {
+    const k = 1 - e.t / e.life;              // 1 → 0
+    const a = k * k * 0.42 * e.amp;          // 平方衰减：起手明显，收尾干净
+    if (a > 0.004) {
+      const D = 58;                          // 暗角从边缘向内延伸的像素
+      const grads = (e.dir === 'all')
+        ? [ctx.createLinearGradient(0, 0, D, 0), ctx.createLinearGradient(W, 0, W - D, 0),
+           ctx.createLinearGradient(0, 0, 0, D), ctx.createLinearGradient(0, H, 0, H - D)]
+        : e.dir === 'left'  ? [ctx.createLinearGradient(0, 0, D, 0)]
+        : e.dir === 'right' ? [ctx.createLinearGradient(W, 0, W - D, 0)]
+        : e.dir === 'top'   ? [ctx.createLinearGradient(0, 0, 0, D)]
+        :                     [ctx.createLinearGradient(0, H, 0, H - D)];
+      for (const g of grads) {
+        g.addColorStop(0, hexA(e.col, a));
+        g.addColorStop(1, hexA(e.col, 0));
+        ctx.fillStyle = g;
+        ctx.fillRect(0, 0, W, H);
+      }
+    }
+  }
+  const f = run.breath;
+  if (f) {
+    const k = 1 - f.t / f.life;
+    // 峰值 0.20 上限：是一层有色薄雾，不是白幕。不遮弹、不刺眼。
+    const a = Math.min(0.20, k * 0.20 * f.amp);
+    if (a > 0.004) {
+      ctx.fillStyle = hexA(f.col, a);
+      ctx.fillRect(0, 0, W, H);
+    }
+  }
+}
+
+/* ---- 弹速分档：读弹的第一顺位是「哪颗会先打到脸」----
+   阈值按**当前实际速度**判（已经乘过 BSPD）：
+     < 2.0  → 0 慢档：柔光弱、描边细，允许被"忽略"一小会儿
+     2.0~3.5→ 1 中档：标准配置
+     > 3.5  → 2 快档：光晕更亮、核心更大、描边加粗到 2.6 ——
+              密集时正是靠这圈粗描边把「先到的那几发」从背景里抠出来
+   描边用近黑（不是纯黑，纯黑在深色背景上会变成"消失"），
+   先画 1px 外的深色轮廓、再画本体：亮底上的亮弹同样有清晰边缘。
+   ⚠️ 不用 ctx.shadowBlur：整屏几百发弹时它是首帧率杀手。 */
+function bulletTier(spd) { return spd < 2.0 ? 0 : spd <= 3.5 ? 1 : 2; }
+const TIER = [
+  { halo: .26, dark: 'rgba(4,5,14,.82)', darkW: 1.6, coreK: .40 },
+  { halo: .34, dark: 'rgba(3,4,12,.90)', darkW: 2.0, coreK: .46 },
+  { halo: .48, dark: 'rgba(2,2,8,.96)',  darkW: 2.6, coreK: .54 },
+];
+
+/* ---- 弹幕：深色描边 + 分层光晕 + 实心弹 + 高光核 ----
+   绘制顺序（三层，缺一不可）：
+     ① 光晕（lighter，批处理）—— 密集时给出"这里有弹"的密度感
+     ② 深色轮廓 —— 把弹从亮背景/其它弹里抠出来，这是可读性的地基
+     ③ 本体 + 高光核 —— 颜色语义（红快/蓝慢/绿螺旋/黄大/紫柱）
+   延迟弹（delay>0）不画本体，只画一圈**逐渐收紧的警示环**：
+   环从 2.6r 收到 1.1r，配合"快满"时的呼吸节奏 —— 玩家在它出现之前
+   就知道"这个位置马上要被占"，而不是靠全屏闪烁去提示。 */
+function drawBullets() {
+  ctx.save();
+  // ① 光晕层
+  ctx.globalCompositeOperation = 'lighter';
+  for (const b of bullets) {
+    if (b.delay > 0) continue;
+    const a = Math.min(1, b.age / 6);
+    const t = TIER[bulletTier(Math.hypot(b.vx, b.vy))];
+    ctx.globalAlpha = t.halo * a;
+    ctx.fillStyle = b.c.glow;
+    ctx.beginPath(); ctx.arc(b.x, b.y, b.r * 2.1, 0, TAU); ctx.fill();
+  }
+  ctx.globalCompositeOperation = 'source-over';
+
+  // ② 预告环 + ③ 本体
+  for (const b of bullets) {
+    if (b.delay > 0) {
+      // 延迟期：位置固定，环从外向内收紧，透明度随"剩余帧数"升高
+      const k = b.delay0 > 0 ? 1 - b.delay / b.delay0 : 1;   // 0 → 1
+      const rr = b.r * (2.6 - 1.5 * k);
+      ctx.save();
+      ctx.globalAlpha = .30 + .45 * k;
+      ctx.strokeStyle = b.c.glow;
+      ctx.lineWidth = 1.6;
+      ctx.beginPath(); ctx.arc(b.x, b.y, rr, 0, TAU); ctx.stroke();
+      // 内圈虚线：只在快落下时出现，表示"下一秒就实体化"
+      if (k > .6) {
+        ctx.globalAlpha = (.35 + .5 * Math.sin(b.age * .35 + b.x)) * (k - .6) * 2.5;
+        ctx.strokeStyle = b.c.core;
+        ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.arc(b.x, b.y, b.r * 1.35, 0, TAU); ctx.stroke();
+      }
+      ctx.restore();
+      continue;
+    }
+    ctx.save();
+    ctx.translate(b.x, b.y);
+    ctx.rotate(b.rot);
+    const a = Math.min(1, b.age / 6);
+    ctx.globalAlpha = a;
+    const c = b.c;
+    const t = TIER[bulletTier(Math.hypot(b.vx, b.vy))];
+
+    // 深色轮廓：比本体大 1px，lineWidth 加粗 → 亮底亮弹也不糊
+    ctx.strokeStyle = t.dark;
+    ctx.lineWidth = t.darkW;
+    if (b.shape === 'rice') {
+      ctx.beginPath(); ctx.ellipse(0, 0, b.r * .62 + 1, b.r * 1.5 + 1, 0, 0, TAU); ctx.stroke();
+      ctx.fillStyle = c.edge;
+      ctx.beginPath(); ctx.ellipse(0, 0, b.r * .62, b.r * 1.5, 0, 0, TAU); ctx.fill();
+      ctx.fillStyle = c.core;
+      ctx.beginPath(); ctx.ellipse(0, -b.r * .25, b.r * .26, b.r * .62, 0, 0, TAU); ctx.fill();
+    } else if (b.shape === 'big') {
+      ctx.beginPath(); ctx.arc(0, 0, b.r + 1, 0, TAU); ctx.stroke();
+      ctx.fillStyle = c.edge;
+      ctx.beginPath(); ctx.arc(0, 0, b.r, 0, TAU); ctx.fill();
+      // 大弹多一圈内环：它的"体型"就是它的语义（撞了会分裂）
+      ctx.strokeStyle = hexA(c.core, .5);
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.arc(0, 0, b.r * .72, 0, TAU); ctx.stroke();
+      ctx.fillStyle = c.core;
+      ctx.beginPath(); ctx.arc(-b.r * .18, -b.r * .2, b.r * .46, 0, TAU); ctx.fill();
+    } else {
+      ctx.beginPath(); ctx.arc(0, 0, b.r + 1, 0, TAU); ctx.stroke();
+      ctx.fillStyle = c.edge;
+      ctx.beginPath(); ctx.arc(0, 0, b.r, 0, TAU); ctx.fill();
+      ctx.fillStyle = c.core;
+      ctx.beginPath(); ctx.arc(-b.r * .22, -b.r * .24, b.r * t.coreK, 0, TAU); ctx.fill();
+    }
+    ctx.restore();
+  }
+  ctx.restore();
+}
+
+function drawShots() {
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.fillStyle = COL.azure.glow;
+  for (const s of shots) {
+    ctx.globalAlpha = .5;
+    ctx.beginPath(); ctx.arc(s.x, s.y, s.r * 2.4, 0, TAU); ctx.fill();
+  }
+  ctx.globalCompositeOperation = 'source-over';
+  for (const s of shots) {
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = s.c.core;
+    ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, TAU); ctx.fill();
+  }
+  ctx.restore();
+}
+
+/** 光柱：预警期画细虚线预告，爆发期画实心柱 + 两端光斑 */
+function drawLasers() {
+  for (const L of lasers) {
+    ctx.save();
+    ctx.translate(L.x, L.y);
+    ctx.rotate(L.ang);
+    const warning = L.t < L.warn;
+    if (warning) {
+      const k = L.t / L.warn;
+      ctx.globalAlpha = .28 + .4 * Math.abs(Math.sin(L.t * .5));
+      ctx.strokeStyle = L.col.glow;
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([7, 9]);
+      ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(L.len, 0); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.globalAlpha = .55;
+      ctx.fillStyle = L.col.edge;
+      ctx.beginPath(); ctx.arc(0, 0, L.w / 2 * (0.4 + k * 0.6), 0, TAU); ctx.fill();
+    } else {
+      const k = Math.min(1, (L.t - L.warn) / 5);
+      const fade = Math.min(1, (L.warn + L.life - L.t) / 8);
+      ctx.globalAlpha = fade;
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.fillStyle = L.col.glow;
+      ctx.globalAlpha = fade * .38;
+      ctx.fillRect(0, -L.w, L.len, L.w * 2);
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.globalAlpha = fade;
+      ctx.fillStyle = L.col.edge;
+      ctx.fillRect(0, -L.w / 2 * k, L.len, L.w * k);
+      ctx.fillStyle = L.col.core;
+      ctx.fillRect(0, -L.w * .16 * k, L.len, L.w * .32 * k);
+      ctx.beginPath(); ctx.arc(0, 0, L.w * .9, 0, TAU); ctx.fill();
+      ctx.globalAlpha = fade * .5;
+      ctx.beginPath(); ctx.arc(L.len, 0, L.w * .7, 0, TAU); ctx.fill();
+    }
+    ctx.restore();
+  }
+}
+
+function drawEnemies() {
+  for (const e of enemies) {
+    ctx.save();
+    ctx.translate(e.x, e.y);
+    ctx.rotate(e.rot || 0);
+    const c = e.type === 'dive' ? COL.rose : COL.blue;
+    ctx.globalAlpha = .18;
+    ctx.fillStyle = c.glow;
+    ctx.beginPath(); ctx.arc(0, 0, e.r * 2.2, 0, TAU); ctx.fill();
+    ctx.globalAlpha = 1;
+    // 菱形机体
+    // ⚠️ 配色原来用的是深蓝 `#252c62`，而**蓝弹的边缘色是 `#2f7fff`** ——
+    //    两者撞色。弹幕一密，敌舰就完全糊在里面认不出来
+    //    （这是看截图才发现的，所有断言都是绿的）。
+    //    改法：敌机体用**暖色**（朱红/橙），和弹幕的冷色系彻底分开；
+    //    再加一圈白色描边保证任何背景下都有一道清晰的轮廓。
+    ctx.fillStyle = e.flash > 0 ? '#fff' : (e.type === 'dive' ? '#5a2430' : '#3a2a52');
+    ctx.strokeStyle = e.type === 'dive' ? '#ffb0b8' : '#c8a8ff';
+    ctx.lineWidth = 2.4;
+    ctx.beginPath();
+    ctx.moveTo(0, -e.r); ctx.lineTo(e.r * .8, 0);
+    ctx.lineTo(0, e.r); ctx.lineTo(-e.r * .8, 0); ctx.closePath();
+    ctx.fill(); ctx.stroke();
+    // 外圈白边：把敌舰从弹幕堆里"抠"出来
+    ctx.strokeStyle = 'rgba(255,255,255,.55)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    // 核心（亮一点，作为识别点）
+    ctx.fillStyle = e.flash > 0 ? '#fff' : (e.type === 'dive' ? '#ffd7dc' : '#e6dcff');
+    ctx.beginPath(); ctx.arc(0, 0, e.r * .3, 0, TAU); ctx.fill();
+    // 血条（受伤后显示）
+    if (e.hp < e.maxHp) {
+      const w = e.r * 1.6, pct = Math.max(0, e.hp / (e.maxHp || e.hp));
+      ctx.rotate(-(e.rot || 0));
+      ctx.fillStyle = 'rgba(0,0,0,.55)';
+      ctx.fillRect(-w / 2, -e.r - 7, w, 3);
+      ctx.fillStyle = COL.jade ? COL.jade.glow : '#6effc0';
+      ctx.fillRect(-w / 2, -e.r - 7, w * pct, 3);
+    }
+    ctx.restore();
+  }
+}
+
+function drawBoss() {
+  const b = boss;
+  if (!b) return;
+  ctx.save();
+  ctx.translate(b.x, b.y);
+  ctx.rotate(b.rot);
+  const c = b.is.col;
+  // 立场：外发光 + 旋转星环 + 核心六芒
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.globalAlpha = .26;
+  ctx.fillStyle = c.glow;
+  ctx.beginPath(); ctx.arc(0, 0, b.is.r * 3, 0, TAU); ctx.fill();
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.globalAlpha = 1;
+  ctx.strokeStyle = c.edge; ctx.lineWidth = 2;
+  ctx.globalAlpha = .8;
+  ctx.beginPath(); ctx.arc(0, 0, b.is.r * 1.7, 0, TAU); ctx.stroke();
+  ctx.globalAlpha = .45;
+  ctx.beginPath(); ctx.arc(0, 0, b.is.r * 2.2, 0.4, 2.4); ctx.stroke();
+  ctx.beginPath(); ctx.arc(0, 0, b.is.r * 2.2, 3.6, 5.6); ctx.stroke();
+  ctx.globalAlpha = 1;
+  // 核心
+  ctx.fillStyle = b.flash > 0 ? '#fff' : '#171d48';
+  ctx.strokeStyle = c.glow; ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  for (let i = 0; i < 6; i++) {
+    const a = i * TAU / 6;
+    ctx.lineTo(Math.cos(a) * b.is.r, Math.sin(a) * b.is.r);
+  }
+  ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = c.core;
+  ctx.beginPath(); ctx.arc(0, 0, b.is.r * .4, 0, TAU); ctx.fill();
+  ctx.restore();
+}
+
+function drawPlayer() {
+  if (player.dead > 0) return;
+  const blink = player.invuln > 0 && Math.floor(player.invuln / 4) % 2 === 0;
+  if (blink) return;
+  const x = player.x, y = player.y;
+  ctx.save();
+  ctx.translate(x, y);
+  // 光环
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.globalAlpha = .22;
+  ctx.fillStyle = COL.azure.glow;
+  ctx.beginPath(); ctx.arc(0, 0, 22, 0, TAU); ctx.fill();
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.globalAlpha = 1;
+  // 星轨（转向移动方向）
+  const lean = clamp(player.vx * 0.045, -0.30, 0.30);
+  ctx.rotate(lean);
+  // 机体：蓝袍银发的星屑使
+  ctx.fillStyle = '#1c2456';
+  ctx.strokeStyle = COL.azure.edge; ctx.lineWidth = 1.6;
+  ctx.beginPath();
+  ctx.moveTo(0, -14); ctx.lineTo(9, 2); ctx.lineTo(5, 11);
+  ctx.lineTo(-5, 11); ctx.lineTo(-9, 2); ctx.closePath();
+  ctx.fill(); ctx.stroke();
+  // 裙摆星纹
+  ctx.fillStyle = COL.gold ? COL.gold.glow : '#ffd76e';
+  ctx.globalAlpha = .85;
+  ctx.beginPath(); ctx.arc(0, 6, 2.6, 0, TAU); ctx.fill();
+  ctx.globalAlpha = 1;
+  // 头部
+  ctx.fillStyle = '#eef2ff';
+  ctx.beginPath(); ctx.arc(0, -7, 4.2, 0, TAU); ctx.fill();
+  ctx.restore();
+
+  // 判定点：只在 Focus 时显形（这是东方的核心 UX）
+  if (player.focus) {
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.fillStyle = '#ff4d5e';
+    ctx.globalAlpha = .35;
+    ctx.beginPath(); ctx.arc(x, y, 7, 0, TAU); ctx.fill();
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = '#ff2f45';
+    ctx.beginPath(); ctx.arc(x, y, player.hitR, 0, TAU); ctx.fill();
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 1;
+    ctx.globalAlpha = .8;
+    ctx.beginPath(); ctx.arc(x, y, player.grazeR, 0, TAU); ctx.stroke();
+    ctx.restore();
+  }
+  // 擦弹计数
+  if (player.grazeCount > 0 && player.grazeCount % 10 === 0) {
+    ctx.fillStyle = 'rgba(110,255,192,.5)';
+    ctx.font = '9px Consolas,monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('G' + player.grazeCount, x, y + 20);
+  }
+}
+
+function drawItems() {
+  for (const it of items) {
+    const c = it.kind === 'point' ? COL.azure : it.kind === 'bomb' ? (COL.green || COL.gold)
+            : it.kind === 'life' ? COL.rose : COL.gold;
+    const bob = Math.sin(it.t * .12) * 1.6;
+    ctx.save();
+    ctx.translate(it.x, it.y + bob);
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = .3;
+    ctx.fillStyle = c.glow;
+    ctx.beginPath(); ctx.arc(0, 0, 11, 0, TAU); ctx.fill();
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = c.core;
+    ctx.strokeStyle = c.edge; ctx.lineWidth = 1.4;
+    if (it.kind === 'point') {
+      ctx.beginPath();
+      for (let i = 0; i < 4; i++) {
+        const a = i * TAU / 4 - Math.PI / 2;
+        ctx.lineTo(Math.cos(a) * 6.5, Math.sin(a) * 6.5);
+      }
+      ctx.closePath(); ctx.fill(); ctx.stroke();
+    } else {
+      ctx.beginPath(); ctx.arc(0, 0, 6, 0, TAU); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = c.edge; ctx.font = 'bold 8px Consolas,monospace';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(it.kind === 'bomb' ? 'B' : it.kind === 'life' ? '1UP' : 'P', 0, .5);
+    }
+    ctx.restore();
+  }
+}
+
+function drawParts() {
+  ctx.save();
+  for (const p of parts) {
+    const k = 1 - p.t / p.life;
+    if (p.kind === 'p') {
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.globalAlpha = Math.max(0, k) * .8;
+      ctx.fillStyle = p.col;
+      ctx.beginPath(); ctx.arc(p.x, p.y, Math.max(.4, 2.6 * k), 0, TAU); ctx.fill();
+    } else if (p.kind === 'f') {
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.globalAlpha = Math.max(0, k);
+      ctx.fillStyle = p.col;
+      ctx.font = 'bold 13px "Songti SC",serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(p.text, p.x, p.y);
+    } else if (p.kind === 'ring') {
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.globalAlpha = Math.max(0, k) * .7;
+      ctx.strokeStyle = p.col; ctx.lineWidth = 3 + 6 * k;
+      ctx.beginPath(); ctx.arc(p.x, p.y, (1 - k) * 320, 0, TAU); ctx.stroke();
+    }
+  }
+  ctx.restore();
+}
+
+/* ---- HUD ---- */
+function drawHUD() {
+  const x = FIELD_W + 8, w = W - FIELD_W - 8;
+  ctx.save();
+  ctx.textBaseline = 'top';
+
+  ctx.fillStyle = 'rgba(8,10,28,.86)';
+  ctx.fillRect(FIELD_W + 1, 0, w - 1, H);
+
+  let y = 10;
+  const lab = (t, c) => {
+    ctx.fillStyle = '#9aa2d4'; ctx.font = '9px Consolas,monospace';
+    ctx.fillText(t, x, y); y += 11;
+  };
+  const val = (t, c, sz) => {
+    ctx.fillStyle = c || COL.gold.glow; ctx.font = (sz || 15) + 'px Consolas,monospace';
+    ctx.fillText(t, x, y); y += (sz || 15) + 5;
+  };
+
+  lab('SCORE');
+  val(run.score.toLocaleString(), COL.gold.glow, 14);
+  lab('HI-SCORE');
+  val(Math.max(run.hi, run.score).toLocaleString(), '#8a90c4', 11);
+
+  y += 6;
+  // 残机
+  ctx.fillStyle = '#9aa2d4'; ctx.font = '9px Consolas,monospace';
+  ctx.fillText('LIVES', x, y); y += 12;
+  for (let i = 0; i < Math.max(0, player.lives); i++) {
+    ctx.fillStyle = COL.rose.glow;
+    ctx.beginPath(); ctx.arc(x + 4 + i * 11, y + 4, 4, 0, TAU); ctx.fill();
+  }
+  y += 14;
+
+  // 炸弹
+  ctx.fillStyle = '#9aa2d4'; ctx.font = '9px Consolas,monospace';
+  ctx.fillText('BOMB', x, y); y += 12;
+  for (let i = 0; i < player.bombsMax; i++) {
+    const on = i < player.bombs;
+    ctx.fillStyle = on ? (COL.green ? COL.green.glow : '#6effc0') : 'rgba(255,255,255,.12)';
+    ctx.beginPath(); ctx.arc(x + 4 + i * 11, y + 4, 4, 0, TAU); ctx.fill();
+  }
+  y += 16;
+
+  // 火力条
+  ctx.fillStyle = '#9aa2d4'; ctx.font = '9px Consolas,monospace';
+  ctx.fillText('POWER', x, y); y += 12;
+  const pw = player.power / 4;
+  ctx.fillStyle = 'rgba(255,255,255,.10)';
+  ctx.fillRect(x, y, w - 14, 7);
+  ctx.fillStyle = pw >= 1 ? COL.gold.glow : COL.azure.glow;
+  ctx.fillRect(x, y, (w - 14) * pw, 7);
+  ctx.fillStyle = '#dfe6ff'; ctx.font = '9px Consolas,monospace';
+  ctx.fillText(player.power.toFixed(2), x, y + 10);
+  y += 26;
+
+  // 擦弹
+  ctx.fillStyle = '#9aa2d4'; ctx.font = '9px Consolas,monospace';
+  ctx.fillText('GRAZE', x, y); y += 12;
+  ctx.fillStyle = COL.jade ? COL.jade.glow : '#6effc0';
+  ctx.font = '13px Consolas,monospace';
+  ctx.fillText(run.grazed.toLocaleString(), x, y); y += 22;
+
+  // 关卡进度（v1.4.0：3 关 → 5 关，n / 5 由 STAGES.length 推出来，不硬编码）
+  ctx.fillStyle = '#9aa2d4'; ctx.font = '9px Consolas,monospace';
+  ctx.fillText('STAGE', x, y); y += 12;
+  ctx.fillStyle = '#dfe6ff'; ctx.font = '11px Consolas,monospace';
+  ctx.fillText(Math.min(run.stage, STAGES.length) + ' / ' + STAGES.length, x, y); y += 16;
+
+  // 符卡击破进度：分母用 TOTAL_CARDS（从 STAGES 汇总而来），
+  // 加关卡时这里会自动变 10，不会像硬编码那样停在 7。
+  ctx.fillStyle = '#9aa2d4'; ctx.font = '9px Consolas,monospace';
+  ctx.fillText('SPELL', x, y); y += 12;
+  ctx.fillStyle = COL.gold.glow; ctx.font = '11px Consolas,monospace';
+  ctx.fillText(run.spellCleared + ' / ' + TOTAL_CARDS, x, y); y += 20;
+
+  // Boss 血条 + 符卡
+  if (boss) {
+    const b = boss;
+    const bw = w - 14;
+    const by = H - 150;
+    ctx.fillStyle = '#9aa2d4'; ctx.font = '9px Consolas,monospace';
+    ctx.fillText('BOSS', x, by - 12);
+
+    ctx.fillStyle = 'rgba(255,255,255,.10)';
+    ctx.fillRect(x, by, bw, 8);
+    if (b.state === 'fight' && b.card) {
+      const pct = Math.max(0, b.cardHp / b.card.hp);
+      ctx.fillStyle = pct > .35 ? COL.gold.glow : '#ff6b9d';
+      ctx.fillRect(x, by, bw * pct, 8);
+      // 限时细条：紧紧贴在血条下方（by+9，高 4px）。
+      // ⚠️ 分母要用「帧总量」而不是 card.time（秒），因为 timeLeft 现在是帧。
+      // 颜色分三档而不是只做一条灰：剩下不到 1/4 时要一眼看见"奖励要飞了"。
+      const totalFrames = (b.card.timeSec || b.card.time) * FPS;
+      const tpct = Math.max(0, (b.card.timeLeft || 0) / totalFrames);
+      ctx.fillStyle = 'rgba(255,255,255,.16)';
+      ctx.fillRect(x, by + 9, bw, 4);
+      ctx.fillStyle = tpct > .5 ? COL.azure.glow : tpct > .25 ? COL.gold.glow : '#ff4d5e';
+      ctx.fillRect(x, by + 9, bw * tpct, 4);
+      ctx.fillStyle = tpct > .25 ? '#c3c8ec' : '#ff8a9a';
+      ctx.font = '9px Consolas,monospace';
+      // 显示回「秒」：timeLeft 是帧，除以 FPS 才是玩家看得懂的剩余时间
+      ctx.fillText('T ' + Math.ceil((b.card.timeLeft || 0) / FPS) + 's', x, by + 17);
+
+      // 符卡名（竖排，模仿东方的符卡条）
+      ctx.save();
+      ctx.translate(x + bw - 4, by + 30);
+      ctx.font = '11px "Songti SC",serif';
+      ctx.fillStyle = b.card ? COL.gold.glow : '#fff';
+      const nm = b.card.name;
+      for (let i = 0; i < nm.length; i++) ctx.fillText(nm[i], 0, i * 12);
+      ctx.restore();
+    } else {
+      ctx.fillStyle = 'rgba(255,255,255,.25)';
+      ctx.fillRect(x, by, bw, 8);
+    }
+
+    ctx.fillStyle = '#c3c8ec'; ctx.font = '10px "Songti SC",serif';
+    ctx.fillText(b.is.name.slice(0, 5), x, H - 26);
+  }
+
+  ctx.restore();
+}
+
+/* ---- 符卡宣告横幅 ---- */
+function drawBanner() {
+  if (run.bannerT <= 0) return;
+  const b = run.banner;
+  const k = Math.min(1, run.bannerT / 18);
+  ctx.save();
+  ctx.globalAlpha = k;
+  ctx.fillStyle = 'rgba(4,5,16,.72)';
+  ctx.fillRect(0, H / 2 - 34, W, 68);
+  ctx.strokeStyle = b.col; ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(0, H / 2 - 34); ctx.lineTo(W, H / 2 - 34);
+  ctx.moveTo(0, H / 2 + 34); ctx.lineTo(W, H / 2 + 34);
+  ctx.stroke();
+  ctx.textAlign = 'center';
+  ctx.fillStyle = b.col;
+  ctx.font = '22px "Songti SC",serif';
+  ctx.fillText(b.main, W / 2, H / 2 - 14);
+  if (b.sub) {
+    ctx.fillStyle = '#8a90c4';
+    ctx.font = '10px Consolas,monospace';
+    ctx.fillText(b.sub, W / 2, H / 2 + 8);
+  }
+  ctx.restore();
+}
+
+/* ==========================================================================
+   主循环 / 输入 / 面板
+   ========================================================================== */
+/* ---- 速度倍率 + 固定步长累加器 ----
+   ⚠️ 二倍速**不能**写成 update(dt * 2)。
+      那样一步的位移翻倍：最快的红弹 3.6px/帧 → 7.2px/步，
+      而判定圈半径只有玩家 2.8 + 弹 5 ≈ 7.8px ——
+      某些角度下弹会**一步跨过判定圆**而不触发，出现
+      「明明看着没碰到却死了」或者反过来的「穿身而过」。
+      判定精度会随倍速漂移，等于规则被改了。
+   正解：固定步长 + 时间累加器 —— 攒够 1 帧就跑一次 update(1)，
+   2× 时每帧跑两次。物理步长恒为 1，判定与倍速无关。 */
+let SPEED = 1;
+let acc = 0;
+const MAX_STEP = 8;      // 单帧最多补几步，防止卡顿后「追帧雪崩」
+
+/** 推进逻辑若干「1x 帧」，返回真正跑了几步。
+ *  抽成独立函数，是为了让无头判据直接验「2× 时一次推进 = 2 步」，
+ *  而不是去赌 rAF 的真实帧率（headless 下帧率不可控）。 */
+function advance(frames) {
+  // 不可推进的状态一律不累加，否则暂停期间 acc 会一直涨，一解除就瞬间补跑
+  if (run.scene !== 'play' || run.paused || run.over || run.cleared) { acc = 0; return 0; }
+  acc += frames * SPEED;
+  let n = 0;
+  while (acc >= 1 && n < MAX_STEP) {
+    if (run.scene !== 'play' || run.paused || run.over || run.cleared) break;
+    update(1); acc -= 1; n++;
+  }
+  if (acc > MAX_STEP) acc = 0;   // 积压太多就丢弃
+  return n;
+}
+
+function frame(ts) {
+  // ⚠️ 冻结时必须真的停下 rAF，不能只是「不更新」。
+  //    页面自己的动画循环会和测试的 step() 赛跑 —— 玩家在原地挨打、
+  //    掉光残机后 run.over=true，之后 step() 全部空转，
+  //    所有判据都读出一片「游戏没反应」的假象。
+  if (!loopOn) { raf = 0; return; }
+  raf = requestAnimationFrame(frame);
+  if (!lastTs) lastTs = ts;
+  const dt = (ts - lastTs) / 16.6667;
+  lastTs = ts;
+  advance(clamp(dt, 0, 3));   // 切标签页回来别一次跳几百帧
+  if (run.scene !== 'title') draw();
+  else drawIdle();
+  tickLive();
+}
+
+/** 标题页：让星空和一枚绕圈灵弹动起来，不至于死板 */
+function drawIdle() {
+  run.t += 1;
+  ctx.fillStyle = '#07091c';
+  ctx.fillRect(0, 0, W, H);
+  for (const s of stars) {
+    s.y = (s.y + s.sp) % H;
+    ctx.globalAlpha = .9;
+    ctx.drawImage(s.c, 0, s.y);
+    if (s.y > 0) ctx.drawImage(s.c, 0, s.y - H);
+  }
+  ctx.globalAlpha = 1;
+  if (!run._idle) {
+    run._idle = [];
+    for (let i = 0; i < 14; i++) run._idle.push(mkBullet(rnd(0, W), rnd(0, H), 0, 0, {
+      c: pick(['red', 'blue', 'green', 'purple']), r: 5 }));
+  }
+  const R = 150, sp = .012;
+  for (const b of run._idle) {
+    const a = run.t * sp + b.x * .01;
+    b.x = W / 2 + Math.cos(a) * R * .7;
+    b.y = H / 2 + Math.sin(a) * R;
+    b.age += 1;
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = .28;
+    ctx.fillStyle = b.c.glow;
+    ctx.beginPath(); ctx.arc(b.x, b.y, b.r * 2, 0, TAU); ctx.fill();
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = b.c.edge;
+    ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, TAU); ctx.fill();
+    ctx.fillStyle = b.c.core;
+    ctx.beginPath(); ctx.arc(b.x - 1, b.y - 1, b.r * .45, 0, TAU); ctx.fill();
+    ctx.restore();
+  }
+}
+
+function fit() {
+  const s = Math.min(innerWidth / W, innerHeight / H, 1.15);
+  cv.style.width = (W * s) + 'px';
+  cv.style.height = (H * s) + 'px';
+}
+addEventListener('resize', fit);
+
+const KEYS = {
+  ArrowLeft: 'ArrowLeft', ArrowRight: 'ArrowRight', ArrowUp: 'ArrowUp', ArrowDown: 'ArrowDown',
+  z: 'z', Z: 'z', x: 'x', X: 'x', Shift: 'Shift',
+};
+addEventListener('keydown', e => {
+  const k = KEYS[e.key];
+  if (k) { P[k] = true; e.preventDefault(); }
+  if (e.key === 'p' || e.key === 'P') togglePause();
+  // A / T 是「开关型」快捷键：只在按下那一下翻转一次。
+  // keydown 会自动重复（按住就狂发），必须用 e.repeat 挡住，
+  // 否则按住 A 会在开/关之间高频抖动。
+  if (!e.repeat && (e.key === 'a' || e.key === 'A')) toggleAI();
+  if (!e.repeat && (e.key === 't' || e.key === 'T')) toggleSpeed();
+});
+addEventListener('keyup', e => {
+  const k = KEYS[e.key];
+  if (k) { P[k] = false; e.preventDefault(); }
+  // 炸弹用 keydown 触发，避免长按连放
+  if (e.key === 'x' || e.key === 'X') P['x'] = false;
+});
+
+function togglePause() {
+  if (run.scene !== 'play' || run.over || run.cleared) return;
+  run.paused = !run.paused;
+  showPanel(run.paused ? 'p1' : null);
+}
+
+/* ---- AI 接管 / 二倍速 的开关 ---- */
+function toggleAI() {
+  AI.on = !AI.on;
+  AI.wantBomb = false; AI.bombCd = 0; AI.lx = 0; AI.ly = 0;
+  run.hint = AI.on ? 'AI 接管：电脑替你走位、射击、擦弹、放炸弹' : 'AI 接管已关闭';
+  run.hintT = 110;
+  syncToggles();
+  return AI.on;
+}
+function toggleSpeed() {
+  SPEED = SPEED === 1 ? 2 : 1;
+  acc = 0;                 // 换倍速时清掉累加器，别带着旧节奏跑
+  run.hint = '速度 ' + SPEED + '×';
+  run.hintT = 80;
+  syncToggles();
+  return SPEED;
+}
+/** 把两个开关的状态同步到开始面板的按钮上。
+ *  必须让「开」看得见（加 .on 类 + 改文案），否则玩家根本不知道自己开没开 ——
+ *  「按了没反应」和「按了但没生效」在界面上长得一模一样。 */
+function syncToggles() {
+  const a = document.getElementById('bA'), t = document.getElementById('bT');
+  if (a) { a.classList.toggle('on', AI.on); a.textContent = AI.on ? 'AI 接管 ●开' : 'AI 接管'; }
+  if (t) { t.classList.toggle('on', SPEED > 1); t.textContent = SPEED > 1 ? '二倍速 ●开' : '二倍速'; }
+}
+
+function showPanel(id) {
+  ['p0', 'p1', 'p2', 'p3'].forEach(p => {
+    const el = document.getElementById(p);
+    if (el) el.style.display = (p === id) ? '' : 'none';
+  });
+  document.getElementById('tip').style.display = id === 'p1' ? 'none' : '';
+}
+
+function start() {
+  cancelAnimationFrame(raf);
+  newRun();
+  run.scene = 'play';
+  // 累加器必须清零：不清的话上一局残留的时间债会在新局第一帧一次补跑好几步
+  acc = 0;
+  AI.wantBomb = false; AI.bombCd = 0;
+  showPanel(null);
+  syncToggles();
+  lastTs = 0;
+  loopOn = true;
+  raf = requestAnimationFrame(frame);
+}
+
+document.getElementById('b0').onclick = start;
+document.getElementById('b1').onclick = togglePause;
+document.getElementById('b2').onclick = start;
+document.getElementById('b3').onclick = start;
+document.getElementById('bA').onclick = toggleAI;
+document.getElementById('bT').onclick = toggleSpeed;
+
+function tickLive() {
+  const el = document.getElementById('live');
+  if (run.scene !== 'play') { el.style.display = 'none'; return; }
+  el.style.display = 'flex';
+  el.innerHTML =
+    `<span><i>分</i><b>${run.score.toLocaleString()}</b></span>` +
+    `<span><i>擦</i><b>${run.grazed}</b></span>` +
+    `<span><i>火</i><b>${player.power.toFixed(2)}</b></span>` +
+    `<span><i>残</i><b>${Math.max(0, player.lives)}</b></span>` +
+    `<span><i>弹</i><b>${player.bombs}</b></span>` +
+    `<span><i>速度</i><b style="color:${SPEED > 1 ? '#ffd76e' : '#6a7196'}">${SPEED}×</b></span>` +
+    `<span><i>AI</i><b style="color:${AI.on ? '#6effc0' : '#6a7196'}">${AI.on ? '开' : '关'}</b></span>` +
+    `<span><i>阶段</i><b>${run.scene === 'play' ? boss ? (boss.card ? boss.card.name : boss.state) : '杂兵' : '-'}</b></span>`;
+}
+
+/* ==========================================================================
+   测试接口（无头回归用；自己都带自检，判据坏了必须先怀疑判据）
+   ========================================================================== */
+window.__DM = {
+  get run() { return run; },
+  get player() { return player; },
+  get bullets() { return bullets; },
+  get boss() { return boss; },
+  start,
+  step(n) {
+    for (let i = 0; i < (n || 60); i++)
+      if (run.scene === 'play' && !run.paused && !run.over && !run.cleared) update(1);
+  },
+  key(k, v) { P[k] = v; },
+  /* ---- AI 接管 / 二倍速 的测试接口 ---- */
+  get AI() { return AI; },
+  get SPEED() { return SPEED; },
+  get acc() { return acc; },
+  toggleAI, toggleSpeed, advance, aiSteer, syncToggles,
+  /* ---- 温和反馈的测试接口 ---- */
+  edgePulse, softBreath,
+  // 造弹：绕 PAT / Boss，直接注入也能测擦弹和碰撞
+  mkBullet, PAT, mkLaser, useBomb, hitPlayer, STAGES, COL,
+  mkShot, damageBoss,   // 测「符卡击破是否结算奖励」时注入伤害用
+  /**
+   * 冻结/恢复自带的动画循环，让 step() 成为唯一时钟。
+   *
+   * ⚠️ 为什么不加这个接口就测不准（这个坑值得记）：
+   *    页面自己的 requestAnimationFrame 一直在跑，测试的 step() 在旁边赛跑。
+   *    玩家在原地不动 → 挨打 → 4 次掉光残机 → run.over = true
+   *    → 此后 step() 里的 `if (... && !run.over)` 全部不成立，什么都不推进。
+   *    于是所有判据都读到「游戏没反应」，而游戏代码其实一点问题都没有。
+   *    表现就是：判据失败，但失败得毫无道理。
+   */
+  freeze() { loopOn = false; cancelAnimationFrame(raf); raf = 0; },
+  unfreeze() { if (!raf) { loopOn = true; lastTs = 0; raf = requestAnimationFrame(frame); } },
+  FIELD_W, PLAY_R, H,
+  get lasers() { return lasers; },
+  get items() { return items; },
+  get enemies() { return enemies; },
+  get shots() { return shots; },   // 玩家子弹：测「打掉符卡是否结算奖励」时用
+  /** 把玩家瞬移到某点，并清掉无敌，方便确定性测试 */
+  warp(x, y) {
+    player.x = x; player.y = y; player.invuln = 0; player.dead = 0;
+  },
+  /** 直接跳到第 n 关并出 Boss，测符卡逻辑 */
+  gotoStage(n) {
+    run.stage = n - 1;
+    bullets.length = 0; lasers.length = 0; enemies.length = 0; items.length = 0;
+    boss = null;
+    nextStage();
+    waveT = 0; waveN = 99;   // 下一帧直接出 Boss
+  },
+};
+
+/* 测试接口别名：本项目历史上有两个叫法（__DM / __TH）。
+   两个名字指向**同一个对象**，不是两份状态 —— 判据传哪个参数都能跑。
+   ⚠️ 不要为了"统一"删掉其中一个：删哪个都会让另一半历史脚本立刻失效
+   （本轮判据就是以 __TH 调用的，而代码里原本只挂了 __DM）。 */
+window.__TH = window.__DM;
+
+/* ---- 启动 ---- */
+newRun();
+run.scene = 'title';
+syncToggles();      // 让开始面板的 AI/倍速按钮一开始就显示正确状态
+fit();
+raf = requestAnimationFrame(frame);
+</script>
+</body>
+</html>

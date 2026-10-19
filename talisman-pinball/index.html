@@ -93,8 +93,9 @@
   #tip{position:absolute;left:50%;bottom:10px;transform:translateX(-50%);
     color:#7a684a;font-size:11.5px;letter-spacing:.5px;white-space:nowrap;
     background:rgba(247,239,221,.72);padding:2px 12px;border-radius:10px}
-  /* 提示条放在符墙下沿之外的空场区：压在墙上会挡住玩家正在读的元素颜色 */
-  #toast{position:absolute;left:50%;top:38%;transform:translateX(-50%);
+  /* 提示条放在**符盘上方**的空场区（74%）：墙刚生成时在顶部，
+     下压到 74% 时游戏已经接近尾声，这时提示条被压住也不影响判断。 */
+  #toast{position:absolute;left:50%;top:74%;transform:translateX(-50%);
     color:var(--gold);font-size:13px;letter-spacing:3px;opacity:0;
     transition:opacity .22s;white-space:nowrap;
     background:rgba(253,247,232,.88);border:1px solid rgba(201,162,39,.38);
@@ -119,18 +120,22 @@
         <li><span class="kk">走 位</span><span class="k">←</span><span class="k">→</span> / <span class="k">A</span><span class="k">D</span>　移动行者，接住下落的灵弹</li>
         <li><span class="kk">瞄 准</span><span class="k">↑</span><span class="k">↓</span> / <span class="k">W</span><span class="k">S</span>　旋转符盘，决定弹出角度</li>
         <li><span class="kk">元 素</span><span class="k">1</span><span class="k">2</span><span class="k">3</span><span class="k">4</span> / <span class="k">Q</span>　火 水 雷 风</li>
+        <li><span class="kk">爆 发</span><span class="k">E</span>　能量满槽后释放，清符矢 + 全屏反应 + 推回符阵</li>
         <li><span class="kk">其 他</span><span class="k">空格</span> 立刻重发　<span class="k">P</span> 暂停　<span class="k">T</span> 二倍速　<span class="k">Shift</span>+<span class="k">A</span> AI 接管</li>
       </ul>
 
       <b style="font-size:12.5px;letter-spacing:1px">元素反应</b>
       <table class="rxt">
-        <tr><td><i class="e pyro">火</i>×<i class="e hydro">水</i></td><td>蒸发</td><td>×2.0</td></tr>
-        <tr><td><i class="e hydro">水</i>×<i class="e pyro">火</i></td><td>蒸发</td><td>×1.6</td></tr>
-        <tr><td><i class="e pyro">火</i>×<i class="e electro">雷</i></td><td>超载（范围爆炸）</td><td>×1.5</td></tr>
-        <tr><td><i class="e hydro">水</i>×<i class="e electro">雷</i></td><td>感电（同排连锁）</td><td>×1.3</td></tr>
-        <tr><td><i class="e anemo">风</i>×任意</td><td>扩散（传染邻块）</td><td>×1.25</td></tr>
+        <tr><td><i class="e pyro">火</i>×<i class="e hydro">水</i></td><td>蒸发</td><td>×2.0 伤害翻倍</td></tr>
+        <tr><td><i class="e hydro">水</i>×<i class="e pyro">火</i></td><td>蒸发</td><td>×1.6 伤害提升</td></tr>
+        <tr><td><i class="e pyro">火</i>×<i class="e electro">雷</i></td><td>超载</td><td>×1.5 范围爆炸</td></tr>
+        <tr><td><i class="e hydro">水</i>×<i class="e electro">雷</i></td><td>感电</td><td>×1.3 同排连锁</td></tr>
+        <tr><td><i class="e anemo">风</i>×<i class="e pyro">火</i></td><td>燎原</td><td>×1.45 同排点燃</td></tr>
+        <tr><td><i class="e anemo">风</i>×<i class="e hydro">水</i></td><td>浸润</td><td>×1.2 符阵减速</td></tr>
+        <tr><td><i class="e anemo">风</i>×<i class="e electro">雷</i></td><td>雷暴</td><td>×1.4 同列麻痹</td></tr>
       </table>
-      <p class="note">阵上每一排大多是同一种元素。看清颜色换对应元素，两下就能敲穿一块。</p>
+      <p class="note">反应会把符块「染成」你打出的元素 —— 换一种元素接着打，就能连着反应。同元素不反应。</p>
+      <p class="note">每 <b>8 阵</b>为一章，章末是<b>符使 BOSS</b>：焰狱（扇形符矢）/ 潮汐（环形）/ 雷罚（锁定雷击），半血进第二阶段。灵弹可以直接击落符矢。</p>
     </div>
     <div class="pfoot">
       <span class="btn primary" id="b0">开 始</span>
@@ -190,7 +195,9 @@
 
   /* ============================ 几何常量 ============================ */
   const PADDLE_Y   = 792;      // 符盘中心线
-  const PADDLE_HW  = 52;       // 符盘半宽
+  // v1.4.0：符盘 52 → 58。接球窗口宽了 12%，这是「降难度」里最直接的一刀 ——
+  //   它不改变任何规则，只是把「差一点点没接到」的情况变得少一些。
+  const PADDLE_HW  = 58;
   const PADDLE_HH  = 8;        // 符盘半高
   const DANGER_Y   = 816;      // 符阵越过此线 = 突破防线
   const BALL_R     = 8.5;
@@ -204,6 +211,40 @@
   const WALL_X = (W - (COLS * BW + (COLS - 1) * GX)) / 2;
   const DMG_BASE = 12;         // 灵弹基础伤害
 
+  /* ---------- v1.4.0 新增：元素能量 · 元素爆发 ---------- */
+  // 每次命中积攒能量，满槽后可放一次「元素爆发」。
+  // 设计意图：这是给玩家的「翻身牌」—— 墙压得太狠时一次性把局面推开，
+  // 而不是靠调低伤害把游戏变简单。难度下降来自「有解法」，不是「没威胁」。
+  const ENERGY_MAX = 100;
+  const EN_HIT  = 2.4;         // 普通命中
+  const EN_RX   = 13;          // 触发反应
+  const EN_BREAK = 5;          // 敲碎一块
+  const BURST_DMG = 26;        // 爆发对每块的基础伤害（仍走反应倍率）
+
+  /* ---------- v1.4.0 新增：章节 ----------
+     每 8 阵为一章，章末是 BOSS 阵。三章循环，章名只影响横幅与配色提示。 */
+  const WAVES_PER_CHAPTER = 8;
+  const CHAPTERS = [
+    { name: '璃月 · 归离原', sub: 'GUILLI PLAINS', tag: '#8a6410' },
+    { name: '层岩 · 伏鳌谷', sub: 'THE CHASM',     tag: '#7a5a2a' },
+    { name: '天遒 · 遁玉陵', sub: 'DUNYU RUINS',   tag: '#6b4a1e' },
+  ];
+  /** 章节序号（0 起），无尽模式下取模循环 */
+  function chapterOf(n) { return Math.floor((n - 1) / WAVES_PER_CHAPTER); }
+  function chapterData(n) { return CHAPTERS[chapterOf(n) % CHAPTERS.length]; }
+  function isBossWave(n) { return n % WAVES_PER_CHAPTER === 0; }
+
+  /* 三种 BOSS：弹型不同，不是换皮。
+     fan  —— 扇形三连符矢，逼你横向移动
+     ring —— 环形慢速，逼你从缝里穿
+     bolt —— 锁定雷击，先落预警圈再劈下来 */
+  const BOSS_KINDS = [
+    { key: 'pyro',    name: '焰 狱 符 使', fire: 'fan',  c: '#c0441c', rgb: '192,68,28' },
+    { key: 'hydro',   name: '潮 汐 符 使', fire: 'ring', c: '#1a5f9e', rgb: '26,95,158' },
+    { key: 'electro', name: '雷 罚 符 使', fire: 'bolt', c: '#5b3aa8', rgb: '91,58,168' },
+  ];
+  const PROJ_CAP = 5;          // BOSS 符矢同时在场硬上限（普通阵恒为 0）
+
   /* ============================ 元素 ============================ */
   const EL = {
     pyro:    { name: '火', c: '#c0441c', c2: '#f2915c', rgb: '192,68,28' },
@@ -215,20 +256,36 @@
 
   /* 反应表：键 = 灵弹元素 + '+' + 符块元素
      倍率参考《原神》：蒸发（水打火）2.0 / 火打水 1.5；
-     这里为了让四元素都可用，把火打水定为 1.6、超载 1.5、感电 1.3。 */
+     这里为了让四元素都可用，把火打水定为 1.6、超载 1.5、感电 1.3。
+
+     v1.4.0：风从「一种扩散」拆成三条分支。
+     原版风打谁都是扩散 ×1.25，等于「风就是万金油倍率」——
+     既没有决策，也吃掉了风和其他三元素的差异。现在按被吹的元素分：
+       风 → 火 = 燎原（同排点燃 + 持续伤害）
+       风 → 水 = 浸润（墙整体减速，控场）
+       风 → 雷 = 雷暴（同列全伤 + 短暂麻痹）
+     风打风仍然不反应 —— 同元素无反应这条规则对四元素一视同仁。 */
   const RX = {
-    'hydro+pyro':    { name: '蒸发', mul: 2.0,  kind: 'vapor', rgb: '255,138,74' },
-    'pyro+hydro':    { name: '蒸发', mul: 1.6,  kind: 'vapor', rgb: '255,138,74' },
-    'pyro+electro':  { name: '超载', mul: 1.5,  kind: 'aoe',   rgb: '176,110,240' },
-    'electro+pyro':  { name: '超载', mul: 1.5,  kind: 'aoe',   rgb: '176,110,240' },
-    'electro+hydro': { name: '感电', mul: 1.3,  kind: 'chain', rgb: '132,116,240' },
-    'hydro+electro': { name: '感电', mul: 1.3,  kind: 'chain', rgb: '132,116,240' },
+    'hydro+pyro':    { name: '蒸发', mul: 2.0,  kind: 'vapor', rgb: '255,138,74', tip: '伤害翻倍' },
+    'pyro+hydro':    { name: '蒸发', mul: 1.6,  kind: 'vapor', rgb: '255,138,74', tip: '伤害提升' },
+    'pyro+electro':  { name: '超载', mul: 1.5,  kind: 'aoe',   rgb: '176,110,240', tip: '范围爆炸' },
+    'electro+pyro':  { name: '超载', mul: 1.5,  kind: 'aoe',   rgb: '176,110,240', tip: '范围爆炸' },
+    'electro+hydro': { name: '感电', mul: 1.3,  kind: 'chain', rgb: '132,116,240', tip: '同排连锁' },
+    'hydro+electro': { name: '感电', mul: 1.3,  kind: 'chain', rgb: '132,116,240', tip: '同排连锁' },
+    'anemo+pyro':    { name: '燎原', mul: 1.45, kind: 'burn',  rgb: '255,120,60',  tip: '同排点燃' },
+    'anemo+hydro':   { name: '浸润', mul: 1.2,  kind: 'soak',  rgb: '90,180,230',  tip: '符阵减速' },
+    'anemo+electro': { name: '雷暴', mul: 1.4,  kind: 'storm', rgb: '150,120,255', tip: '同列麻痹' },
   };
-  /** 风永远触发扩散；同元素无反应。 */
+  /** 同元素不反应；其余查表。不再有「风无条件扩散」的特例。 */
   function reactionOf(atk, def) {
-    if (atk === 'anemo') return { name: '扩散', mul: 1.25, kind: 'swirl', rgb: '104,214,176' };
     if (atk === def) return null;
     return RX[atk + '+' + def] || null;
+  }
+  /** 反应链：反应结束后，符块被「染上」攻击元素。
+   *  这样下一发换个元素打，就能接着反应 —— 和《原神》里附着元素被消耗后
+   *  重新挂上另一种元素的手感一致，也是本作连招的基础。 */
+  function transmute(blk, atkEl) {
+    if (blk.alive && blk.el !== atkEl) { blk.el = atkEl; blk.tint = 1; }
   }
 
   /* ============================ 工具 ============================ */
@@ -352,17 +409,29 @@
   function newRun() {
     run = {
       t: 0, wave: 0, score: 0, combo: 0, bestCombo: 0,
-      hp: 3, maxHp: 3, over: false, paused: false,
+      // v1.4.0：命 3 → 5。配合「越线回退」与元素爆发，把一局的容错拉长。
+      hp: 5, maxHp: 5, over: false, paused: false,
       el: 'pyro',
-      blocks: [], ball: null, projs: [], parts: [], floats: [],
+      blocks: [], ball: null, projs: [], bolts: [], parts: [], floats: [],
       arcs: [], ring: null,
-      wallY: 0, wallSpeed: 12, wallDone: false, rest: 1.1,
+      wallY: 0, wallSpeed: 12, wallDone: false, rest: 2.0,
       // 温和反馈：屏幕边缘的色彩脉冲（v 从 1 衰减到 0），
       // **没有位移抖动，也没有全屏白闪** —— 用户明确要求去掉这两样。
       edge: { v: 0, rgb: '168,50,38' },
       ai: AI.on, speed: run_speed_hold(), acc: 0,
       hurtCd: 0, wallsCleared: 0, blocksBroken: 0, leak: 0,
       reactions: {}, bossPhaseT: 0,
+      // ---- v1.4.0 ----
+      energy: 0,            // 元素能量 0..ENERGY_MAX
+      bursts: 0,            // 放过几次元素爆发（结算面板用）
+      chapter: 0,           // 当前章节（0 起）
+      boss: null,           // BOSS 阵的元数据（名字/类型/血量）
+      phase: 1,             // BOSS 阶段 1 / 2
+      stunT: 0,             // 麻痹：墙暂停（秒）
+      soakT: 0,             // 浸润：墙减速（秒）
+      burnT: 0,             // 燎原：墙受持续伤害（秒）
+      burstT: 0,            // 元素爆发的视觉余晖
+      boltWarn: 0,          // 雷击预警剩余
     };
     paddle = { x: W / 2, tilt: 0, aim: -Math.PI / 2 };
     AIK.left = AIK.right = AIK.up = AIK.down = false;
@@ -390,6 +459,7 @@
       case 'KeyP': if (!run.over) togglePause(); break;
       case 'KeyT': toggleSpeed(); break;
       case 'KeyQ': cycleEl(); break;
+      case 'KeyE': elementalBurst(); break;
       case 'Digit1': setEl(0); break;
       case 'Digit2': setEl(1); break;
       case 'Digit3': setEl(2); break;
@@ -536,12 +606,16 @@
 
   /**
    * 生成第 n 阵。
-   * 每 5 阵是 BOSS 阵：中央一枚大符核（元素每 4 秒轮转一次），四周是护甲块。
+   * v1.4.0：每 8 阵为一章，章末（n % 8 === 0）是 BOSS 阵。
+   * BOSS 有名字、独立血条、两种阶段，三种弹型按章轮换。
+   *
+   * 降难度三处：墙速 10.5+0.55n → 7.6+0.32n（封顶 13）、
+   * 符块血 10+2n → 8+1.3n、BOSS 也压得更慢。
    */
   function spawnWall(n) {
-    const boss = n % 5 === 0;
+    const bossWave = isBossWave(n);
     // 第 1 阵 2 排（16 块），之后每两阵加一排（最多 5 排）
-    const rows = boss ? 3 : Math.min(2 + Math.floor((n - 1) / 2), 5);
+    const rows = bossWave ? 3 : Math.min(2 + Math.floor((n - 1) / 2), 5);
     run.blocks = [];
     // ⚠️ 墙必须生成在**可见区域内**（HUD 下沿 y=78）。
     //    第一版写的是 -(rows*PITCH_Y) - 46，也就是从屏幕外压进来 ——
@@ -549,23 +623,45 @@
     //    现在从 y=82 开始，并用 0.35 秒淡入代替"凭空跳出"。
     run.wallY = 82;
     run.wallFade = 0;
-    run.wallSpeed = 10.5 + n * 0.55;
-    const baseHp = 10 + n * 2;
+    run.wallSpeed = Math.min(13, 7.6 + n * 0.32);
+    const baseHp = 8 + n * 1.3;
 
-    if (boss) {
-      const coreEl = EL_ORDER[n % 4];
-      // 护甲：上下两排、左右两侧，中间留出核心位置
+    // 章节推进：只在真正跨章的那一阵提示，不在每阵刷屏
+    const ch = chapterOf(n);
+    if (ch !== run.chapter) {
+      run.chapter = ch;
+      if (n > 1) {
+        const cd = CHAPTERS[ch % CHAPTERS.length];
+        toast(cd.name, cd.tag);
+        run.edge.v = Math.max(run.edge.v, 0.26);
+        run.edge.rgb = '201,162,39';
+      }
+    }
+
+    if (bossWave) {
+      const kind = BOSS_KINDS[ch % BOSS_KINDS.length];
+      const bossHp = 170 + n * 12;
+      // BOSS 压得更慢：给玩家拆护甲的时间
+      run.wallSpeed = Math.min(10, 6.2 + n * 0.18);
       for (let row = 0; row < 3; row++) {
         for (let col = 0; col < COLS; col++) {
           const isCore = (row === 1 && (col === 3 || col === 4));
           if (isCore) continue;
-          run.blocks.push(mkBlock(col, row, EL_ORDER[(row + n) % 4], baseHp * 0.8));
+          // 护甲排刻意混两种元素：逼玩家在同一个阵里换元素打反应链
+          const el = EL_ORDER[(row + ch + (col % 2)) % 4];
+          run.blocks.push(mkBlock(col, row, el, baseHp * 0.75));
         }
       }
-      run.blocks.push(mkBlock(3, 1, coreEl, 150 + n * 18, {
-        w: BW * 2 + GX, h: BH, boss: true,
-      }));
-      toast('镇 岳 符 核', '#a83226');
+      const core = mkBlock(3, 1, kind.key, bossHp, { w: BW * 2 + GX, h: BH, boss: true });
+      core.phase = 1;
+      run.blocks.push(core);
+      run.boss = {
+        kind: kind.key, name: kind.name, fire: kind.fire,
+        maxHp: bossHp, hp: bossHp, c: kind.c, rgb: kind.rgb,
+      };
+      run.phase = 1;
+      run.bossPhaseT = 0;
+      toast(kind.name, kind.c);
     } else {
       const pat = (n - 1) % 3;
       for (let row = 0; row < rows; row++) {
@@ -578,6 +674,7 @@
           run.blocks.push(mkBlock(col, row, el, baseHp));
         }
       }
+      run.boss = null;
       toast('第 ' + n + ' 阵', '#8a6410');
     }
   }
@@ -612,7 +709,8 @@
     float(cx, cy - 8, '感电', '#5b3aa8');
   }
 
-  /** 扩散：把命中块的元素"传染"给最近的 3 块，并造成小额伤害 */
+  /** 扩散：把命中块的元素"传染"给最近的 3 块，并造成小额伤害
+   *  （v1.4.0 起由「燎原 / 浸润 / 雷暴」三条分支取代，保留此函数供旧判据与降级路径使用） */
   function rxSwirl(blk) {
     const cx = blockCX(blk), cy = blockCY(blk);
     const near = run.blocks
@@ -629,6 +727,62 @@
     float(cx, cy - 8, '扩散', '#1a7a5e');
   }
 
+  /* ---------- v1.4.0：风的三条分支 ---------- */
+
+  /** 燎原（风 → 火）：同排最多 3 块被点燃，各受 9 点伤害；
+   *  整面墙进入 2.4 秒灼烧（视觉 + 轻微持续掉血由 update 结算）。 */
+  function rxBurn(blk, atkEl) {
+    const cx = blockCX(blk), cy = blockCY(blk);
+    const near = run.blocks
+      .filter(o => o !== blk && o.alive && o.row === blk.row)
+      .sort((a, b) => Math.abs(blockCX(a) - cx) - Math.abs(blockCX(b) - cx))
+      .slice(0, 3);
+    for (const o of near) {
+      hurtBlock(o, 9, atkEl, true);
+      o.burn = 1;
+      run.arcs.push({ x1: cx, y1: cy, x2: blockCX(o), y2: blockCY(o), life: 0.3, col: '255,140,60' });
+    }
+    blk.burn = 1;
+    run.burnT = 2.4;
+    float(cx, cy - 8, '燎原', '#d2551e');
+  }
+
+  /** 浸润（风 → 水）：符阵整体减速 55%，持续 2.6 秒。
+   *  这是纯控场反应 —— 不追求伤害，换的是「喘息时间」。 */
+  function rxSoak(blk) {
+    const cx = blockCX(blk), cy = blockCY(blk);
+    run.soakT = 2.6;
+    burst(cx, cy, 16, '#63b8ea', 3.4);
+    float(cx, cy - 8, '浸润 · 符阵迟滞', '#1a5f9e');
+  }
+
+  /** 雷暴（风 → 雷）：同列所有符块各受 12 点伤害，并让符阵麻痹 1.3 秒 */
+  function rxStorm(blk, atkEl) {
+    const cx = blockCX(blk), cy = blockCY(blk);
+    let hit = 0;
+    for (const o of run.blocks) {
+      if (!o.alive || o === blk) continue;
+      if (o.col !== blk.col && !o.boss) continue;   // 同列 + 符核一起挨
+      hurtBlock(o, 12, atkEl, true);
+      run.arcs.push({ x1: cx, y1: cy, x2: blockCX(o), y2: blockCY(o), life: 0.36, col: '150,120,255' });
+      hit++;
+    }
+    run.stunT = 1.3;
+    burst(cx, cy, 22, '#a98ae6', 4.2);
+    float(cx, cy - 8, '雷暴' + (hit ? ' ×' + hit : ''), '#5b3aa8');
+  }
+
+  /** 反应副作用的统一入口：hitBlock 与元素爆发共用，避免两条路径行为不一致 */
+  function applyRx(rx, blk, atkEl) {
+    if (!rx) return;
+    if (rx.kind === 'aoe')        rxOverload(blk);
+    else if (rx.kind === 'chain') rxChain(blk, atkEl);
+    else if (rx.kind === 'swirl') rxSwirl(blk);
+    else if (rx.kind === 'burn')  rxBurn(blk, atkEl);
+    else if (rx.kind === 'soak')  rxSoak(blk);
+    else if (rx.kind === 'storm') rxStorm(blk, atkEl);
+  }
+
   /* ============================ 伤害 ============================ */
   function hurtBlock(blk, dmg, atkEl, silent) {
     if (!blk.alive) return;
@@ -642,6 +796,7 @@
     if (!blk.alive) return;
     blk.alive = false;
     run.blocksBroken++;
+    gainEnergy(EN_BREAK);
     run.combo++;
     run.bestCombo = Math.max(run.bestCombo, run.combo);
     run.score += (blk.boss ? 800 : 30) + Math.min(run.combo, 30) * 2;
@@ -666,24 +821,80 @@
     blk.hp -= total;
     blk.flash = 1;
     blk.reactCd = 0.3;
+    gainEnergy(EN_HIT);
 
     const cx = blockCX(blk), cy = blockCY(blk);
     if (rx) {
       run.reactions[rx.name] = (run.reactions[rx.name] || 0) + 1;
       run.score += 40;
+      gainEnergy(EN_RX);
       run.edge.v = Math.max(run.edge.v, rx.kind === 'aoe' ? 0.34 : 0.2);
       run.edge.rgb = rx.rgb;
       burst(cx, cy, 18, rx.kind === 'aoe' ? '#b06ef0' : EL[atkEl].c2, 4);
       float(cx, cy - 10, rx.name + ' ×' + mul.toFixed(1), EL[blk.el].c);
-      if (rx.kind === 'aoe') rxOverload(blk);
-      else if (rx.kind === 'chain') rxChain(blk, atkEl);
-      else if (rx.kind === 'swirl') rxSwirl(blk);
+      applyRx(rx, blk, atkEl);
+      // ⚠️ 顺序很重要：先跑副作用（可能把块打碎），再染色。
+      //    如果先染色，rxSwirl 这类"以块自身元素为源"的效果会读到被改写后的元素。
+      transmute(blk, atkEl);
     } else if (mul === 1) {
       burst(cx, cy, 5, EL[atkEl].c2, 2.2);
     }
 
+    // BOSS 核心同步血条
+    if (blk.boss && run.boss) run.boss.hp = Math.max(0, blk.hp);
+
     if (blk.hp <= 0) destroyBlock(blk);
     return { rx, mul, total };
+  }
+
+  /* ---------- v1.4.0：元素能量 ---------- */
+  function gainEnergy(v) {
+    if (run.over) return;
+    run.energy = Math.min(ENERGY_MAX, run.energy + v);
+  }
+
+  /** 元素爆发：清掉全部符矢、对全屏符块结算一次反应伤害、把墙顶回去一点。
+   *  这是「降难度」里唯一一条不靠削弱敌人的手段 —— 玩家手里永远有一张翻身牌。 */
+  function elementalBurst() {
+    if (run.energy < ENERGY_MAX || run.over || run.paused) return false;
+    run.energy = 0;
+    run.bursts++;
+    run.burstT = 1;
+    const atkEl = run.el;
+
+    // 先把所有符矢清掉（含雷击预警）
+    run.projs.length = 0;
+    run.bolts.length = 0;
+
+    // 全屏结算：每块按当时的元素算一次反应
+    for (const blk of run.blocks.slice()) {
+      if (!blk.alive) continue;
+      const rx = reactionOf(atkEl, blk.el);
+      const mul = rx ? rx.mul : 1;
+      blk.hp -= BURST_DMG * mul;
+      blk.flash = 1;
+      if (rx) {
+        run.reactions[rx.name] = (run.reactions[rx.name] || 0) + 1;
+        applyRx(rx, blk, atkEl);
+        transmute(blk, atkEl);
+      }
+      if (blk.hp <= 0) destroyBlock(blk);
+      else if (blk.boss && run.boss) run.boss.hp = Math.max(0, blk.hp);
+    }
+
+    run.wallY -= 34;                   // 把符阵顶回去一小段
+    // ⚠️ 这里必须再清一次能量。
+    //    爆发在遍历中会调用 destroyBlock() → gainEnergy()，
+    //    20 块全碎能回填 100 点，刚好把槽重新充满 —— 表现就是「爆发可以无限连放」。
+    //    第一次跑判据就是被这条抓到的（energy 期望 0，实际 100）。
+    run.energy = 0;
+    run.edge.v = 1;
+    run.edge.rgb = EL[atkEl].rgb;
+    run.ring = { x: W / 2, y: PADDLE_Y - 60, r: 10, max: 520, rgb: EL[atkEl].rgb, life: 1 };
+    burst(W / 2, PADDLE_Y - 40, 40, EL[atkEl].c2, 6);
+    float(W / 2, PADDLE_Y - 96, EL[atkEl].name + ' · 元 素 爆 发', EL[atkEl].c);
+    toast('元 素 爆 发', EL[atkEl].c);
+    return true;
   }
 
   /* ============================ 灵弹 ============================ */
@@ -803,12 +1014,35 @@
   }
 
   /* ============================ BOSS 符矢 ============================ */
+  function pushProj(x, y, ang, spd, el) {
+    run.projs.push({
+      x, y, r: 6, spin: 0, dead: false, el, trail: [],
+      vx: Math.cos(ang) * spd, vy: Math.sin(ang) * spd,
+    });
+  }
+
   function updateProjs(dt) {
+    const b = run.ball;
     for (const p of run.projs) {
       p.x += p.vx * dt; p.y += p.vy * dt;
-      p.spin += dt * 0.12;
+      p.spin += dt * 0.11;
+      p.trail = p.trail || [];
+      p.trail.push({ x: p.x, y: p.y });
+      if (p.trail.length > 8) p.trail.shift();
       if (p.y > H + 20 || p.y < -20 || p.x < -20 || p.x > W + 20) p.dead = true;
-      // 打符盘
+
+      // v1.4.0：灵弹可以击落符矢。
+      //   原来是「符矢只能躲」—— 玩家除了走位没有任何反制手段，
+      //   而走位空间又被下压的墙挤着。给一条反制路径比单纯降弹速更有效。
+      if (b && !b.stuck && !p.dead
+          && Math.hypot(b.x - p.x, b.y - p.y) < BALL_R + p.r + 2) {
+        p.dead = true;
+        gainEnergy(6);
+        burst(p.x, p.y, 10, EL[p.el].c2, 2.8);
+        float(p.x, p.y - 8, '击落', EL[p.el].c);
+        continue;
+      }
+
       if (Math.abs(p.y - PADDLE_Y) < PADDLE_HH + p.r
           && Math.abs(p.x - paddle.x) < PADDLE_HW + p.r) {
         p.dead = true;
@@ -819,20 +1053,69 @@
     run.projs = run.projs.filter(p => !p.dead);
   }
 
+  /** 雷击预警：先落一个收缩的圈，0.85 秒后劈下来。
+   *  从预警到落地有整整 51 帧，足够走开 —— 这是「可读的威胁」而不是「随机惩罚」。 */
+  function updateBolts(dt) {
+    for (const q of run.bolts) {
+      if (q.warn > 0) {
+        q.warn -= dt * 0.0166;
+        if (q.warn <= 0) {
+          q.hit = true;
+          burst(q.x, q.y, 24, '#a98ae6', 4.6);
+          run.ring = { x: q.x, y: q.y, r: 8, max: 62, rgb: '150,120,255', life: 1 };
+          run.edge.v = Math.max(run.edge.v, 0.3);
+          run.edge.rgb = '150,120,255';
+          if (Math.abs(paddle.x - q.x) < 40) damagePlayer(1, '雷 击');
+          // 雷也劈墙：引雷是玩家可以主动利用的拆阵手段
+          for (const blk of run.blocks) {
+            if (!blk.alive) continue;
+            const cy = blockCY(blk);
+            if (Math.abs(blockCX(blk) - q.x) < 46 && Math.abs(cy - (q.y - 60)) < 90) {
+              hurtBlock(blk, 10, 'electro', true);
+            }
+          }
+        }
+      } else {
+        q.life = (q.life || 0) + dt * 0.0166;
+        if (q.life > 0.3) q.dead = true;
+      }
+    }
+    run.bolts = run.bolts.filter(q => !q.dead);
+  }
+
   function bossFire() {
     const core = run.blocks.find(b => b.boss && b.alive);
     if (!core) return;
-    // 同时在场 ≤ 4 发：这是"不是满屏弹幕"的硬约束
-    if (run.projs.length >= 4) return;
     const cx = blockCX(core), cy = blockCY(core);
-    const n = run.hp >= 2 ? 1 : 2;
-    for (let i = 0; i < n; i++) {
-      const ang = Math.atan2(PADDLE_Y - cy, paddle.x + rnd(-60, 60) - cx);
-      run.projs.push({
-        x: cx, y: cy, r: 6, spin: 0, dead: false,
-        vx: Math.cos(ang) * 3.1, vy: Math.sin(ang) * 3.1,
-        el: core.el,
-      });
+    const kind = (run.boss && run.boss.fire) || 'fan';
+    const p2 = run.phase >= 2;
+
+    if (kind === 'ring') {
+      // 环形：从核心向下半圆铺开，靠「缝」通过
+      const n = p2 ? 6 : 5;
+      if (run.projs.length + n > PROJ_CAP) return;
+      for (let i = 0; i < n; i++) {
+        const ang = Math.PI / 2 + (i - (n - 1) / 2) * 0.30;
+        pushProj(cx, cy, ang, 2.5, core.el);
+      }
+    } else if (kind === 'bolt') {
+      // 锁定雷击：只落 1~2 处，靠预警圈逼走位
+      if (run.bolts.length >= 2) return;
+      const spots = p2 ? 2 : 1;
+      for (let i = 0; i < spots; i++) {
+        run.bolts.push({
+          x: clamp(paddle.x + rnd(-80, 80), 30, W - 30),
+          y: PADDLE_Y - 10, warn: 0.85, life: 0,
+        });
+      }
+    } else {
+      // 扇形三连：逼横向移动
+      const cnt = p2 ? 5 : 3;
+      if (run.projs.length + cnt > PROJ_CAP) return;
+      const base = Math.atan2(PADDLE_Y - cy, paddle.x - cx);
+      for (let i = 0; i < cnt; i++) {
+        pushProj(cx, cy, base + (i - (cnt - 1) / 2) * 0.17, 3.0, core.el);
+      }
     }
   }
 
@@ -874,10 +1157,27 @@
     paddle.tilt = clamp(paddle.tilt + tv * TILT_SPD * dt, -TILT_MAX, TILT_MAX);
     paddle.aim = -Math.PI / 2 + paddle.tilt;
 
+    /* ---- v1.4.0 控场状态衰减 ---- */
+    run.stunT = Math.max(0, run.stunT - dt * 0.0166);
+    run.soakT = Math.max(0, run.soakT - dt * 0.0166);
+    run.burstT = Math.max(0, run.burstT - dt * 0.02);
+    // 燎原的持续灼烧：约每 0.4 秒随机烧一块（不烧符核，否则太容易白嫖）
+    if (run.burnT > 0) {
+      run.burnT = Math.max(0, run.burnT - dt * 0.0166);
+      run.burnAcc = (run.burnAcc || 0) + dt;
+      if (run.burnAcc > 24) {
+        run.burnAcc = 0;
+        const alive = run.blocks.filter(b => b.alive && !b.boss);
+        if (alive.length) hurtBlock(alive[rndi(0, alive.length - 1)], 4, 'pyro', true);
+      }
+    }
+
     // 墙下压
     if (run.blocks.length) {
       run.wallFade = Math.min(1, (run.wallFade || 0) + dt / 22);
-      run.wallY += run.wallSpeed * dt * 0.0166;
+      // 麻痹（雷暴）> 浸润（减速）> 正常
+      const wmul = run.stunT > 0 ? 0 : (run.soakT > 0 ? 0.45 : 1);
+      run.wallY += run.wallSpeed * wmul * dt * 0.0166;
       // 突破防线：同排一起碎，扣一颗心
       // 取「最下面」那一排（row 最大）而不是数组里第一个越线的：
       // 数组是按 row 升序生成的，第一个越线的反而是最上面那排 —— 取错就变成
@@ -895,26 +1195,43 @@
         run.leak++;
         run.combo = 0;
         damagePlayer(1, '突 破');
+        // v1.4.0：突破后整面墙回退 84px。
+        //   原来是「掉一排 + 继续压」，一道漏了就很容易连漏三排 ——
+        //   玩家没有恢复节奏的窗口。回退给的是那 2 秒喘息。
+        if (run.blocks.length) run.wallY -= 84;
         toast('符阵突破 · 损 一 命', '#a83226');
       }
     }
 
-    // BOSS 元素轮转 + 放符矢
+    // BOSS 元素轮转 + 阶段切换 + 放符矢
     const core = run.blocks.find(b => b.boss && b.alive);
     if (core) {
+      // 阶段切换：血量降到一半
+      if (run.phase === 1 && core.hp <= core.maxHp * 0.5) {
+        run.phase = 2;
+        core.fireT = -24;                 // 切换后先停半秒，别在动画里放弹
+        toast('符 使 · 第 二 阶 段', '#a83226');
+        float(blockCX(core), blockCY(core) - 30, '第 二 阶 段', '#a83226');
+        run.edge.v = Math.max(run.edge.v, 0.46);
+        run.edge.rgb = '201,162,39';
+        burst(blockCX(core), blockCY(core), 26, EL[core.el].c2, 4.6);
+      }
+      run.phase = core.hp <= core.maxHp * 0.5 ? 2 : Math.max(1, run.phase);
+
       run.bossPhaseT += dt;
-      if (run.bossPhaseT > 240) {          // 4 秒
+      if (run.bossPhaseT > (run.phase >= 2 ? 180 : 240)) {   // 3 秒 / 4 秒
         run.bossPhaseT = 0;
         core.el = EL_ORDER[(EL_ORDER.indexOf(core.el) + 1) % 4];
         burst(blockCX(core), blockCY(core), 12, EL[core.el].c2, 3);
         float(blockCX(core), blockCY(core) - 26, '元素轮转 · ' + EL[core.el].name, EL[core.el].c);
       }
       core.fireT = (core.fireT || 0) + dt;
-      if (core.fireT > 150) { core.fireT = 0; bossFire(); }
+      if (core.fireT > (run.phase >= 2 ? 118 : 152)) { core.fireT = 0; bossFire(); }
     }
 
     stepBall(dt);
     updateProjs(dt);
+    updateBolts(dt);
 
     // ⚠️ 必须把已碎的符块从数组里删掉。
     //    destroyBlock() 只把 alive 置 false，如果一直留在数组里，
@@ -960,7 +1277,11 @@
     if (run.blocks.length > 0) { run.wallDone = false; return; }
     if (!run.wallDone) {
       run.wallDone = true;
-      run.rest = 1.15;
+      // v1.4.0：阵间喘息 1.15 → 1.9 秒。原来破阵后刚松一口气下一面墙就压下来了，
+      //   玩家没有"重新站好位、切好元素"的时间。
+      run.rest = 1.9;
+      run.boss = null;
+      run.phase = 1;
       if (run.wave > 0) {
         run.wallsCleared++;
         const bonus = 120 * run.wave;
@@ -1053,6 +1374,7 @@
     drawRing();
     drawArcs();
     drawProjs();
+    drawBolts();
     drawBall();
     drawPaddle();
     drawParticles();
@@ -1365,17 +1687,64 @@
   function drawProjs() {
     for (const p of run.projs) {
       const E = EL[p.el] || EL.pyro;
+      // 拖尾（越靠后越淡越小）—— 让"这颗往哪飞"一眼可读
+      const tr = p.trail || [];
+      for (let i = 0; i < tr.length; i++) {
+        const a = (i + 1) / (tr.length + 1);
+        ctx.globalAlpha = a * 0.26;
+        ctx.fillStyle = E.c;
+        ctx.beginPath(); ctx.arc(tr[i].x, tr[i].y, p.r * 0.55 * a, 0, TAU); ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+
       ctx.save();
       ctx.translate(p.x, p.y);
       ctx.rotate(p.spin);
-      ctx.shadowColor = E.c; ctx.shadowBlur = 10;
+      // ⚠️ 这里原来用 shadowBlur=10。一屏最多 5 发时不明显，
+      //    但它是全局合成器开销，二倍速下每帧要算 10 次模糊。
+      //    改成「深色外圈 + 亮芯 + 元素描边」，观感更硬朗，开销为 0。
+      ctx.fillStyle = 'rgba(46,32,18,.55)';
+      ctx.beginPath(); ctx.arc(0, 0, p.r + 1.6, 0, TAU); ctx.fill();
       ctx.fillStyle = '#fff6e8';
-      ctx.beginPath();
-      ctx.moveTo(0, -p.r); ctx.lineTo(p.r * 0.75, 0);
-      ctx.lineTo(0, p.r); ctx.lineTo(-p.r * 0.75, 0);
-      ctx.closePath(); ctx.fill();
-      ctx.strokeStyle = E.c; ctx.lineWidth = 1.4; ctx.stroke();
+      ctx.beginPath(); ctx.arc(0, 0, p.r, 0, TAU); ctx.fill();
+      ctx.strokeStyle = E.c; ctx.lineWidth = 1.8;
+      ctx.beginPath(); ctx.arc(0, 0, p.r, 0, TAU); ctx.stroke();
+      ctx.fillStyle = E.c;
+      ctx.beginPath(); ctx.arc(0, 0, p.r * 0.42, 0, TAU); ctx.fill();
       ctx.restore();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  /** 雷击：预警圈 → 落雷光柱 */
+  function drawBolts() {
+    for (const q of run.bolts) {
+      if (q.warn > 0) {
+        const k = 1 - q.warn / 0.85;
+        ctx.save();
+        ctx.strokeStyle = 'rgba(91,58,168,' + (0.34 + k * 0.46).toFixed(3) + ')';
+        ctx.lineWidth = 1.4 + k * 1.6;
+        ctx.setLineDash([5, 4]);
+        ctx.beginPath(); ctx.arc(q.x, q.y - 40, 52 * (1 - k * 0.55), 0, TAU); ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.strokeStyle = 'rgba(91,58,168,.5)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(q.x - 11, q.y); ctx.lineTo(q.x + 11, q.y);
+        ctx.moveTo(q.x, q.y - 11); ctx.lineTo(q.x, q.y + 11);
+        ctx.stroke();
+        ctx.restore();
+      } else if (q.hit) {
+        const a = clamp(1 - (q.life || 0) / 0.3, 0, 1);
+        ctx.save();
+        ctx.globalAlpha = a * 0.82;
+        const g = ctx.createLinearGradient(q.x, q.y - 260, q.x, q.y);
+        g.addColorStop(0, 'rgba(150,120,255,0)');
+        g.addColorStop(1, 'rgba(150,120,255,.85)');
+        ctx.fillStyle = g;
+        ctx.fillRect(q.x - 3, q.y - 260, 6, 260);
+        ctx.restore();
+      }
     }
   }
 
@@ -1403,48 +1772,52 @@
 
   function drawHUD() {
     // 顶部渐隐纸条，保证 HUD 在远山上也读得清
-    const g = ctx.createLinearGradient(0, 0, 0, 74);
-    g.addColorStop(0, 'rgba(253,247,232,.92)');
+    const g = ctx.createLinearGradient(0, 0, 0, 116);
+    g.addColorStop(0, 'rgba(253,247,232,.94)');
+    g.addColorStop(0.72, 'rgba(253,247,232,.55)');
     g.addColorStop(1, 'rgba(253,247,232,0)');
     ctx.fillStyle = g;
-    ctx.fillRect(0, 0, W, 74);
+    ctx.fillRect(0, 0, W, 116);
 
-    // 命：三枚小符
+    /* ---- 第一行：命 / 阵数 / 分数 ---- */
     for (let i = 0; i < run.maxHp; i++) {
-      const x = 24 + i * 20, y = 24;
+      const x = 22 + i * 15, y = 20;
       ctx.save();
       ctx.translate(x, y);
-      ctx.globalAlpha = i < run.hp ? 1 : 0.26;
+      ctx.globalAlpha = i < run.hp ? 1 : 0.24;
       ctx.fillStyle = i < run.hp ? '#a83226' : '#8a7a5c';
       ctx.beginPath();
-      ctx.moveTo(0, -7); ctx.lineTo(6, -3); ctx.lineTo(6, 4);
-      ctx.lineTo(0, 8); ctx.lineTo(-6, 4); ctx.lineTo(-6, -3);
+      ctx.moveTo(0, -6); ctx.lineTo(5, -2.5); ctx.lineTo(5, 3.5);
+      ctx.lineTo(0, 7); ctx.lineTo(-5, 3.5); ctx.lineTo(-5, -2.5);
       ctx.closePath(); ctx.fill();
       ctx.restore();
     }
 
-    // 阵数
     ctx.fillStyle = '#5f4e36';
     ctx.font = '12px "Songti SC",serif';
     ctx.textBaseline = 'middle';
-    ctx.fillText('第 ' + Math.max(1, run.wave) + ' 阵', 96, 24);
+    ctx.fillText('第 ' + Math.max(1, run.wave) + ' 阵', 104, 20);
 
-    // 分数
     ctx.textAlign = 'right';
     ctx.fillStyle = '#33291c';
     ctx.font = '15px Consolas,monospace';
-    ctx.fillText(String(run.score).padStart(6, '0'), W - 20, 24);
+    ctx.fillText(String(run.score).padStart(6, '0'), W - 20, 20);
     ctx.textAlign = 'left';
 
-    // 元素条
+    /* ---- 第二行：章节 / 元素条 ---- */
+    const cd = chapterData(Math.max(1, run.wave));
+    ctx.fillStyle = cd.tag;
+    ctx.font = '11px "Songti SC",serif';
+    ctx.fillText(cd.name, 22, 40);
+
     for (let i = 0; i < 4; i++) {
       const el = EL_ORDER[i], E = EL[el];
-      const x = 152 + i * 46, y = 20;
+      const x = 150 + i * 46, y = 40;
       const on = run.el === el;
       ctx.save();
-      ctx.globalAlpha = on ? 1 : 0.42;
+      ctx.globalAlpha = on ? 1 : 0.46;
       roundRect(ctx, x - 17, y - 10, 34, 20, 10);
-      ctx.fillStyle = on ? 'rgba(' + E.rgb + ',.14)' : 'rgba(255,252,244,.5)';
+      ctx.fillStyle = on ? 'rgba(' + E.rgb + ',.14)' : 'rgba(255,252,244,.55)';
       ctx.fill();
       ctx.strokeStyle = on ? E.c : 'rgba(120,100,66,.5)';
       ctx.lineWidth = on ? 1.6 : 1;
@@ -1459,26 +1832,73 @@
       ctx.restore();
     }
     ctx.textAlign = 'left';
-    ctx.textBaseline = 'alphabetic';
+    ctx.textBaseline = 'middle';
 
-    // 状态徽标：**常驻显示**，而且可以点。
-    // ⚠️ 第一版只在开启时才画徽标 —— 玩家想"点开 AI"根本点不到，
-    //    只能去面板上按，可面板一开局就收起来了。
+    /* ---- 第三行：徽标 / 元素能量 ---- */
     drawBadge(24, AI.on ? 'AI 接管' : 'AI 待命', AI.on);
     drawBadge(92, _speed === 2 ? '×2 二倍速' : '×1 常速', _speed === 2);
+
+    const ex = 160, ey = 66, ew = 180, eh = 10;
+    ctx.fillStyle = 'rgba(120,100,66,.14)';
+    roundRect(ctx, ex, ey, ew, eh, 5); ctx.fill();
+    const pct = clamp(run.energy / ENERGY_MAX, 0, 1);
+    if (pct > 0) {
+      ctx.fillStyle = run.energy >= ENERGY_MAX ? '#c9a227' : EL[run.el].c;
+      roundRect(ctx, ex, ey, Math.max(4, ew * pct), eh, 5); ctx.fill();
+    }
+    ctx.strokeStyle = run.energy >= ENERGY_MAX ? 'rgba(168,50,38,.7)' : 'rgba(138,100,16,.35)';
+    ctx.lineWidth = 1;
+    roundRect(ctx, ex, ey, ew, eh, 5); ctx.stroke();
+    ctx.font = run.energy >= ENERGY_MAX
+      ? '700 10px "Songti SC",serif' : '10px "Songti SC",serif';
+    ctx.fillStyle = run.energy >= ENERGY_MAX ? '#a83226' : 'rgba(95,78,54,.8)';
+    ctx.fillText(run.energy >= ENERGY_MAX ? '按 E · 元素爆发' : '元素能量', ex + ew + 8, ey + 6);
+
+    /* ---- 第四行：BOSS 血条 ---- */
+    if (run.boss) {
+      const core = run.blocks.find(b => b.boss && b.alive);
+      const hp = core ? Math.max(0, core.hp) : 0;
+      const bp = clamp(hp / run.boss.maxHp, 0, 1);
+      const bx = 90, by = 104, bw = 340, bh = 8;
+
+      ctx.fillStyle = 'rgba(253,247,232,.94)';
+      roundRect(ctx, bx - 6, by - 17, bw + 12, bh + 23, 6); ctx.fill();
+
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#5f4e36';
+      ctx.font = '10px "Songti SC",serif';
+      ctx.fillText(run.boss.name + '　·　第 ' + run.phase + ' 阶段', W / 2, by - 10);
+      ctx.textAlign = 'left';
+
+      ctx.fillStyle = 'rgba(120,100,66,.20)';
+      roundRect(ctx, bx, by, bw, bh, 4); ctx.fill();
+      if (bp > 0) {
+        ctx.fillStyle = run.boss.c;
+        roundRect(ctx, bx, by, Math.max(3, bw * bp), bh, 4); ctx.fill();
+      }
+      ctx.strokeStyle = 'rgba(138,100,16,.5)';
+      ctx.lineWidth = 1;
+      roundRect(ctx, bx, by, bw, bh, 4); ctx.stroke();
+      // 半血刻度：第二阶段的分界，让玩家知道还有多久换弹型
+      ctx.strokeStyle = 'rgba(253,247,232,.9)';
+      ctx.beginPath();
+      ctx.moveTo(bx + bw * 0.5, by); ctx.lineTo(bx + bw * 0.5, by + bh);
+      ctx.stroke();
+    }
 
     // 连击
     if (run.combo > 1) {
       ctx.textAlign = 'right';
       ctx.fillStyle = run.combo > 12 ? '#a83226' : '#8a6410';
       ctx.font = '700 15px Consolas,monospace';
-      ctx.fillText('×' + run.combo, W - 20, 50);
+      ctx.fillText('×' + run.combo, W - 20, 44);
       ctx.textAlign = 'left';
     }
+    ctx.textBaseline = 'alphabetic';
   }
 
-  /** HUD 上的可点徽标。x 为左边界，宽 60，高 18，y=44。 */
-  const BADGE_W = 60, BADGE_Y = 44, BADGE_H = 18;
+  /** HUD 上的可点徽标。x 为左边界，宽 60，高 18，y=62（v1.4.0 下移，给章节行让位）。 */
+  const BADGE_W = 60, BADGE_Y = 62, BADGE_H = 18;
   function drawBadge(x, text, on) {
     ctx.save();
     ctx.fillStyle = on ? 'rgba(34,107,87,.15)' : 'rgba(122,104,74,.09)';
@@ -1500,20 +1920,22 @@
     let best = +(localStorage.getItem('tp_best_wave') || 0);
     if (run.wave > best) { best = run.wave; try { localStorage.setItem('tp_best_wave', best); } catch (e) {} }
 
-    document.getElementById('r2t').textContent = '第 ' + run.wave + ' 阵 止步';
+    document.getElementById('r2t').textContent = '第 ' + run.wave + ' 阵 止步 · '
+      + (chapterData(Math.max(1, run.wave)).name);
     const rxList = Object.keys(run.reactions)
       .map(k => k + '×' + run.reactions[k]).join('　');
     document.getElementById('r2s').innerHTML =
-      '抵达第 <b>' + run.wave + '</b> 阵　·　敲碎符块 <b>' + run.blocksBroken + '</b>　·　破阵 <b>'
-      + run.wallsCleared + '</b> 次<br>'
-      + '分数 <b>' + run.score + '</b>　·　最高连击 <b>×' + run.bestCombo + '</b>　·　最高纪录 <b>'
-      + best + '</b> 阵<br>'
+      '抵达第 <b>' + run.wave + '</b> 阵（第 ' + (chapterOf(Math.max(1, run.wave)) + 1) + ' 章）'
+      + '　·　敲碎符块 <b>' + run.blocksBroken + '</b>　·　破阵 <b>' + run.wallsCleared + '</b> 次<br>'
+      + '分数 <b>' + run.score + '</b>　·　最高连击 <b>×' + run.bestCombo + '</b>'
+      + '　·　元素爆发 <b>' + run.bursts + '</b> 次　·　最高纪录 <b>' + best + '</b> 阵<br>'
       + (rxList ? '元素反应：' + rxList : '元素反应：一次也没触发 —— 试试用克制元素打对应排');
 
     let tip;
     if (run.wallsCleared === 0) tip = '💡 一排都没破。符块下落时先看颜色：用水打火排、用火打水排，两下就穿。';
     else if (run.leak >= 2) tip = '💡 被突破了 ' + run.leak + ' 次。优先敲最下面那一排 —— 它决定你还能撑多久。';
     else if (!rxList) tip = '💡 试试元素反应：蒸发 ×2.0 是最快的破墙手段。';
+    else if (run.bursts === 0) tip = '💡 能量满槽时按 E 放元素爆发 —— 它能清掉全部符矢并把符阵顶回去。';
     else tip = '💡 打得不错。下一步可以练「用符盘倾角把球送进缺口」。';
     document.getElementById('r2g').textContent = tip;
 
@@ -1590,12 +2012,18 @@
     AI, EL, EL_ORDER, RX, W, H,
     PADDLE_Y, PADDLE_HW, PADDLE_HH, DANGER_Y, BALL_R, BALL_SPD, PADDLE_SPD,
     DMG_BASE, TILT_MAX,
+    // ---- v1.4.0 ----
+    ENERGY_MAX, EN_HIT, EN_RX, EN_BREAK, BURST_DMG, PROJ_CAP,
+    WAVES_PER_CHAPTER, CHAPTERS, BOSS_KINDS,
+    chapterOf, chapterData, isBossWave,
     start, key: (k, v) => { K[k] = v; },
     tick, draw,
     setEl, cycleEl, toggleAI, toggleSpeed, togglePause,
     reactionOf, hitBlock, hurtBlock, hurt: damagePlayer, damagePlayer,
     spawnWall, blockX, blockY, blockCX, blockCY, launchBall, predictLanding,
     aiThink, aiPickElement, bossFire,
+    elementalBurst, gainEnergy, applyRx, rxBurn, rxSoak, rxStorm, transmute,
+    updateBolts, updateProjs,
     get speed() { return _speed; },
 
     /**

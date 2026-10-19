@@ -314,12 +314,14 @@ function rmTree(dir) {
                grazed: D.run.grazed };
     })()`);
     // 判据三件事：① 弹掠过了 ② 全程没掉命 ③ **确实擦到了**（minDist 落在擦弹圈内）
+    // v1.4.0：判定 3.5→2.8、擦弹 24→30。构造的 16px 掠过距仍落在
+    // 2.8 < 16 < 30 之间，所以这条断言的含义没变（贴脸但不碰）。
     step('小判定点：弹贴身飞过不掉命',
          hitbox.passed === true && hitbox.lives === 3 && hitbox.deaths === 0 &&
          hitbox.minDist > hitbox.hitR && hitbox.minDist < hitbox.grazeR + 6,
          `弹掠过=${hitbox.passed} 最近距离=${hitbox.minDist}px ` +
          `残机=${hitbox.lives} 失机=${hitbox.deaths} 擦弹=${hitbox.grazed}次` +
-         `（判定 ${hitbox.hitR}px / 擦弹 ${hitbox.grazeR}px，要求 3.5<距离<30）`);
+         `（判定 ${hitbox.hitR}px / 擦弹 ${hitbox.grazeR}px，要求判定<距离<擦弹+6）`);
 
     // ── 4. 擦弹加分并积攒力量 ──
     const graze = await evaluate(`(() => {
@@ -339,6 +341,38 @@ function rmTree(dir) {
     })()`);
     step('擦弹加分 + 积攒力量', graze.grazed === 6 && graze.score > 0 && graze.power > 1.0,
          `擦 ${graze.grazed} 次 / 加 ${graze.score} 分 / 火力 1.00→${graze.power}`);
+
+    // ── 4b. ★ 擦弹半径确实变大（v1.4.0：24 → 30）──
+    // 构造一颗**刚好落在旧擦弹圈外、新擦弹圈内**的弹：
+    //   擦弹边界 = 弹半径 + grazeR。蓝弹 r=6：
+    //     旧边界 = 6 + 24 = 30px，新边界 = 6 + 30 = 36px；
+    //   把弹放在 33px 处 —— 旧规则擦不到（33 > 30），新规则擦得到（33 < 36）。
+    //   同时 33 ≫ 6 + 2.8 = 8.8，所以绝不会被判定成命中。
+    //   这条判据只在「半径真的变大」时才会绿；如果有人把 grazeR 改回去，
+    //   它会读出 graze=0 —— 而不是像"看常数"那样扫一眼就过。
+    const grazeBig = await evaluate(`(() => {
+      const D = ${EXPORT}, P = D.player;
+      D.start(); D.freeze(); D.step(2);
+      if (D.AI.on) D.toggleAI();
+      D.run.noSpawn = true; D.enemies.length = 0;
+      D.bullets.length = 0; D.lasers.length = 0;
+      D.run.grazed = 0; D.run.deaths = 0; D.run.over = false;
+      P.lives = 3; P.dead = 0; P.invuln = 0; P.grazeCount = 0;
+      D.warp(200, 400);
+      const b = D.mkBullet(233, 400, 0, 0, { c: 'blue', r: 6 });  // 33px
+      b.age = 99; b.delay = 0; b.vx = 0; b.vy = 0;
+      D.bullets.push(b);
+      D.step(1);
+      D.run.noSpawn = false;
+      return { grazed: D.run.grazed, deaths: D.run.deaths,
+               hitR: P.hitR, grazeR: P.grazeR,
+               oldEdge: 30, newEdge: b.r + P.grazeR };
+    })()`);
+    step('★ 擦弹半径变大：33px 处（旧边界 30px 外）也能擦到',
+         grazeBig.grazed === 1 && grazeBig.deaths === 0 &&
+         grazeBig.hitR === 2.8 && grazeBig.grazeR === 30,
+         `擦弹=${grazeBig.grazed} 失机=${grazeBig.deaths} ` +
+         `判定=${grazeBig.hitR}px 擦弹圈=${grazeBig.oldEdge}→${grazeBig.newEdge}px`);
 
     // ── 5. 炸弹清弹 + 弹转封币 ──
     const bomb = await evaluate(`(() => {
@@ -548,14 +582,124 @@ function rmTree(dir) {
          move.right > 20 && move.up < -20 && move.left < -20 && move.down > 20,
          `→${move.right} ↑${move.up} ←${move.left} ↓${move.down}`);
 
-    // ── 8. 三关都存在且符卡总数对 ──
+    // ── 8. 关卡结构：5 关 / 10 张符卡 ──
+    // ⚠️ 这条从「3 关 / 7 张」改过来是**断言过期**，不是放水：
+    //    v1.4.0 把 3 关扩到 5 关，并按「每关 2 张」重排（第 3 关原来有 3 张，
+    //    其中「虚符·乱数」是唯一的随机角度+随机速度弹幕，与「每发弹都要
+    //    读得出意图」的纪律冲突，扩关时优先裁掉）。
+    //    旧断言 3/7 记录的是旧版本的事实，这里改成 5/10 并加了「每关 2 张」
+    //    的结构断言 —— 只改数字而不检查结构的话，以后某关多塞一张也照样绿。
     const meta = await evaluate(`(() => {
       const S = ${EXPORT}.STAGES;
       return { stages: S.length, cards: S.reduce((a,s)=>a+s.cards.length,0),
+               perStage: S.map(s => s.cards.length),
                names: S.map(s => s.name + '×' + s.cards.length).join(' / ') };
     })()`);
-    step('3 关 / 7 张符卡', meta.stages === 3 && meta.cards === 7,
+    step('★ 5 关 / 10 张符卡（每关 2 张）',
+         meta.stages === 5 && meta.cards === 10 &&
+         meta.perStage.length === 5 && meta.perStage.every(n => n === 2),
          `${meta.stages} 关 ${meta.cards} 张：${meta.names}`);
+
+    // ── 8b. ★ 第 4、5 关能被真实的 nextStage() 推进到 ──
+    // 为什么不直接用 gotoStage(4)/(5)：gotoStage 是测试后门，它自己会写
+    // run.stage = n-1。真正会出错的是「打完 Boss → dying → nextStage()」
+    // 这条链，以及 run.stage 越过 STAGES.length 时提前 stageClear()。
+    // 所以这里打死第 3 关 Boss，等**自动**进第 4 关；再打死第 4 关 Boss，
+    // 等自动进第 5 关 —— 并且第 5 关时游戏必须还在进行（没 over / 没 cleared）。
+    const up45 = await evaluate(`(() => {
+      const D = ${EXPORT};
+      D.start(); D.freeze(); D.step(2);
+      D.run.noSpawn = false;
+      const guard = (n, fn) => { let i = 0; while (i++ < n && !fn()) D.step(1); return i; };
+      const waitBoss = () => guard(6000, () => !!D.boss || D.run.cleared);
+      const waitFight = () => guard(2000, () => !D.boss || D.boss.state === 'fight' || D.run.cleared);
+      const killBoss = () => {
+        let g = 0;
+        while (D.boss && !D.run.cleared && g++ < 8000) {
+          D.player.invuln = 99999;
+          D.enemies.length = 0; D.bullets.length = 0;
+          if (D.boss.state === 'fight') D.damageBoss(999, D.boss.x, D.boss.y);
+          D.step(1);
+        }
+      };
+      D.gotoStage(3); waitBoss(); waitFight();
+      const s3 = D.run.stage;
+      killBoss(); waitBoss(); waitFight();
+      const s4 = D.run.stage;
+      const b4 = D.boss ? D.boss.is.name : null;
+      const c4 = D.boss && D.boss.card ? D.boss.card.name : null;
+      killBoss(); waitBoss(); waitFight();
+      const s5 = D.run.stage;
+      const b5 = D.boss ? D.boss.is.name : null;
+      const c5 = D.boss && D.boss.card ? D.boss.card.name : null;
+      return { s3, s4, b4, c4, s5, b5, c5,
+               over: D.run.over, cleared: D.run.cleared,
+               cards5: D.boss ? D.boss.cards.length : -1 };
+    })()`);
+    step('★ 第 4、5 关可由 nextStage() 正常推进到，且第 5 关时游戏未结束',
+         up45.s3 === 3 && up45.s4 === 4 && up45.b4 === '霜月之巫女' &&
+         up45.s5 === 5 && up45.b5 === '深渊符主' && up45.cards5 === 2 &&
+         up45.over === false && up45.cleared === false,
+         `第3关→击破→run.stage=${up45.s4}「${up45.b4}」首卡「${up45.c4}」` +
+         ` →击破→run.stage=${up45.s5}「${up45.b5}」首卡「${up45.c5}」` +
+         `（over=${up45.over} cleared=${up45.cleared}）`);
+
+    // ── 8c. ★ 第 5 关 Boss 的两张符卡都能被打掉，且打完后进入通关结算 ──
+    // 用现有手法：走真实 damageBoss() 结算路径（不是直接改 cardHp）。
+    const s5break = await evaluate(`(() => {
+      const D = ${EXPORT};
+      D.start(); D.freeze(); D.step(2);
+      D.player.invuln = 99999;
+      D.gotoStage(5);
+      for (let i = 0; i < 6000 && !D.boss; i++) D.step(1);
+      for (let i = 0; i < 2000 && D.boss && D.boss.state !== 'fight'; i++) D.step(1);
+      if (!D.boss) return { err: 'no boss' };
+      const seen = [];
+      let g = 0, broke = 0;
+      while (D.boss && !D.run.cleared && g++ < 12000) {
+        D.player.invuln = 99999;
+        D.enemies.length = 0; D.bullets.length = 0;
+        if (D.boss.state === 'fight') {
+          const nm = D.boss.card.name;
+          if (seen.indexOf(nm) < 0) { seen.push(nm); D.run.score = 0; }
+          const hpBefore = D.boss.cardHp;
+          D.damageBoss(hpBefore + 10, D.boss.x, D.boss.y);
+          broke++;
+        }
+        D.step(1);
+      }
+      return { seen, broke, cards: D.STAGES[4].cards.length,
+               cleared: D.run.cleared, over: D.run.over, stage: D.run.stage,
+               score: D.run.score, clearedCount: D.run.spellCleared };
+    })()`);
+    step('★ 第 5 关 Boss 的符卡可被击破（并走到通关结算）',
+         s5break.err === undefined && s5break.seen.length === 2 &&
+         s5break.broke === 2 && s5break.cleared === true && s5break.over === false,
+         '击破符卡 ' + (s5break.seen || []).join(' / ') +
+         ' → cleared=' + s5break.cleared + ' stage=' + s5break.stage +
+         ' 符卡计数=' + s5break.clearedCount);
+
+    // ── 8d. ★ 结算面板的「到达第 N 关」适配 5 关 ──
+    // 原来 gameOver() 只写「第 N 关」，没有分母；stageClear() 更是硬编码
+    // 「三关全破」。关数一变，那句话就是错的 —— 这条同时钉住两处文案：
+    // ① 终局面板出现「第 N 关 / 共 5 关」；② 符卡分母是 10 而不是 7。
+    const panels = await evaluate(`(() => {
+      const D = ${EXPORT};
+      D.start(); D.freeze(); D.step(2);
+      D.run.stage = 4;                       // 假设死在第 4 关
+      D.player.lives = 1; D.player.invuln = 0; D.player.dead = 0;
+      D.hitPlayer();
+      const r2 = document.getElementById('r2s').innerHTML;
+      return { over: D.run.over, r2,
+               total: D.STAGES.length,
+               hasStageN: r2.indexOf('第 4 关') >= 0,
+               hasTotal: r2.indexOf('共 5 关') >= 0,
+               hasCards10: r2.indexOf('/ 10 张') >= 0 };
+    })()`);
+    step('★ 终局面板显示「到达第 N 关 / 共 5 关」且符卡分母为 10',
+         panels.over === true && panels.hasStageN && panels.hasTotal && panels.hasCards10,
+         '面板文案含「第 4 关」=' + panels.hasStageN +
+         ' 「共 5 关」=' + panels.hasTotal + ' 符卡分母含 10=' + panels.hasCards10);
 
     // ── 9. 长时间空跑（3 关全流程）不崩 ──
     // ⚠️ 先给玩家一个无敌护身：空跑 900 帧期间玩家会挨打，
@@ -683,10 +827,53 @@ function rmTree(dir) {
     step('弹幕预算：生成率 ≤ 70 发/秒（改造前最高 278）',
          budget.maxSpawn <= 70,
          '实测最高 ' + budget.maxSpawn + ' 发/秒');
-    step('★ 弹幕公平性：任何一帧都留有可走位通道（安全格 ≥ 30%）',
-         budget.minWorst >= 0.30,
+    // v1.4.0：这条门槛**没有下调**，反而从 30% 收紧到 35%。
+    // 难度下调后实测全卡最低安全率 0.585（改造前 0.523），留了足够余量，
+    // 所以把纪律线往回收 5 个点 —— 降难度不等于允许"某一帧无解"。
+    step('★ 弹幕公平性：任何一帧都留有可走位通道（安全格 ≥ 35%）',
+         budget.minWorst >= 0.35,
          '全卡最差安全率 ' + budget.minWorst + '（改造前最低 0.094 —— 那帧无解）');
     console.log('     · ' + budget.cards.map(bfmt).join('\n     · '));
+
+    // ── 9.65 ★ 弹速下调生效（v1.4.0：全局系数 BSPD = 0.86）──
+    // 旧值写在注释里：慢环 2.00 / 红瞄准弹 3.20 / 第 5 关终符快弹 4.20。
+    // 断言要求「新速度 ≤ 旧值 × 0.9」，也就是至少降 10%（实际降 14%）。
+    // ⚠️ 用 mkBullet 造弹来读，而不是去源码里 grep 数字 ——
+    //    数字可能写在不同的 pattern 里，只有 mkBullet 才是所有弹的唯一出口。
+    const bs = await evaluate(`(() => {
+      const D = ${EXPORT};
+      const spdOf = s => { const b = D.mkBullet(100, 100, 0, s, { c: 'blue' }); 
+                           return +Math.hypot(b.vx, b.vy).toFixed(3); };
+      return { ring: spdOf(2.0), aim: spdOf(3.2), fast: spdOf(4.2) };
+    })()`);
+    step('★ 敌弹速度下调：2.00→≤1.80 / 3.20→≤2.88 / 4.20→≤3.78（旧值×0.9）',
+         bs.ring <= 1.8 && bs.ring >= 1.55 &&
+         bs.aim <= 2.88 && bs.fast <= 3.78 && bs.fast > 3.5,
+         `慢环 2.00→${bs.ring}，瞄准弹 3.20→${bs.aim}，终符快弹 4.20→${bs.fast}` +
+         `（快档阈值 3.5 仍然够得到，否则"快弹更亮"就没有对象了）`);
+
+    // ── 9.66 ★ 弹体深色描边（源码特征 + 分档）──
+    // 为什么用源码特征而不是像素采样：这一层是**绘制纪律**，
+    // 采样一张截图只能证明"某个位置是暗的"，证明不了"每颗弹都有描边"。
+    // 判据要求 drawBullets 内部同时出现：① 深色描边 strokeStyle = t.dark
+    // ② 本体填充 fillStyle = c.edge（两次绘制）③ 分档函数 bulletTier
+    // ④ 延迟弹的警示环（b.delay0）⑤ 全文没有 shadowBlur 赋值（性能红线）。
+    const srcAll = fs.readFileSync(FILE, 'utf8');
+    const dbS = srcAll.indexOf('function drawBullets');
+    const dbE = srcAll.indexOf('function drawShots');
+    const dbSrc = (dbS >= 0 && dbE > dbS) ? srcAll.slice(dbS, dbE) : '';
+    const outline = {
+      dark: /strokeStyle\s*=\s*t\.dark/.test(dbSrc),
+      body: /fillStyle\s*=\s*c\.edge/.test(dbSrc),
+      tier: /bulletTier\s*\(/.test(dbSrc) && /const\s+TIER\s*=\s*\[/.test(srcAll),
+      warn: /b\.delay0/.test(dbSrc),
+      noShadow: !/shadowBlur\s*=/.test(srcAll),
+      chars: dbSrc.length,
+    };
+    step('★ 子弹有深色描边 + 三档速度分色 + 延迟弹警示环（且无 shadowBlur）',
+         outline.dark && outline.body && outline.tier && outline.warn && outline.noShadow,
+         `深色描边=${outline.dark} 本体填充=${outline.body} 分档=${outline.tier} ` +
+         `预告环=${outline.warn} shadowBlur=${!outline.noShadow}（drawBullets ${outline.chars} 字符）`);
 
     // ── 9.7 ★ AI 接管：不作弊 + 能通关 ──
     // ① AI 只产出方向向量，绝不碰判定点 / 无敌帧 / 血量
@@ -731,7 +918,9 @@ function rmTree(dir) {
          aiPure.before.hitR === aiPure.after.hitR && aiPure.before.grazeR === aiPure.after.grazeR &&
          aiPure.before.spd === aiPure.after.spd && aiPure.before.focusSpd === aiPure.after.focusSpd &&
          aiPure.before.invuln === aiPure.after.invuln && aiPure.before.lives === aiPure.after.lives &&
-         aiPure.after.hitR === 3.5 && aiPure.after.grazeR === 24 && aiPure.pure.hitR === 3.5 &&
+         // v1.4.0 把基准值从 3.5 / 24 改成 2.8 / 30（难度下调），
+         // 但断言的**性质**没变：开关 AI 前后必须逐项相同、且等于基准值。
+         aiPure.after.hitR === 2.8 && aiPure.after.grazeR === 30 && aiPure.pure.hitR === 2.8 &&
          aiPure.bounded === true && aiPure.pressing === true &&
          // 下半圆合围、上方是唯一缺口，且「回屏幕下方」这个目标方向指着弹里：
          // 正确行为是**朝上走**（安全压过目标），不是站着不动、更不是往下钻。
@@ -859,7 +1048,7 @@ function rmTree(dir) {
          '第 1 关 Boss=「' + autoNext.b1 + '」击破后 run.stage=' + autoNext.stageAfter +
          ' → 新登场 Boss=「' + autoNext.boss2 + '」首卡「' + autoNext.card2 + '」');
 
-    // ── 9.8 ★ 多关卡链条：第 1 关 → 第 2 关 → 第 3 关 → 通关结算 ──
+    // ── 9.8 ★ 多关卡链条：第 1 关 → … → 第 5 关 → 通关结算 ──
     const chain = await evaluate(`(() => {
       const D = ${EXPORT};
       D.start(); D.freeze(); D.step(2);
@@ -890,8 +1079,8 @@ function rmTree(dir) {
                cards: uniq.length, last: uniq[uniq.length - 1] || null,
                panel: document.getElementById('p3').style.display };
     })()`);
-    step('★ 三关链条走通：第 1 关 → 2 → 3 → 触发通关结算',
-         chain.cleared === true && chain.cards === 7 && chain.boss === 'none',
+    step('★ 五关链条走通：第 1 关 → … → 第 5 关 → 触发通关结算',
+         chain.cleared === true && chain.cards === 10 && chain.boss === 'none',
          '通关标志=' + chain.cleared + ' 最终关卡=' + chain.stage +
          ' 打过符卡 ' + chain.cards + ' 张（末张「' + chain.last + '」）');
 
@@ -960,7 +1149,10 @@ function rmTree(dir) {
         if (D.SPEED !== 1) D.toggleSpeed();
         if (!D.AI.on) D.toggleAI();
         let f = 0;
-        while (f < 24000 && !D.run.over && !D.run.cleared) {
+        // ⚠️ 上限从 24000 提到 40000：v1.4.0 关卡 3→5，一局的理论总帧数
+        //    涨了约 1.7 倍。不改上限的话，5 关里有 2 关是"还没打到就超时"，
+        //    看上去像 AI 变弱了，其实只是判据的预算过期了。
+        while (f < 40000 && !D.run.over && !D.run.cleared) {
           D.step(1);
           if (D.player.invuln > maxInvuln) maxInvuln = D.player.invuln;
           f++;
@@ -985,15 +1177,15 @@ function rmTree(dir) {
     step('★ AI 接管能推进到第 2 关（5 轮里至少 4 轮）',
          aiRun.gotStage2 >= 4,
          aiRun.gotStage2 + '/5 轮推进到第 2 关或更后，最远第 ' + aiRun.maxStage + ' 关');
-    step('★ AI 接管能通关全部 3 关（5 轮里至少 4 轮；实测 9/9）',
+    step('★ AI 接管能通关全部 5 关（5 轮里至少 4 轮）',
          aiRun.cleared >= 4,
          aiRun.cleared + '/5 轮打到「全符制霸」结算');
     step('★ AI 存活时长中位数（5 轮，不用单轮随机值）',
          aiRun.med >= 6000,
          '中位 ' + aiRun.med + ' 帧 ≈ ' + (aiRun.med / 60).toFixed(0) + ' 秒游戏时间');
     step('★ AI 不是靠无敌 / 缩小判定点赢的',
-         aiRun.minHitR === 3.5 && aiRun.maxHitR === 3.5 &&
-         aiRun.minGraze === 24 && aiRun.maxGraze === 24 &&
+         aiRun.minHitR === 2.8 && aiRun.maxHitR === 2.8 &&
+         aiRun.minGraze === 30 && aiRun.maxGraze === 30 &&
          aiRun.maxInvuln <= 180,
          '全程 hitR=' + aiRun.minHitR + '~' + aiRun.maxHitR +
          ' grazeR=' + aiRun.minGraze + '~' + aiRun.maxGraze +

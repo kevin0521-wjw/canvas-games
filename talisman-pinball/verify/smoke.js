@@ -185,7 +185,7 @@ function rmTree(dir) {
       const D = ${EXPORT};
       D.start(); D.freeze();
       const R = D.run;
-      D.step(80);                       // 开局有 1.15s 的喘息间隔
+      D.step(150);                      // v1.4.0：开局喘息 1.1 → 2.0 秒（约 120 帧）
       return { wave: R.wave, n: R.blocks.length, wallY: +R.wallY.toFixed(1),
                speed: +R.wallSpeed.toFixed(1) };
     })()`);
@@ -197,7 +197,7 @@ function rmTree(dir) {
       const D = ${EXPORT};
       D.start(); D.freeze();
       const R = D.run;
-      D.step(80);
+      D.step(150);
       const y0 = R.wallY;
       D.step(600);                      // 10 秒
       return { dy: +(R.wallY - y0).toFixed(1), speed: R.wallSpeed };
@@ -211,7 +211,7 @@ function rmTree(dir) {
       const D = ${EXPORT};
       D.start(); D.freeze();
       const R = D.run;
-      D.step(80);
+      D.step(150);
       let peak = 0;
       for (let i = 0; i < 900; i++) { D.step(1); peak = Math.max(peak, R.projs.length); }
       return { peak, blocks: R.blocks.length, wave: R.wave };
@@ -226,13 +226,15 @@ function rmTree(dir) {
       return {
         vapor: g('hydro', 'pyro'), vapor2: g('pyro', 'hydro'),
         overload: g('pyro', 'electro'), chain: g('hydro', 'electro'),
-        swirl: g('anemo', 'pyro'), same: g('pyro', 'pyro'),
+        burn: g('anemo', 'pyro'), soak: g('anemo', 'hydro'), storm: g('anemo', 'electro'),
+        same: g('pyro', 'pyro'), sameAnemo: g('anemo', 'anemo'),
       };
     })()`);
-    step('★ 四元素反应表（蒸发/超载/感电/扩散）',
+    step('★ 元素反应表（蒸发/超载/感电 + 风的三条分支）',
       table.vapor === '蒸发:2' && table.vapor2 === '蒸发:1.6' &&
       table.overload === '超载:1.5' && table.chain === '感电:1.3' &&
-      table.swirl === '扩散:1.25' && table.same === 'none',
+      table.burn === '燎原:1.45' && table.soak === '浸润:1.2' && table.storm === '雷暴:1.4' &&
+      table.same === 'none' && table.sameAnemo === 'none',
       JSON.stringify(table));
 
     // 反应真的改变了伤害，而不只是弹个字
@@ -284,20 +286,51 @@ function rmTree(dir) {
     step('★ 感电：同排连锁', chain.sameRow < 200 && chain.other === 200,
       '同排 200→' + chain.sameRow + '，异排 ' + chain.other + '，电弧 ' + chain.arcs + ' 条');
 
-    const swirl = await evaluate(`(() => {
+    // v1.4.0：风不再是「一种扩散 ×1.25」，而是按被吹元素分三条分支
+    const wind = await evaluate(`(() => {
       const D = ${EXPORT};
       D.start(); D.freeze();
       const R = D.run;
       R.wallY = 300; R.blocks.length = 0;
       const mk = (col, row, el) => ({ col, row, w: 60, h: 34, el, hp: 200, maxHp: 200,
         flash: 0, reactCd: 0, alive: true, boss: false });
-      const src = mk(3, 0, 'pyro'), nb = mk(4, 0, 'hydro');
-      R.blocks.push(src, nb);
-      D.hitBlock(src, 'anemo', 10);   // 扩散：把火传染给水块
-      return { nbEl: nb.el, nbHp: nb.hp };
+      const b1 = mk(2, 0, 'pyro'), b2 = mk(5, 0, 'pyro'),
+            b3 = mk(2, 3, 'hydro'), b4 = mk(5, 3, 'electro');
+      R.blocks.push(b1, b2, b3, b4);
+
+      b1.reactCd = 0; D.hitBlock(b1, 'anemo', 10);   // 燎原：同排点燃
+      const burnT = R.burnT, burnNb = b2.hp;
+      b3.reactCd = 0; D.hitBlock(b3, 'anemo', 10);   // 浸润：符阵减速
+      const soakT = R.soakT;
+      b4.reactCd = 0; D.hitBlock(b4, 'anemo', 10);   // 雷暴：麻痹
+      const stunT = R.stunT;
+      return { burnT: +(+burnT).toFixed(2), burnNb,
+               soakT: +soakT.toFixed(2), stunT: +stunT.toFixed(2) };
     })()`);
-    step('★ 扩散：邻块被染上同种元素', swirl.nbEl === 'pyro' && swirl.nbHp < 200,
-      '邻块元素 → ' + swirl.nbEl + '，HP 200→' + swirl.nbHp);
+    step('★ 风的三条分支各有独立副作用（点燃 / 减速 / 麻痹）',
+      wind.burnT > 0 && wind.burnNb < 200 && wind.soakT > 0 && wind.stunT > 0,
+      '燎原 burnT=' + wind.burnT + '，同排 200→' + wind.burnNb
+      + '　｜　浸润 soakT=' + wind.soakT + '　｜　雷暴 stunT=' + wind.stunT);
+
+    // 反应链：反应后符块被「染成」攻击元素，换一种元素就能接着反应
+    const link = await evaluate(`(() => {
+      const D = ${EXPORT};
+      D.start(); D.freeze();
+      const R = D.run;
+      R.wallY = 300; R.blocks.length = 0;
+      const a = { col: 3, row: 0, w: 60, h: 34, el: 'pyro', hp: 200, maxHp: 200,
+        flash: 0, reactCd: 0, alive: true, boss: false };
+      R.blocks.push(a);
+      D.hitBlock(a, 'hydro', 10);      // 蒸发 → 火块变水块
+      const el1 = a.el, hp1 = a.hp;
+      a.reactCd = 0;
+      D.hitBlock(a, 'electro', 10);    // 水 × 雷 = 感电
+      return { el1, hp1, el2: a.el, hp2: a.hp, rx: Object.keys(R.reactions) };
+    })()`);
+    step('★ 反应链：反应后符块被染成攻击元素，换元素可继续反应',
+      link.el1 === 'hydro' && link.el2 === 'electro' && link.hp2 < link.hp1 - 10,
+      '火块 → ' + link.el1 + '（HP ' + link.hp1 + '）→ ' + link.el2 + '（HP ' + link.hp2 + '）'
+      + '，已记录 ' + link.rx.join('/'));
 
     const sw = await evaluate(`(() => {
       const D = ${EXPORT};
@@ -364,7 +397,7 @@ function rmTree(dir) {
       R.blocks.forEach(b => { b.alive = false; });   // 模拟玩家把墙敲光
       D.step(1);
       const afterClear = R.blocks.length;
-      D.step(90);                                    // 等喘息时间
+      D.step(160);                                   // v1.4.0：阵间喘息 1.9 秒
       return { n0, afterClear, wave: R.wave, n1: R.blocks.length, cleared: R.wallsCleared };
     })()`);
     step('★ 敲光一面墙 → 进入下一阵（不结束）',
@@ -374,13 +407,61 @@ function rmTree(dir) {
     const bossWave = await evaluate(`(() => {
       const D = ${EXPORT};
       D.start(); D.freeze();
-      D.spawnWall(5);
+      D.spawnWall(8);
       const R = D.run;
       const boss = R.blocks.filter(b => b.boss);
-      return { boss: boss.length, hp: boss[0] ? boss[0].hp : 0, el: boss[0] ? boss[0].el : '' };
+      return { boss: boss.length, hp: boss[0] ? Math.round(boss[0].hp) : 0,
+               el: boss[0] ? boss[0].el : '',
+               meta: R.boss ? R.boss.name : '', fire: R.boss ? R.boss.fire : '' };
     })()`);
-    step('第 5 阵是 BOSS 阵（符核）', bossWave.boss === 1 && bossWave.hp > 100,
-      '符核 HP ' + bossWave.hp + '，元素 ' + bossWave.el);
+    step('v1.4.0 第 8 阵是 BOSS 阵（符核 + 名字 + 弹型）',
+      bossWave.boss === 1 && bossWave.hp > 100 && !!bossWave.meta && bossWave.fire === 'fan',
+      '符核 HP ' + bossWave.hp + '，' + bossWave.meta + '，弹型 ' + bossWave.fire);
+
+    const bossKinds = await evaluate(`(() => {
+      const D = ${EXPORT};
+      D.start(); D.freeze();
+      const out = [];
+      for (const n of [8, 16, 24]) {
+        D.spawnWall(n);
+        const b = D.run.blocks.filter(x => x.boss)[0];
+        out.push({ n, kind: D.run.boss ? D.run.boss.kind : '',
+                   fire: D.run.boss ? D.run.boss.fire : '',
+                   hp: b ? Math.round(b.hp) : 0 });
+      }
+      return out;
+    })()`);
+    step('★ 三种 BOSS 按章轮换（焰狱扇形 / 潮汐环形 / 雷罚雷击）',
+      bossKinds[0].kind === 'pyro' && bossKinds[0].fire === 'fan' &&
+      bossKinds[1].kind === 'hydro' && bossKinds[1].fire === 'ring' &&
+      bossKinds[2].kind === 'electro' && bossKinds[2].fire === 'bolt' &&
+      bossKinds[2].hp > bossKinds[0].hp,
+      bossKinds.map(x => '#' + x.n + ' ' + x.kind + '/' + x.fire + ' HP' + x.hp).join('　'));
+
+    const phase = await evaluate(`(() => {
+      const D = ${EXPORT};
+      D.start(); D.freeze();
+      D.spawnWall(8);
+      const R = D.run;
+      const core = R.blocks.filter(b => b.boss)[0];
+      const p0 = R.phase;
+      core.hp = core.maxHp * 0.49;
+      D.step(2);
+      return { p0, p1: R.phase };
+    })()`);
+    step('★ BOSS 半血进入第二阶段（换弹型 + 预备时间）',
+      phase.p0 === 1 && phase.p1 === 2, '阶段 ' + phase.p0 + ' → ' + phase.p1);
+
+    const chapter = await evaluate(`(() => {
+      const D = ${EXPORT};
+      return { c1: D.chapterOf(1), c8: D.chapterOf(8), c9: D.chapterOf(9), c17: D.chapterOf(17),
+               n1: D.chapterData(1).name, n9: D.chapterData(9).name,
+               boss8: D.isBossWave(8), boss7: D.isBossWave(7) };
+    })()`);
+    step('章节：每 8 阵一章，章末才是 BOSS',
+      chapter.c1 === 0 && chapter.c8 === 0 && chapter.c9 === 1 && chapter.c17 === 2 &&
+      chapter.boss8 === true && chapter.boss7 === false && chapter.n1 !== chapter.n9,
+      chapter.n1 + ' → ' + chapter.n9 + '（第 8 阵 BOSS=' + chapter.boss8 + '，第 7 阵=' + chapter.boss7 + '）');
 
     const rotate = await evaluate(`(() => {
       const D = ${EXPORT};
@@ -406,11 +487,72 @@ function rmTree(dir) {
         flash: 0, reactCd: 0, alive: true, boss: true });
       let peak = 0;
       for (let i = 0; i < 900; i++) { D.step(1); peak = Math.max(peak, R.projs.length); }
-      return { peak };
+      return { peak, cap: D.PROJ_CAP };
     })()`);
-    step('★ BOSS 符矢同时在场 ≤ 4（不是弹幕）',
-      bossFire.peak > 0 && bossFire.peak <= 4,
-      '15 秒内峰值 ' + bossFire.peak + ' 发');
+    step('★ BOSS 符矢同时在场 ≤ PROJ_CAP（不是弹幕）',
+      bossFire.peak > 0 && bossFire.peak <= bossFire.cap,
+      '15 秒内峰值 ' + bossFire.peak + ' 发（上限 ' + bossFire.cap + '）');
+
+    /* ---------- 4.5 v1.4.0 新增：元素能量 / 元素爆发 / 降难度 ---------- */
+    const energy = await evaluate(`(() => {
+      const D = ${EXPORT};
+      D.start(); D.freeze();
+      const R = D.run;
+      R.wallY = 300; R.blocks.length = 0;
+      R.blocks.push({ col: 3, row: 0, w: 60, h: 34, el: 'pyro', hp: 999, maxHp: 999,
+        flash: 0, reactCd: 0, alive: true, boss: false });
+      const e0 = R.energy;
+      D.hitBlock(R.blocks[0], 'hydro', 10);      // 命中 + 反应
+      const e1 = R.energy;
+      return { e0: +e0.toFixed(1), e1: +e1.toFixed(1) };
+    })()`);
+    step('能量随命中与反应积攒',
+      energy.e1 >= energy.e0 + 15,
+      '能量 ' + energy.e0 + ' → ' + energy.e1 + '（命中 + 反应）');
+
+    const burst = await evaluate(`(() => {
+      const D = ${EXPORT};
+      D.start(); D.freeze();
+      const R = D.run;
+      D.spawnWall(6);
+      R.energy = 0;
+      const denied = D.elementalBurst();          // 能量不足必须失败
+      const hp0 = R.blocks.reduce((a, b) => a + Math.max(0, b.hp), 0);
+      R.energy = D.ENERGY_MAX;
+      R.projs.push({ x: 100, y: 200, r: 6, vx: 0, vy: 0, spin: 0, dead: false, el: 'pyro' });
+      const y0 = R.wallY;
+      const ok = D.elementalBurst();
+      const alive = R.blocks.filter(b => b.alive);
+      const hp1 = alive.reduce((a, b) => a + Math.max(0, b.hp), 0);
+      return { denied, ok, projs: R.projs.length, energy: R.energy,
+               dy: +(R.wallY - y0).toFixed(1),
+               before: Math.round(hp0), after: Math.round(hp1),
+               broken: R.blocksBroken, bursts: R.bursts };
+    })()`);
+    step('★ 元素爆发：满能量才可放，清符矢 + 全屏反应 + 推回符阵',
+      burst.denied === false && burst.ok === true && burst.projs === 0 &&
+      burst.energy === 0 && burst.dy < 0 && burst.after < burst.before && burst.bursts === 1,
+      '能量不足时=' + burst.denied + '｜放完 projs=' + burst.projs + ' energy=' + burst.energy
+      + '｜墙 ' + burst.dy + 'px｜符块总血 ' + burst.before + '→' + burst.after
+      + '｜碎块 ' + burst.broken);
+
+    const balance = await evaluate(`(() => {
+      const D = ${EXPORT};
+      D.start(); D.freeze();
+      const R = D.run;
+      const hp0 = R.maxHp;
+      D.spawnWall(1); const s1 = R.wallSpeed, b1 = R.blocks[0].maxHp;
+      D.spawnWall(6); const s6 = R.wallSpeed, b6 = R.blocks[0].maxHp;
+      D.spawnWall(40); const s40 = R.wallSpeed;
+      return { hp0, s1: +s1.toFixed(2), s6: +s6.toFixed(2), s40: +s40.toFixed(2),
+               b1: +b1.toFixed(1), b6: +b6.toFixed(1) };
+    })()`);
+    step('★ 降难度生效：5 条命 · 墙速封顶 13 · 符块血量下调',
+      balance.hp0 === 5 && balance.s40 <= 13 && balance.s1 < 8.5 && balance.s6 < 10
+      && balance.b1 < 12 && balance.b6 < 22,
+      '命 ' + balance.hp0 + '｜墙速 1阵 ' + balance.s1 + ' / 6阵 ' + balance.s6
+      + ' / 40阵 ' + balance.s40 + '｜符块血 ' + balance.b1 + ' / ' + balance.b6
+      + '（旧公式 12 / 22）');
 
     /* ---------- 5. 无抖屏 / 无闪屏 ---------- */
     const visuals = await evaluate(`(() => {

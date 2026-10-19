@@ -409,6 +409,51 @@ function rmTree(dir) {
          `正文 ${uiCol.text} = ${uiCol.cText}:1，次级 ${uiCol.dim} = ${uiCol.cDim}:1，` +
          `最弱 ${uiCol.mute} = ${uiCol.cMute}:1（改前脚注 #3d5b78 只有 1.8:1）`);
 
+    /* ---------- v1.4.0 新增：四阶段 BOSS / 难度曲线 / 敌弹描边 ---------- */
+    const bossPhase = await evaluate(`(() => {
+      const D = ${EXPORT};
+      const B = D.classes.Boss;
+      const b = new B(1);
+      // 用血量比例反推阶段，再同步到 this.phase（spreadCount 读的是 this.phase）
+      const at = (ratio) => {
+        b.hp = b.maxHp * ratio;
+        b.phase = b.phaseByHp;
+        return {
+          p: b.phase, spread: b.spreadCount, ring: b.hasRing,
+          interval: +b.fireInterval.toFixed(2),
+        };
+      };
+      return { a: at(0.90), b: at(0.60), c: at(0.30), d: at(0.10) };
+    })()`);
+    step('★ v1.4.0 BOSS 四阶段：14% 以下进入濒死形态，扇形 7 发 + 环弹更快',
+      bossPhase.a.p === 1 && bossPhase.b.p === 2 && bossPhase.c.p === 3 && bossPhase.d.p === 4
+      && bossPhase.d.spread === 7 && bossPhase.c.spread === 5
+      && bossPhase.d.ring === true
+      && bossPhase.d.interval < bossPhase.c.interval,
+      `1/2/3/4 阶段 = ${bossPhase.a.p}/${bossPhase.b.p}/${bossPhase.c.p}/${bossPhase.d.p}，`
+      + `扇形发数 ${bossPhase.a.spread}→${bossPhase.b.spread}→${bossPhase.c.spread}→${bossPhase.d.spread}，`
+      + `开火间隔 ${bossPhase.c.interval}s→${bossPhase.d.interval}s`);
+
+    const diffCfg = await evaluate(`(() => {
+      const D = ${EXPORT};
+      return { spl: D.CFG.DIFFICULTY.SECONDS_PER_LEVEL, max: D.CFG.DIFFICULTY.MAX_LEVEL };
+    })()`);
+    step('★ v1.4.0 降难度：升级间隔 16→22 秒、等级上限 12→10',
+      diffCfg.spl === 22 && diffCfg.max === 10,
+      `每 ${diffCfg.spl} 秒升一级，上限 ${diffCfg.max} 级（旧 16 / 12）`);
+
+    // 敌弹描边：只扫 EnemyBullet 这一段 —— 全文件还有别的 shadowBlur（玩家子弹/道具），
+    // 用全文正则会把它们误判成"敌弹没改"。
+    const srcText = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+    const ebStart = srcText.indexOf('class EnemyBullet');
+    const ebEnd = srcText.indexOf('class Boss', ebStart);
+    const ebSeg = ebStart >= 0 && ebEnd > ebStart ? srcText.slice(ebStart, ebEnd) : '';
+    const hasEdge = ebSeg.includes("rgba(6,8,18,.78)");
+    const oldBlur = /ctx\.shadowBlur/.test(ebSeg);   // 只认真正的调用，不认注释里提到的名字
+    step('★ v1.4.0 敌弹描边（去掉 shadowBlur，改实心深色外圈 + 速度分级）',
+      hasEdge && !oldBlur && ebSeg.length > 500,
+      `深色外圈=${hasEdge}，敌弹段残留 shadowBlur=${oldBlur}，段落 ${ebSeg.length} 字符`);
+
     step('零未捕获异常', errs.length === 0, errs.slice(0, 2).join(' | '));
   } catch (e) {
     step('测试执行', false, e.message);

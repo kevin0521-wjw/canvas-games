@@ -476,22 +476,244 @@ function rmTree(dir) {
     const scale = await evaluate(`(() => {
       const D = ${EXPORT};
       D.start(); D.freeze();
-      // 数量和种类是随机的，但**血量公式**是确定的；这里把随机性靠层数差压过去。
+      /* ⚠️ 这里不能直接比「一层敌人总血量」。
+         敌人的**种类和数量**都是随机的：第 6 层可能抽到 1 只石像（13.5 血），
+         第 12 层可能全是小怪（6.3 血 × 8）—— 总血量反而下降，
+         但成长系数其实一路上涨。之前就是这么误红的。
+         改法：按 kind 分桶，比较**同一种敌人**在不同深度的血量。 */
+      const byKind = (depth) => {
+        const acc = {};
+        for (let i = 0; i < 24; i++) {
+          D.run.depth = depth;
+          D.genFloor();
+          // 轮流取不同房间：只采样第 0 间的话敌人类型池太窄（实测只抽到 bat 一种）
+          const ri = i % Math.max(1, D.rooms.length - 1);
+          D.clearRoom(); D.placeInRoom(ri);
+          for (const e of D.enemies) {
+            if (e.boss || !e.kind) continue;
+            (acc[e.kind] = acc[e.kind] || []).push(e.hp);
+          }
+        }
+        const out = {};
+        for (const k in acc) out[k] = +(acc[k].reduce((a, b) => a + b, 0) / acc[k].length).toFixed(2);
+        return out;
+      };
       const sample = (depth) => {
         D.run.depth = depth;
-        D.genFloor(); D.clearRoom(); D.placeInRoom(0);
+        D.genFloor();
+        const rooms = D.rooms.length;
+        D.clearRoom(); D.placeInRoom(0);
         const hp = D.enemies.reduce((a, e) => a + e.hp, 0);
-        return { cnt: D.enemies.length, hp: +hp.toFixed(1), rooms: D.rooms.length };
+        return { cnt: D.enemies.length, hp: +hp.toFixed(1), rooms };
       };
       const a = sample(1), b = sample(6), c = sample(12);
-      return { a, b, c };
+      const k1 = byKind(1), k12 = byKind(12);
+      const kinds = Object.keys(k1).filter(k => k12[k] !== undefined)
+        .map(k => ({ k, h1: k1[k], h12: k12[k] }));
+      return { a, b, c, kinds };
     })()`);
-    step('★ 难度随层数增长（房间数不缩水、敌人总血量单增）',
+    step('★ 难度随层数增长（同类型敌人血量随深度增长、房间数不缩水）',
          scale.b.rooms >= scale.a.rooms && scale.c.rooms >= scale.b.rooms &&
-         scale.b.hp > scale.a.hp && scale.c.hp > scale.b.hp,
+         // 低层刻意不出高级怪（lv1 只有史莱姆/蝙蝠），所以第 1 层与第 12 层的
+         // 共同类型可能只剩 bat —— 断言 "至少一种共同类型且它显著变硬"。
+         scale.kinds.length >= 1 &&
+         scale.kinds.every(x => x.h12 > x.h1 * 1.5),
          `第1层 ${scale.a.rooms}间/${scale.a.cnt}怪 总血${scale.a.hp}｜` +
          `第6层 ${scale.b.rooms}间/${scale.b.cnt}怪 总血${scale.b.hp}｜` +
-         `第12层 ${scale.c.rooms}间/${scale.c.cnt}怪 总血${scale.c.hp}`);
+         `第12层 ${scale.c.rooms}间/${scale.c.cnt}怪 总血${scale.c.hp}` +
+         `　‖　同类型血量：` +
+         scale.kinds.map(x => `${x.k} ${x.h1}→${x.h12}`).join('，'));
+
+    // ── 8.d2 ★ 分层 BOSS：只有偶数层最后一间是 BOSS 房 ────────────────────
+    const bossFloor = await evaluate(`(() => {
+      const D = ${EXPORT};
+      D.start(); D.freeze();
+      const probe = (d) => {
+        D.run.depth = d; D.genFloor();
+        const last = D.rooms[D.rooms.length - 1];
+        return { d, isBoss: last.isBoss, n: D.rooms.length, cur: D.curRoom };
+      };
+      return { d1: probe(1), d2: probe(2), d3: probe(3), d4: probe(4) };
+    })()`);
+    step('★ 偶数层最后一间是 BOSS 房，奇数层不是（第 1 层无 BOSS）',
+         bossFloor.d1.isBoss === false && bossFloor.d2.isBoss === true &&
+         bossFloor.d3.isBoss === false && bossFloor.d4.isBoss === true,
+         `第1层 ${bossFloor.d1.n}间/BOSS=${bossFloor.d1.isBoss}，` +
+         `第2层 ${bossFloor.d2.n}间/BOSS=${bossFloor.d2.isBoss}，` +
+         `第3层 ${bossFloor.d3.n}间/BOSS=${bossFloor.d3.isBoss}，` +
+         `第4层 ${bossFloor.d4.n}间/BOSS=${bossFloor.d4.isBoss}`);
+
+    // ── 8.d3 ★ 三种 BOSS 都能被 mkBoss(kind) 正确构造 ──────────────────────
+    const bossDefs = await evaluate(`(() => {
+      const D = ${EXPORT};
+      D.start(); D.freeze();
+      const out = {};
+      for (const k of D.BOSS_KINDS) {
+        const b = D.mkBoss(k, 300, 120, 4);
+        const d = D.BOSS_DEF[k];
+        out[k] = { kind: b.kind, r: b.r, expR: d.r, hp: b.hp, expHp: d.hp + 4 * 10,
+                   dmg: b.dmg, boss: b.boss, phase: b.phase, name: b.name };
+      }
+      return out;
+    })()`);
+    const bossOK = ['warden', 'hexer', 'reaver'].every(k => {
+      const b = bossDefs[k];
+      return b && b.kind === k && b.r === b.expR && b.hp === b.expHp &&
+             b.boss === true && b.phase === 1 && b.dmg <= 2;
+    });
+    step('★ 三种 BOSS（warden/hexer/reaver）的 kind/hp/r 构造正确，单发伤害 ≤2',
+         bossOK && Object.keys(bossDefs).length === 3,
+         ['warden', 'hexer', 'reaver'].map(k => {
+           const b = bossDefs[k] || {};
+           return `${k}:r${b.r}/hp${b.hp}/dmg${b.dmg}`;
+         }).join('，'));
+
+    // ── 8.d4 ★ BOSS 血量 ≤50% → 二阶段（并触发温和的边缘脉冲）────────────
+    const phase2 = await evaluate(`(() => {
+      const D = ${EXPORT};
+      D.start(); D.freeze(); D.step(2);
+      D.clearRoom(); D.ebullets.length = 0;
+      D.pl.deadT = 99999;
+      const b = D.spawnBoss(320, 150, 4, 'warden');
+      const r0 = b.phase;
+      b.hp = b.maxHp * 0.45;
+      D.step(2);
+      const pulse = D.run.phasePulse;
+      const guards = D.enemies.filter(e => e.kind === 'guard').length;
+      D.step(100);
+      return { r0, phase: b.phase, pulse, guards, pulseAfter: D.run.phasePulse };
+    })()`);
+    step('★ BOSS 血量降到 50% 以下 → phase 变 2（带边缘脉冲 + 守卫分裂）',
+         phase2.r0 === 1 && phase2.phase === 2 && phase2.pulse > 0 &&
+         phase2.guards === 2 && phase2.pulseAfter === 0,
+         `phase ${phase2.r0}→${phase2.phase}，脉冲 ${phase2.pulse.toFixed(2)}` +
+         `→${phase2.pulseAfter.toFixed(2)}，分裂出 ${phase2.guards} 只小守卫`);
+
+    // ── 8.d5 ★ 敌弹真的被 draw() 画出来（像素采样 + 绘制计数）─────────────
+    //   原来 drawEBullets 定义了却从没被调用 —— 法师/BOSS 的弹真实扣血但不可见。
+    //   只验「函数存在」抓不到这种缺陷，必须真的画一帧再读像素。
+    const ebulletDraw = await evaluate(`(() => {
+      const D = ${EXPORT};
+      D.start(); D.freeze(); D.step(2);
+      D.pl.deadT = 99999;
+      D.ebullets.length = 0; D.enemies.length = 0;
+      D.chests.length = 0; D.drops.length = 0;
+      D.rooms[D.curRoom].cleared = true;
+      D.warp(320, 224);
+      const bx = 200, by = 300;
+      D.ebullets.push({ x: bx, y: by, vx: 0, vy: 0, r: 6, col: '#ff2fd0',
+                        dmg: 0, delay: 0, t: 0, alive: true });
+      const f0 = D.drawStats.frames;
+      D.draw();
+      const c = document.querySelector('canvas');
+      const g = c.getContext('2d');
+      const px = g.getImageData(bx, by, 1, 1).data;
+      const bg = g.getImageData(bx - 40, by, 1, 1).data;
+      const diff = Math.abs(px[0] - bg[0]) + Math.abs(px[1] - bg[1]) + Math.abs(px[2] - bg[2]);
+      return { frames: D.drawStats.frames - f0, drawn: D.drawStats.ebullets,
+               px: [px[0], px[1], px[2]], bg: [bg[0], bg[1], bg[2]], diff };
+    })()`);
+    step('★ 敌弹被真实绘制：draw() 后在弹心采样，颜色与背景明显不同',
+         ebulletDraw.frames === 1 && ebulletDraw.drawn >= 1 && ebulletDraw.diff >= 60,
+         `draw 调用 +${ebulletDraw.frames}，本帧绘制敌弹 ${ebulletDraw.drawn} 发，` +
+         `弹心 rgb(${ebulletDraw.px.join(',')}) vs 背景 rgb(${ebulletDraw.bg.join(',')})，` +
+         `通道差 ${ebulletDraw.diff}`);
+
+    // ── 8.d5b ★ BOSS 血条：只在 BOSS 房、BOSS 存活时画 ────────────────────
+    const bossBar = await evaluate(`(() => {
+      const D = ${EXPORT};
+      D.start(); D.freeze(); D.step(2);
+      D.pl.deadT = 99999;
+      D.run.hintT = 0; D.run.transT = 0;
+      const g = document.querySelector('canvas').getContext('2d');
+      D.draw();
+      const normal = { bar: D.drawStats.bossBar,
+                       px: Array.from(g.getImageData(250, 50, 1, 1).data) };
+      D.run.depth = 2; D.genFloor();
+      const last = D.rooms.length - 1;
+      D.placeInRoom(last);                  // 偶数层最后一间 → 刷 BOSS
+      D.run.hintT = 0; D.run.transT = 0;
+      D.draw();
+      const boss = { bar: D.drawStats.bossBar, isBoss: D.rooms[last].isBoss,
+                     alive: !!(D.boss && D.boss.alive), kind: D.boss && D.boss.kind,
+                     px: Array.from(g.getImageData(250, 50, 1, 1).data) };
+      return { normal, boss };
+    })()`);
+    step('★ BOSS 血条只在 BOSS 房绘制，且血条像素确实是血红色',
+         bossBar.normal.bar === 0 && bossBar.boss.bar === 1 &&
+         bossBar.boss.isBoss === true && bossBar.boss.alive === true &&
+         bossBar.boss.px[0] > 180 && bossBar.boss.px[0] > bossBar.boss.px[1] + 80,
+         `普通房 bossBar=${bossBar.normal.bar}（rgb ${bossBar.normal.px.slice(0,3).join(',')}）→ ` +
+         `BOSS 房 bossBar=${bossBar.boss.bar}，${bossBar.boss.kind} 存活，` +
+         `血条 rgb(${bossBar.boss.px.slice(0,3).join(',')})`);
+
+    // ── 8.d6 ★ 翻滚结束后 rx/ry 归零 ──────────────────────────────────────
+    const rollClear = await evaluate(`(() => {
+      const D = ${EXPORT};
+      D.start(); D.freeze(); D.step(2);
+      D.pl.deadT = 99999;
+      D.clearRoom(); D.ebullets.length = 0;
+      D.rooms[D.curRoom].cleared = true;
+      D.warp(320, 224);
+      const P = D.pl;
+      P.rolling = 0; P.rollT = 0; P.rx = 0; P.ry = 0;
+      D.key('Shift', true); D.key('d', true);
+      D.step(1);
+      D.key('Shift', false); D.key('d', false);
+      const during = { rx: +P.rx.toFixed(2), ry: +P.ry.toFixed(2), rolling: P.rolling };
+      D.step(30);
+      return { during, afterRx: P.rx, afterRy: P.ry, afterRolling: P.rolling };
+    })()`);
+    step('★ 翻滚结束后 pl.rx / pl.ry 归零（不再停在旧方向）',
+         rollClear.during.rx !== 0 && rollClear.afterRx === 0 &&
+         rollClear.afterRy === 0 && rollClear.afterRolling === 0,
+         `翻滚中 rx=${rollClear.during.rx} ry=${rollClear.during.ry} → ` +
+         `结束后 rx=${rollClear.afterRx} ry=${rollClear.afterRy}（rolling=${rollClear.afterRolling}）`);
+
+    // ── 8.d7 ★ 敌弹 delay 递减，且 delay>0 期间不移动 ─────────────────────
+    const delayBullet = await evaluate(`(() => {
+      const D = ${EXPORT};
+      D.start(); D.freeze(); D.step(2);
+      D.pl.deadT = 99999;
+      D.ebullets.length = 0;
+      const b = { x: 120, y: 120, vx: 3, vy: 0, r: 5, col: '#5ec8ff',
+                  dmg: 1, delay: 2, t: 0, alive: true };
+      D.ebullets.push(b);
+      const x0 = b.x;
+      D.step(1);
+      const p1 = { x: b.x, d: b.delay };
+      D.step(1);
+      const p2 = { x: b.x, d: b.delay };
+      D.step(1);
+      const p3 = { x: b.x, d: b.delay };
+      return { x0, p1, p2, p3 };
+    })()`);
+    step('★ 敌弹 delay 逐帧递减，delay>0 期间不移动（法师三连点真的会出齐）',
+         delayBullet.p1.d === 1 && delayBullet.p1.x === delayBullet.x0 &&
+         delayBullet.p2.d === 0 && delayBullet.p2.x === delayBullet.x0 &&
+         delayBullet.p3.x > delayBullet.x0,
+         `delay 2→${delayBullet.p1.d}→${delayBullet.p2.d}→${delayBullet.p3.d}，` +
+         `x 保持 ${delayBullet.x0} 直到延迟结束，之后 x=${delayBullet.p3.x}`);
+
+    // ── 8.d8 ★ 难度下调：同层敌人 hp/移速低于旧公式，玩家多一格血 ──────────
+    //   旧公式（对照）：hp = base.hp × (1 + lv×0.28)，spd = base.spd × (1 + lv×0.05)
+    const balance = await evaluate(`(() => {
+      const D = ${EXPORT};
+      D.start(); D.freeze();
+      D.run.depth = 6; D.genFloor(); D.enemies.length = 0;
+      const e = D.spawnEnemy('statue', 300, 200, 6);
+      const oldHp = 6.5 * (1 + 6 * 0.28);
+      const oldSpd = 0.6 * (1 + 6 * 0.05);
+      return { maxHp: D.pl.maxHp, hpNow: +e.hp.toFixed(3), hpOld: +oldHp.toFixed(3),
+               spdNow: +e.spd.toFixed(3), spdOld: +oldSpd.toFixed(3),
+               grow: D.DIFF.hpGrow, growOld: D.DIFF.hpGrowOld };
+    })()`);
+    step('★ 难度下调：第 6 层石像血量/移速低于旧公式，玩家初始生命 3→4',
+         balance.maxHp === 4 && balance.hpNow < balance.hpOld &&
+         balance.spdNow < balance.spdOld && balance.grow === 0.18 &&
+         balance.growOld === 0.28,
+         `HP ${balance.hpNow} < 旧 ${balance.hpOld}；移速 ${balance.spdNow} < 旧 ${balance.spdOld}；` +
+         `成长系数 ${balance.growOld}→${balance.grow}；maxHp=${balance.maxHp}`);
 
     // ── 8.e 最高层数纪录（内存 + localStorage）────────────────────────────
     const best = await evaluate(`(() => {

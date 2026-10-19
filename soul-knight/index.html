@@ -53,14 +53,24 @@
     justify-content:center;font-size:16px;font-weight:700;color:#0d1014}
   .card .nm{font-size:14px;color:var(--gold);font-weight:700;letter-spacing:.5px}
   .card .ds{font-size:11.5px;color:#a9b3c4;margin-top:5px;line-height:1.55}
+  /* 一句话说明：和 desc 分两层 —— desc 讲「改什么」，tip 讲「什么时候该选它」。
+     #b9c4d4 在 #1c2230 上实测 ≈ 8.9:1，远超 4.5:1。 */
+  .card .tip{font-size:11px;color:#b9c4d4;margin-top:6px;line-height:1.5;
+    border-top:1px dashed #3a4456;padding-top:5px}
   .card .lv{position:absolute;right:9px;top:10px;font-size:10.5px;color:var(--dim);font-family:Consolas,monospace}
+  /* 键盘序号：鼠标能点，键盘也能按，两个入口都得看得见 */
+  .card .key{position:absolute;right:8px;bottom:7px;font-family:Consolas,monospace;font-size:10px;
+    color:#aeb9c9;border:1px solid #3f4a5e;padding:0 4px;border-radius:2px}
   .legend{display:flex;gap:14px;flex-wrap:wrap;margin-top:8px;font-size:12.5px;color:#a9b3c4}
   .legend s{text-decoration:none;display:inline-flex;align-items:center;gap:5px}
   .legend s i{width:9px;height:9px;display:inline-block}
   #tip{position:absolute;left:50%;bottom:10px;transform:translateX(-50%);color:#6d7686;
     font-size:11.5px;letter-spacing:.5px;white-space:nowrap}
-  #live{position:absolute;top:8px;left:50%;transform:translateX(-50%);display:none;gap:16px;
-    background:rgba(16,20,27,.9);padding:5px 15px;border:1px solid #333d4e;font-size:12.5px;white-space:nowrap}
+  /* v1.4.0：640px 宽下状态条项数偏多（层/房/怪/箱/HP/幸运/金币/速度/AI），
+     允许换行并压进画布宽度，避免向两侧溢出 */
+  #live{position:absolute;top:8px;left:50%;transform:translateX(-50%);display:none;gap:12px;row-gap:3px;
+    background:rgba(16,20,27,.9);padding:5px 13px;border:1px solid #333d4e;font-size:11.5px;white-space:nowrap;
+    max-width:calc(100% - 10px);box-sizing:border-box;flex-wrap:wrap;justify-content:center}
   #live i{font-style:normal;color:var(--dim);margin-right:4px}
   #live b{font-weight:700;font-family:Consolas,monospace;color:var(--gold)}
 </style>
@@ -188,53 +198,69 @@ const UPG = [
   // ── 武器 ──
   { id:'w1', kind:'weapon', name:'裂空双枪', icon:'双', col:'#5ec8ff', max:1,
     desc:'弹道 +1，改为双发平行射击',
+    tip:'两发平行弹，清小怪更快',
     apply(p){ p.shots += 1; p.spread += 0.10; } },
   { id:'w2', kind:'weapon', name:'三叉散射', icon:'散', col:'#ff9d4a', max:1,
     desc:'弹道 +1，改为三发扇形',
+    tip:'扇形三发，适合近距离群怪',
     apply(p){ p.shots += 1; p.spread += 0.34; } },
   { id:'w3', kind:'weapon', name:'穿甲弹', icon:'穿', col:'#a98cff', max:3,
     desc:'子弹可多穿透 1 个敌人，伤害 -8%',
+    tip:'一发能串起排成一列的敌人',
     apply(p){ p.pierce += 1; p.dmg *= 0.92; } },
   { id:'w4', kind:'weapon', name:'重弹', icon:'重', col:'#ffc94a', max:3,
     desc:'伤害 +35%，但射速 -15%',
+    tip:'单发更疼，打 BOSS 更划算',
     apply(p){ p.dmg *= 1.35; p.cd *= 1.15; } },
   { id:'w5', kind:'weapon', name:'散射霰', icon:'霰', col:'#ff5b6e', max:2,
     desc:'弹速 +25%，弹道 +1',
+    tip:'又快又密，贴脸压制力最强',
     apply(p){ p.spd *= 1.25; p.shots += 1; } },
   { id:'w6', kind:'weapon', name:'回旋镖', icon:'旋', col:'#3ddc97', max:1,
     desc:'子弹飞出后返回，射程翻倍',
+    tip:'子弹会飞回来，同一个敌人打两遍',
     apply(p){ p.boomerang = true; p.range *= 2; } },
   { id:'w7', kind:'weapon', name:'爆裂弹', icon:'爆', col:'#ff9d4a', max:2,
     desc:'子弹命中时小范围爆炸',
+    tip:'命中炸开，顺带清掉周围小怪',
     apply(p){ p.blast += 1; } },
 
   // ── 被动 ──
   { id:'p1', kind:'passive', name:'急速', icon:'速', col:'#5ec8ff', max:5,
     desc:'射速 +18%',
+    tip:'开火间隔更短，输出更顺',
     apply(p){ p.cd *= 0.82; } },
   { id:'p2', kind:'passive', name:'锋锐', icon:'锐', col:'#ff5b6e', max:5,
     desc:'伤害 +22%',
+    tip:'所有伤害直接乘算提升',
     apply(p){ p.dmg *= 1.22; } },
   { id:'p3', kind:'passive', name:'迅捷', icon:'捷', col:'#3ddc97', max:4,
     desc:'移动速度 +12%',
+    tip:'走位更灵活，更容易躲开弹幕',
     apply(p){ p.spd *= 1.12; } },
   { id:'p4', kind:'passive', name:'幸运', icon:'运', col:'#ffc94a', max:5,
     desc:'幸运 +1（提高红武与高额掉落概率）',
+    tip:'更容易开出高品质宝箱',
     apply(p){ p.fortune += 1; } },
   { id:'p5', kind:'passive', name:'吸血', icon:'吸', col:'#ff5b6e', max:3,
     desc:'命中回复 0.4 生命',
+    tip:'边打边回血，续航全靠输出',
     apply(p){ p.lifesteal += 0.4; } },
   { id:'p6', kind:'passive', name:'翻滚大师', icon:'滚', col:'#a98cff', max:3,
     desc:'翻滚冷却 -25%，无敌帧 +3',
+    tip:'滚得更勤，无敌帧更长',
     apply(p){ p.rollCd *= 0.75; p.rollIfr += 3; } },
   { id:'p7', kind:'passive', name:'坚韧', icon:'韧', col:'#ffc94a', max:4,
     desc:'最大生命 +1，并回满该格',
+    tip:'多一格血，立刻回满这一格',
     apply(p){ p.maxHp += 1; p.hp = Math.min(p.maxHp, p.hp + 1); } },
   { id:'p8', kind:'passive', name:'暴击', icon:'暴', col:'#ffc94a', max:5,
     desc:'暴击率 +8%，暴击伤害 +0.3',
+    tip:'有概率打出高额伤害',
     apply(p){ p.crit += 0.08; p.critDmg += 0.3; } },
   { id:'p9', kind:'passive', name:'磁力', icon:'磁', col:'#5ec8ff', max:2,
     desc:'拾取范围 +60%，额外生命值掉落 +25%',
+    tip:'吸得更远，血包也掉得更多',
     apply(p){ p.magnet *= 1.6; p.heartChance += 0.25; } },
 ];
 
@@ -275,15 +301,19 @@ function newRun() {
     //   已**彻底移除**：连同 draw() 里的 ctx.translate、所有 `run.shake = ...`。
     //   作为替代，受击走 run.hurtGlow（屏幕边缘暗角脉冲）+ 粒子，不再晃屏。
     hurtGlow: 0, hurtDir: 0,            // 受击反馈：强度 + 来向（弧度）
+    phasePulse: 0, phaseCol: '#ff5b6e', // BOSS 进二阶段的「屏幕边缘色彩脉冲」（不是白闪）
     transT: 0, transText: '',           // 层间转场提示（「第 N 层」浮现）
     bestDepth: loadBest(),
   };
   pl = {
-    x: W / 2, y: H / 2, r: 10, hp: 3, maxHp: 3,
+    // 初始/最大生命 3 → 4：本轮整体降难度，多一格容错，但 BOSS 单发仍 ≤2
+    x: W / 2, y: H / 2, r: 10, hp: 4, maxHp: 4,
     spd: 2.6, dmg: 1, cd: 13, shootT: 0, shots: 1, spread: 0,
     pierce: 0, blast: 0, lifesteal: 0, crit: 0, critDmg: 2,
     fortune: 0, magnet: 42, heartChance: 0.06,
     rollT: 0, rollCd: 90, rollIfr: 22, rolling: 0, face: 0,
+    // rx/ry 只在翻滚期间有意义；必须在翻滚结束时清零（缺陷修复，见 movePlayer）
+    rx: 0, ry: 0,
     bulletSpd: 7.2, range: 340, boomerang: false,
     levels: {}, goldMul: 1,
   };
@@ -339,11 +369,16 @@ function genFloor() {
   //   → rooms 是空数组 → placeInRoom 里 rooms[0] 是 undefined
   //   → 一进游戏就崩，**这个游戏从未真正跑起来过**。
   //   诊断证据：运行时 rooms.length === 0，而 map.length === 14 正常。
-  const n = 5 + Math.min(4, Math.floor((run.depth || 1) / 2));
+  // 房间数：原来 5 + min(4, depth/2) 最多 9 间，一轮要清太久 → 收到 5 + min(3, …)。
+  // 第 1 层 5 间、第 2~3 层 6 间、第 4~5 层 7 间、第 6 层起 8 间封顶。
+  const n = 5 + Math.min(3, Math.floor((run.depth || 1) / 2));
+  // BOSS 只在**偶数层**的最后一间出现（第 1 层是奇数层 → 没有 BOSS）。
+  // 奇数层最后一间回到普通房，节奏才有起伏：紧张一层、喘息一层。
+  const hasBoss = ((run.depth || 1) % 2 === 0) && (run.depth || 1) > 1;
   for (let i = 0; i < n; i++) {
     rooms.push({
       i, cleared: false, visited: false,
-      isBoss: (i === n - 1),
+      isBoss: hasBoss && (i === n - 1),
       // 房间内部格子数：地图 20×14 格，房间占 16×10（四周留 2 格墙），
       // 视觉上才像"一间房"。原来只给 6×5 格 = 192×160px，
       // 在 640×448 的地图里只占 1/9 —— 截图上一眼看过去几乎全是墙。
@@ -352,8 +387,9 @@ function genFloor() {
       spawned: false,
     });
   }
-  // 第 5 个房间当 Boss 房
-  if (rooms.length >= 5) rooms[4].isBoss = true;
+  // ⚠️ 这里原来写死 `if (rooms.length >= 5) rooms[4].isBoss = true;` ——
+  //   它会把第 5 间无条件改成 BOSS 房，覆盖掉上面按层数算出来的结果，
+  //   于是「奇数层没有 BOSS」永远不成立。已删除。
   rooms.forEach(r => r.cleared = false);
   map = [];
   for (let y = 0; y < ROWS; y++) map.push(new Array(COLS).fill(WALL));
@@ -407,12 +443,13 @@ function spawnRoom(i) {
     return;
   }
   // 难度随层数增长（这是「无限下潜」必须成立的前提，否则层数只是数字）：
-  //   · 数量：3 + floor(lv×0.9) + 0~1，9 封顶（房间就这么大，再多会挤成一坨）
-  //   · 血量：见 spawnEnemy 的 (1 + lv×0.28)，**不封顶**
+  //   · 数量：基础 3 + floor(lv×0.9) + 0~1，再 ×0.85（本轮整体下调约 15%），8 封顶
+  //   · 血量：见 spawnEnemy 的 (1 + lv×0.18)，**不封顶**
   //   · 构成：lv1 只有史莱姆/蝙蝠，lv2~3 加法师，lv4+ 换成蝙蝠/法师/石像
-  //   · Boss：见 spawnBoss 的 40 + lv×26，同样不封顶
+  //   · Boss：见 BOSS_DEF 的 base.hp + lv×10，只在偶数层出现
   //   判据里有一条「难度随层数增长」专门钉这个。
-  const cnt = Math.min(9, 3 + Math.floor(lv * 0.9) + rndi(0, 1));
+  const raw = 3 + Math.floor(lv * 0.9) + rndi(0, 1);
+  const cnt = Math.max(2, Math.min(8, Math.round(raw * 0.85)));
   for (let k = 0; k < cnt; k++) {
     const kind = lv <= 1 ? pick(['slime', 'slime', 'bat'])
                : lv <= 3 ? pick(['slime', 'bat', 'bat', 'mage'])
@@ -434,11 +471,16 @@ function spawnEnemy(kind, x, y, lv) {
     bat:   { hp: 1.4, spd: 2.5, r: 9,  dmg: 1, col: C.bat, score: 18 },
     mage:  { hp: 2, spd: 0.75, r: 11, dmg: 1, col: C.mage, score: 25 },
     statue:{ hp: 6.5, spd: 0.6, r: 15, dmg: 1.5, col: C.statue, score: 40 },
-  }[kind];
+    // 守卫分裂体：只由 warden 二阶段产生，不参与随机刷怪
+    guard: { hp: 3, spd: 1.1, r: 13, dmg: 1, col: '#ff8fa0', score: 15 },
+  }[kind] || { hp: 2, spd: 1, r: 11, dmg: 1, col: C.slime, score: 10 };
+  // ⚠️ 血量成长系数本轮下调：0.28 → 0.18；移速 0.05 → 0.03。
+  //   旧公式（对照用，判据会拿它证明「确实变低了」）：base.hp * (1 + lv * 0.28)
+  const hp = base.hp * (1 + lv * DIFF.hpGrow);
   const e = {
     kind, x, y, r: base.r,
-    hp: base.hp * (1 + lv * 0.28), maxHp: base.hp * (1 + lv * 0.28),
-    spd: base.spd * (1 + lv * 0.05), dmg: base.dmg, col: base.col,
+    hp, maxHp: hp,
+    spd: base.spd * (1 + lv * DIFF.spdGrow), dmg: base.dmg, col: base.col,
     score: base.score, t: 0, fireT: rnd(20, 70), flash: 0,
     knock: 0, kx: 0, ky: 0, alive: true, boss: false,
   };
@@ -446,18 +488,77 @@ function spawnEnemy(kind, x, y, lv) {
   return e;
 }
 
-function spawnBoss(x, y, lv) {
-  const hp = 40 + lv * 26;
-  const b = {
-    kind: 'boss', x, y, r: 26,
-    hp, maxHp: hp, spd: 0.75 + lv * 0.05, dmg: 2,
-    col: C.blood, score: 300, t: 0, fireT: 60, flash: 0,
+/* 难度曲线常量（集中在这里，判据直接读它做「下调前后」对照）
+   旧公式：hp = base.hp * (1 + lv * 0.28)，spd = base.spd * (1 + lv * 0.05)
+   新公式：0.18 / 0.03 —— 高层的血量与速度都不再指数级压人。 */
+const DIFF = { hpGrow: 0.18, hpGrowOld: 0.28, spdGrow: 0.03, spdGrowOld: 0.05 };
+
+/* ==========================================================================
+   BOSS —— 三种，按 run.depth 轮换，两阶段
+   --------------------------------------------------------------------------
+   只在偶数层出现（见 genFloor）。三种的差异必须体现在**行为**上，
+   而不是只换个颜色：
+     warden 守卫·石像鬼：慢、血最厚、放射慢速弹；二阶段分裂出 2 只小守卫
+     hexer  咒术师    ：中速、会瞬移、扇形三连 + 召唤；二阶段改环形弹
+     reaver 掠夺者    ：快、冲刺撞击；二阶段残影连冲
+   单发伤害一律 ≤2（子弹 dmg=1，接触 2），保证不会「一发秒人」。
+   ========================================================================== */
+const BOSS_KINDS = ['warden', 'hexer', 'reaver'];
+const BOSS_DEF = {
+  warden: { name:'守卫·石像鬼', hp:54, r:28, spd:0.55, dmg:2, col:C.blood,  score:320 },
+  hexer:  { name:'咒术师',      hp:40, r:24, spd:1.00, dmg:2, col:C.violet, score:340 },
+  reaver: { name:'掠夺者',      hp:34, r:22, spd:1.65, dmg:2, col:C.orange, score:360 },
+};
+
+/** 只构造、不入场（判据直接验 hp/r/kind 对得上）。 */
+function mkBoss(kind, x, y, lv) {
+  const k = BOSS_DEF[kind] ? kind : 'warden';
+  const d = BOSS_DEF[k];
+  lv = lv || run.depth || 1;
+  const hp = d.hp + lv * 10;
+  return {
+    kind: k, name: d.name, x, y, r: d.r,
+    hp, maxHp: hp, spd: d.spd * (1 + lv * 0.02), dmg: Math.min(2, d.dmg),
+    col: d.col, score: d.score, t: 0, fireT: 60, flash: 0,
     knock: 0, kx: 0, ky: 0, alive: true, boss: true,
     phase: 1, rage: false, mode: 'move',
+    split: false, teleT: 120, dashCd: 70, dashT: 0, dashChain: 0, dvx: 0, dvy: 0,
   };
+}
+
+/** 按层数轮换：depth % 3 → warden / hexer / reaver */
+function bossKindForDepth(d) {
+  return BOSS_KINDS[Math.abs(d | 0) % BOSS_KINDS.length];
+}
+
+function spawnBoss(x, y, lv, kind) {
+  const b = mkBoss(kind || bossKindForDepth(lv || run.depth), x, y, lv);
   enemies.push(b);
   bossRef = b;
-  run.hint = 'BOSS 降临'; run.hintT = 100;
+  run.hint = b.name + ' 降临'; run.hintT = 100;
+  return b;
+}
+
+/** 二阶段切换：文字 + 屏幕边缘色彩脉冲（无白闪、无抖动） */
+function bossEnterPhase2(e) {
+  if (e.phase === 2) return;
+  e.phase = 2; e.rage = true;
+  run.hint = e.name + ' · 第二阶段'; run.hintT = 130;
+  run.phasePulse = 1;
+  run.phaseCol = e.col;
+  burst(e.x, e.y, 34, e.col, 6, .75);
+  // 守卫分裂：两只小守卫，血量为本体最大血的 12%
+  if (e.kind === 'warden' && !e.split) {
+    e.split = true;
+    for (let i = 0; i < 2; i++) {
+      const gx = clamp(e.x + (i ? 36 : -36), 74, W - 74);
+      const gy = clamp(e.y + 26, 74, H - 110);
+      const m = spawnEnemy('guard', gx, gy, run.depth);
+      m.r = 13;
+      m.hp = m.maxHp = Math.max(3, Math.round(e.maxHp * 0.12));
+      burst(gx, gy, 10, C.blood, 3.5, .4);
+    }
+  }
 }
 
 /* ==========================================================================
@@ -552,6 +653,8 @@ function update(dt) {
   if (run.transT > 0) run.transT -= dt;
   // 受击反馈的衰减：不做屏幕抖动，改成边缘暗角脉冲慢慢退去（80 帧约 1.3 秒）
   if (run.hurtGlow > 0) run.hurtGlow = Math.max(0, run.hurtGlow - dt / 80);
+  // BOSS 二阶段的边缘色彩脉冲：90 帧退完，全程 ≤30% 透明度、中心透明
+  if (run.phasePulse > 0) run.phasePulse = Math.max(0, run.phasePulse - dt / 90);
 
   movePlayer(dt);
   updateBullets(dt);
@@ -621,6 +724,11 @@ function movePlayer(dt) {
     pl.rolling -= dt;
     pl.x += pl.rx * dt; pl.y += pl.ry * dt;
     if (Math.random() < .5) burst(pl.x, pl.y, 1, C.violet, 1.5, .25);
+    // ★ 缺陷修复：翻滚结束时必须清零 rx/ry。
+    //   原来只把 rolling 减到 0，rx/ry 永远停在最后一次翻滚的方向上，
+    //   而下面的墙体判定会读 `pl.rx || ax` —— 于是翻滚后即便站着不动，
+    //   探针方向也一直指着旧方向，贴墙时会出现「卡住/穿墙式回退」。
+    if (pl.rolling <= 0) { pl.rolling = 0; pl.rx = 0; pl.ry = 0; }
   } else {
     pl.x += ax * pl.spd * dt;
     pl.y += ay * pl.spd * dt;
@@ -916,7 +1024,12 @@ function doBlast(x, y, lvl, dmg) {
 function updateEBullets(dt) {
   const px = pl.x, py = pl.y;
   for (const b of ebullets) {
-    b.x += b.vx * dt; b.y += b.vy * dt; b.t += dt;
+    b.t += dt;
+    // ★ 缺陷修复：delay 原来是「一次性参数」—— 全文件没有任何递减语句，
+    //   法师三连点的后两发会带着 delay=9/18 永久飞出屏幕（画的时候还跳过）。
+    //   现在逐帧递减，delay > 0 期间既不移动也不参与碰撞。
+    if (b.delay > 0) { b.delay -= dt; continue; }
+    b.x += b.vx * dt; b.y += b.vy * dt;
     if (b.x < 0 || b.x > W || b.y < 0 || b.y > H) { b.alive = false; continue; }
     // 翻滚无敌帧：这就是翻滚的价值
     if (pl.rolling > 0) continue;
@@ -926,6 +1039,98 @@ function updateEBullets(dt) {
     }
   }
   ebullets = ebullets.filter(b => b.alive);
+}
+
+/** 三种 BOSS 的行为分支。dt 恒为 1（二倍速也不放大），所以弹速/位移都可复现。 */
+function updateBoss(e, dt, a) {
+  // 阶段切换优先：血量 ≤50% 立即换弹型（提示见 bossEnterPhase2）
+  if (e.phase < 2 && e.hp / e.maxHp <= 0.5) bossEnterPhase2(e);
+
+  e.fireT -= dt;
+  if (e.kind === 'warden') {
+    // 慢速靠近 + 轻微横向漂移；向四周放射慢速弹
+    e.x += Math.cos(a) * e.spd * .55 * dt + Math.sin(e.t * .02) * .7 * dt;
+    e.y += Math.sin(a) * e.spd * .55 * dt;
+    if (e.fireT <= 0) {
+      e.fireT = e.phase === 2 ? 56 : 84;
+      const n = e.phase === 2 ? 14 : 10;
+      const spd = e.phase === 2 ? 1.9 : 1.5;
+      const off = e.t * .05;
+      for (let i = 0; i < n; i++)
+        ebullets.push(mkEBullet(e.x, e.y, off + i * TAU / n, spd, e.col, 5, 1));
+    }
+  } else if (e.kind === 'hexer') {
+    // 中速：保持 110~190 距离；定期瞬移；扇形三连 + 召唤小怪
+    const d = dist(e.x, e.y, pl.x, pl.y);
+    const want = d < 110 ? -1 : d > 190 ? 1 : 0;
+    e.x += Math.cos(a) * e.spd * want * dt;
+    e.y += Math.sin(a) * e.spd * want * dt;
+    e.teleT -= dt;
+    if (e.teleT <= 0) {
+      e.teleT = e.phase === 2 ? 100 : 160;
+      burst(e.x, e.y, 14, C.violet, 4, .45);
+      const g = roomRect(curRoom);
+      for (let k = 0; k < 30; k++) {
+        const nx = rnd(g.x + 44, g.x + g.w - 44);
+        const ny = rnd(g.y + 44, g.y + g.h - 44);
+        if (dist(nx, ny, pl.x, pl.y) > 95) { e.x = nx; e.y = ny; break; }
+      }
+      burst(e.x, e.y, 14, C.violet, 4, .45);
+    }
+    if (e.fireT <= 0) {
+      if (e.phase === 1) {
+        e.fireT = 96;
+        for (let i = -1; i <= 1; i++)
+          ebullets.push(mkEBullet(e.x, e.y, a + i * .26, 2.6, e.col, 5, 1));
+        // 召唤上限：房间里最多 10 个敌人，别把场面塞爆
+        if (enemies.length < 10 && Math.random() < .75) {
+          spawnEnemy(pick(['slime', 'bat']),
+            clamp(e.x + rnd(-46, 46), 76, W - 76),
+            clamp(e.y + rnd(-46, 46), 76, H - 110), run.depth);
+        }
+      } else {
+        // 二阶段：扇形 → 环形弹
+        e.fireT = 68;
+        for (let i = 0; i < 12; i++)
+          ebullets.push(mkEBullet(e.x, e.y, i * TAU / 12 + e.t * .03, 2.0, C.orange, 5, 1));
+      }
+    }
+  } else {
+    // reaver：锁定方向冲刺撞击；二阶段残影连冲（连续 3 段）
+    e.dashCd -= dt;
+    if (e.dashT > 0) {
+      e.dashT -= dt;
+      e.x += e.dvx * dt; e.y += e.dvy * dt;
+      if (Math.random() < .55) burst(e.x, e.y, 1, C.orange, 1.6, .28);
+      if (e.dashT <= 0) {
+        if (e.phase === 2 && e.dashChain > 0) {
+          e.dashChain--;
+          const aa = Math.atan2(pl.y - e.y, pl.x - e.x);
+          e.dvx = Math.cos(aa) * 5.0; e.dvy = Math.sin(aa) * 5.0;
+          e.dashT = 12;
+          burst(e.x, e.y, 8, C.orange, 3, .3);
+        } else {
+          e.dashCd = e.phase === 2 ? 30 : 58;
+        }
+      }
+    } else {
+      e.x += Math.cos(a) * e.spd * .35 * dt;
+      e.y += Math.sin(a) * e.spd * .35 * dt;
+      if (e.dashCd <= 0) {
+        e.dashT = 15;
+        e.dashChain = e.phase === 2 ? 2 : 0;
+        const v = e.phase === 2 ? 5.0 : 4.4;
+        e.dvx = Math.cos(a) * v;
+        e.dvy = Math.sin(a) * v;
+        burst(e.x, e.y, 10, C.orange, 4, .35);
+      }
+    }
+  }
+
+  // BOSS 体型大，单独按房间内框夹一次（普通怪的 20px 夹取会留半只在墙里）
+  const g = roomRect(curRoom);
+  e.x = clamp(e.x, g.x + e.r + 4, g.x + g.w - e.r - 4);
+  e.y = clamp(e.y, g.y + e.r + 4, g.y + g.h - e.r - 4);
 }
 
 function updateEnemies(dt) {
@@ -944,36 +1149,11 @@ function updateEnemies(dt) {
 
     const a = Math.atan2(pl.y - e.y, pl.x - e.x);
     if (e.boss) {
-      // Boss 三阶段：接近 → 环射 → 扇形 + 冲刺
-      e.fireT -= dt;
-      if (e.mode === 'move') {
-        // 缓慢横向游走
-        e.x += Math.sin(e.t * .022) * 1.3 * dt;
-        e.y = clamp(e.y + Math.sin(e.t * .04) * .5 * dt, 50, H - 120);
-        if (e.fireT <= 0) { e.mode = 'attack'; e.fireT = 90; }
-      } else if (e.mode === 'attack') {
-        // 阶段 1 环射 / 阶段 2+ 扇形+环
-        if (e.fireT <= 0) {
-          e.fireT = e.rage ? 44 : 64;
-          if (e.phase === 1) {
-            for (let i = 0; i < 12; i++)
-              ebullets.push(mkEBullet(e.x, e.y, i * TAU / 12 + e.t * .2, 1.7, C.blood, 5));
-          } else {
-            for (let i = -3; i <= 3; i++)
-              ebullets.push(mkEBullet(e.x, e.y, a + i * .17, 3.1, C.orange, 5));
-            if (e.rage) for (let i = 0; i < 10; i++)
-              ebullets.push(mkEBullet(e.x, e.y, i * TAU / 10 - e.t * .25, 1.4, C.violet, 4));
-          }
-        }
-        if (e.fireT < 40) { e.mode = 'move'; e.fireT = e.rage ? 40 : 70; }
-      }
-      // 阶段转换
-      const r = e.hp / e.maxHp;
-      if (!e.rage && r <= .5) {
-        e.rage = true; e.phase = 2;
-        run.hint = 'BOSS 狂暴！'; run.hintT = 90;
-        burst(e.x, e.y, 40, C.blood, 6, .8);
-      }
+      updateBoss(e, dt, a);
+    } else if (e.kind === 'guard') {
+      // 守卫分裂体：只会慢慢贴上来，逼玩家清场，不再分裂
+      e.x += Math.cos(a) * e.spd * dt;
+      e.y += Math.sin(a) * e.spd * dt;
     } else if (e.kind === 'slime') {
       // 直线冲撞：慢，可预测 → 教学怪
       e.x += Math.cos(a) * e.spd * dt;
@@ -1132,6 +1312,11 @@ function checkRoomState(dt) {
       const n = r.isBoss ? 2 : (Math.random() < 0.3 + pl.fortune * 0.06 ? 2 : 1);
       for (let i = 0; i < n; i++)
         dropChest(g.cx + rnd(-60, 60), g.cy + rnd(-40, 40));
+      // 清房回血（本轮更慷慨）：普通房 40% 掉血包，BOSS 房必掉 ——
+      // 怪少了、伤害低了，再给一个「敢打就能续航」的正反馈。
+      if (pl.hp < pl.maxHp && (r.isBoss || Math.random() < 0.4))
+        drops.push({ x: g.cx + rnd(-34, 34), y: g.cy + rnd(-26, 26),
+                     kind: 'heart', t: 0, vy: -1.2, alive: true });
       run.hint = '房间清空 · 宝箱出现'; run.hintT = 90;
     }
     return;
@@ -1169,18 +1354,28 @@ function gameOver() {
   showPanel('p2');
   const best = run.bestDepth || 1;
   document.getElementById('r2s').innerHTML =
-    `你在下潜到第 <b>${run.depth}</b> 层后倒下（本层第 <b>${curRoom + 1}</b> 间房）。<br><br>` +
+    `你在下潜到第 <b>${run.depth}</b> 层后倒下（本层第 <b>${curRoom + 1}</b> 间房）。<br>` +
+    `<span style="color:var(--gold)">最深到达第 <b>${run.depth}</b> 层</span>` +
+    `　·　历史最高第 <b>${best}</b> 层<br><br>` +
     `击杀 <b>${run.kills}</b>　·　开箱 <b>${run.chestsOpened}</b> 个<br>` +
     `金币 <b>${run.gold}</b>　·　红武 <b>${run.redWeapons}</b> 件<br>` +
     `幸运 <b>${pl.fortune}</b>　·　伤害 <b>${pl.dmg.toFixed(2)}</b>` +
-    `<br><br><span style="color:var(--dim);font-size:12px">最高纪录：第 ${best} 层` +
+    `<br><br><span style="color:#c6cdd9;font-size:12px">最高纪录：第 ${best} 层` +
     `${run.depth >= best ? '（本局追平/刷新）' : ''}</span>`;
 }
 
 /* ==========================================================================
    绘制
    ========================================================================== */
+/* 绘制计数：判据用它证明 drawEBullets 真的被 draw() 调用过。
+   （原来 drawEBullets 定义了却从没被调用 → 法师/BOSS 的子弹真实扣血但完全看不见。） */
+const drawStats = { frames: 0, enemies: 0, ebullets: 0, bossBar: 0 };
+
 function draw() {
+  drawStats.frames++;
+  drawStats.ebullets = 0;
+  drawStats.bossBar = 0;
+  drawStats.enemies = enemies.length;
   // ⚠️ 这里原来有一段屏幕位移抖动：
   //   const sx = run.shake > .4 ? rnd(-run.shake, run.shake) : 0;
   //   ctx.translate(sx, sy);
@@ -1192,10 +1387,14 @@ function draw() {
   drawChests();
   drawBullets();
   drawEnemies();
+  // ★ 缺陷修复：敌弹画在「敌人之后、玩家之前」——
+  //   弹幕要盖在怪身上才读得清轨迹，但又不能盖住玩家（玩家永远最上层）。
+  drawEBullets();
   drawPlayer();
   drawParts();
 
   drawHurtOverlay();
+  drawPhasePulse();
 
   drawHUD();
   if (run.hintT > 0) {
@@ -1231,7 +1430,10 @@ function draw() {
 function drawHurtOverlay() {
   const g = run.hurtGlow;
   if (g <= 0.01) return;
-  const a = Math.min(0.42, g * 0.42);
+  // v1.4.0：上限从 0.42 压到 0.26。
+  //   0.42 的红叠加在 #3d4759 的地板上会把整个房间染成血色，
+  //   玩家分不清"这是受伤了"还是"这层就是这个色调"。0.26 足够读出方向，又不糊画面。
+  const a = Math.min(0.26, g * 0.26);
   ctx.save();
 
   // ① 边缘暗角：中心几乎透明，越靠边越染红。
@@ -1242,11 +1444,13 @@ function drawHurtOverlay() {
   const grad = ctx.createRadialGradient(W / 2 + ox, H / 2 + oy, 70, W / 2 + ox, H / 2 + oy, 470);
   grad.addColorStop(0, 'rgba(255,91,110,0)');
   grad.addColorStop(1, 'rgba(255,91,110,' + a.toFixed(3) + ')');
+  ctx.globalAlpha = 1;
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, W, H);
 
   // ② 短暂低透明度色彩呼吸：极轻的一层血雾，不遮挡画面
-  ctx.globalAlpha = a * 0.14;
+  //    v1.4.0：0.14 → 0.05。原来这层会让整个房间长期偏紫红。
+  ctx.globalAlpha = a * 0.05;
   ctx.fillStyle = C.blood;
   ctx.fillRect(0, 0, W, H);
 
@@ -1255,6 +1459,35 @@ function drawHurtOverlay() {
   ctx.strokeStyle = C.blood;
   ctx.lineWidth = 5;
   ctx.strokeRect(4, 4, W - 8, H - 8);
+  ctx.restore();
+}
+
+/** #rrggbb → rgba(...)（只给阶段脉冲用，避免引第三方颜色库） */
+function hexA(hex, a) {
+  const h = String(hex).replace('#', '');
+  const s = h.length === 3 ? h.split('').map(c => c + c).join('') : h;
+  const n = parseInt(s, 16) || 0;
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a.toFixed(3)})`;
+}
+
+/** BOSS 二阶段的「温和提示」：屏幕**边缘**色彩脉冲（中心全透明），
+ *  透明度上限 0.3，颜色取 BOSS 本体色 —— 不白闪、不抖动、不遮画面。 */
+function drawPhasePulse() {
+  const p = run.phasePulse;
+  if (p <= 0.01) return;
+  const a = Math.min(0.30, p * 0.30);
+  const col = run.phaseCol || C.blood;
+  ctx.save();
+  const g = ctx.createRadialGradient(W / 2, H / 2, W * 0.24, W / 2, H / 2, W * 0.74);
+  g.addColorStop(0, hexA(col, 0));
+  g.addColorStop(0.55, hexA(col, a * 0.22));
+  g.addColorStop(1, hexA(col, a));
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, W, H);
+  ctx.globalAlpha = a * 0.9;
+  ctx.strokeStyle = col;
+  ctx.lineWidth = 6;
+  ctx.strokeRect(3, 3, W - 6, H - 6);
   ctx.restore();
 }
 
@@ -1424,10 +1657,23 @@ function drawEnemies() {
       ctx.globalAlpha = .35;
       ctx.fillRect(-e.r * .7, -e.r * .8, e.r * 1.4, 4);
       ctx.globalAlpha = 1;
+    } else if (e.kind === 'guard') {
+      // 守卫分裂体：小菱形石片
+      ctx.rotate(e.t * .04);
+      ctx.fillStyle = col;
+      ctx.beginPath();
+      for (let i = 0; i < 4; i++) {
+        const g = i * TAU / 4 + Math.PI / 4;
+        ctx.lineTo(Math.cos(g) * e.r, Math.sin(g) * e.r);
+      }
+      ctx.closePath(); ctx.fill();
+      ctx.rotate(-e.t * .04);
+      ctx.fillStyle = '#0d1014';
+      ctx.fillRect(-4, -2, 3, 4); ctx.fillRect(1, -2, 3, 4);
     } else if (e.boss) {
-      // Boss：六角核心 + 旋转环
+      // Boss：共用「旋转双环」表示威胁等级，本体造型按 kind 区分
       ctx.rotate(e.t * .012);
-      ctx.strokeStyle = e.rage ? C.orange : C.blood;
+      ctx.strokeStyle = e.phase === 2 ? C.orange : e.col;
       ctx.lineWidth = 3;
       ctx.globalAlpha = .7;
       ctx.beginPath(); ctx.arc(0, 0, e.r * 1.4, 0, TAU); ctx.stroke();
@@ -1435,17 +1681,44 @@ function drawEnemies() {
       ctx.globalAlpha = 1;
       ctx.rotate(-e.t * .012);
       ctx.fillStyle = col;
-      ctx.beginPath();
-      for (let i = 0; i < 6; i++) {
-        const a = i * TAU / 6;
-        ctx.lineTo(Math.cos(a) * e.r, Math.sin(a) * e.r);
+      if (e.kind === 'warden') {
+        // 石像鬼：方基座 + 顶面高光 + 裂纹
+        ctx.fillRect(-e.r * .85, -e.r * .8, e.r * 1.7, e.r * 1.7);
+        ctx.fillStyle = '#0d1014';
+        ctx.fillRect(-e.r * .55, -e.r * .45, e.r * .32, e.r * .3);
+        ctx.fillRect(e.r * .2, -e.r * .45, e.r * .32, e.r * .3);
+        ctx.fillStyle = C.white; ctx.globalAlpha = .28;
+        ctx.fillRect(-e.r * .85, -e.r * .8, e.r * 1.7, 5);
+        ctx.globalAlpha = 1;
+        ctx.strokeStyle = '#0d1014'; ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(-e.r * .2, -e.r * .8); ctx.lineTo(0, 0); ctx.lineTo(-e.r * .25, e.r * .85);
+        ctx.stroke();
+      } else if (e.kind === 'hexer') {
+        // 咒术师：尖帽轮廓 + 三颗环绕法球
+        ctx.beginPath();
+        ctx.moveTo(0, -e.r * 1.05); ctx.lineTo(e.r * .9, e.r * .8); ctx.lineTo(-e.r * .9, e.r * .8);
+        ctx.closePath(); ctx.fill();
+        ctx.fillStyle = '#0d1014';
+        ctx.fillRect(-e.r * .3, -e.r * .25, 4, 5); ctx.fillRect(e.r * .12, -e.r * .25, 4, 5);
+        for (let i = 0; i < 3; i++) {
+          const aa = e.t * .04 + i * TAU / 3;
+          ctx.fillStyle = i === 0 ? C.gold : C.violet;
+          ctx.beginPath();
+          ctx.arc(Math.cos(aa) * e.r * 1.25, Math.sin(aa) * e.r * 1.25, 4, 0, TAU);
+          ctx.fill();
+        }
+      } else {
+        // 掠夺者：旋转菱形刀身 + 金核
+        ctx.rotate(e.t * .05);
+        ctx.beginPath();
+        ctx.moveTo(0, -e.r * 1.15); ctx.lineTo(e.r * .62, 0);
+        ctx.lineTo(0, e.r * 1.15); ctx.lineTo(-e.r * .62, 0);
+        ctx.closePath(); ctx.fill();
+        ctx.rotate(-e.t * .05);
+        ctx.fillStyle = C.gold;
+        ctx.beginPath(); ctx.arc(0, 0, 4, 0, TAU); ctx.fill();
       }
-      ctx.closePath(); ctx.fill();
-      ctx.fillStyle = C.white;
-      ctx.beginPath(); ctx.arc(0, 0, e.r * .42, 0, TAU); ctx.fill();
-      ctx.fillStyle = '#0d1014';
-      ctx.fillRect(-e.r * .32, -e.r * .1, 5, 7);
-      ctx.fillRect(e.r * .06, -e.r * .1, 5, 7);
     }
     // 血条
     if (!e.boss && e.hp < e.maxHp) {
@@ -1483,6 +1756,7 @@ function drawEBullets() {
   ctx.globalCompositeOperation = 'lighter';
   for (const b of ebullets) {
     if (b.delay > 0) continue;
+    drawStats.ebullets++;
     ctx.globalAlpha = .45;
     ctx.fillStyle = b.col;
     ctx.beginPath(); ctx.arc(b.x, b.y, b.r * 2.4, 0, TAU); ctx.fill();
@@ -1592,46 +1866,92 @@ function drawHUD() {
     ctx.fillStyle = on ? C.blood : 'rgba(255,91,110,.2)';
     ctx.fillRect(28 + i * 13, 12, 10, 10);
   }
-  // 金币 / 深度
-  ctx.fillStyle = C.dim;
+  // 金币 / 深度 / 房间 / 幸运：原来直接压在墙上（#78808f on #232a36 ≈3.9:1），
+  // 达不到 4.5:1。加一层深底 + 提亮字色，HUD 也满足 WCAG AA。
+  ctx.fillStyle = 'rgba(10,12,16,.82)';
+  ctx.fillRect(6, 30, 126, 56);
+  ctx.fillStyle = '#9aa4b6';
   ctx.font = '10px Consolas,monospace';
   ctx.fillText('金币 ' + run.gold, 10, 34);
   ctx.fillText('深度 ' + run.depth + ' 层', 10, 48);
   ctx.fillText('房间 ' + (curRoom + 1) + '/' + rooms.length, 10, 62);
-  ctx.fillStyle = C.violet;
+  ctx.fillStyle = '#b39cff';
   ctx.fillText('幸运 ' + pl.fortune, 10, 76);
 
   // 已获升级
+  const ids = Object.keys(pl.levels).slice(0, 7);
+  // 底板高度跟着条目数走，避免空 Build 时挂一块没内容的深色矩形
+  ctx.fillStyle = 'rgba(10,12,16,.72)';
+  ctx.fillRect(W - 74, 4, 68, 24 + ids.length * 12);
   ctx.textAlign = 'right';
-  ctx.fillStyle = C.dim;
+  ctx.fillStyle = '#9aa4b6';
   ctx.font = '9px Consolas,monospace';
   ctx.fillText('BUILD', W - 10, 8);
   ctx.textAlign = 'left';
   let yy = 22;
-  const ids = Object.keys(pl.levels);
-  for (const id of ids.slice(0, 7)) {
+  for (const id of ids) {
     const u = UPG.find(x => x.id === id);
     if (!u) continue;
     ctx.fillStyle = u.col;
     ctx.fillRect(W - 66, yy, 8, 8);
-    ctx.fillStyle = C.dim;
+    ctx.fillStyle = '#9aa4b6';
     ctx.font = '9px "Microsoft YaHei",sans-serif';
     ctx.fillText(u.name + ' ' + pl.levels[id], W - 54, yy - 1);
     yy += 12;
   }
 
-  // Boss 血条
-  if (bossRef && bossRef.alive) {
+  // ── BOSS 血条：只在 BOSS 房、且 BOSS 还活着时显示 ──
+  if (bossRef && bossRef.alive && rooms[curRoom] && rooms[curRoom].isBoss) {
+    drawStats.bossBar = 1;
     const b = bossRef;
-    ctx.fillStyle = 'rgba(0,0,0,.55)';
-    ctx.fillRect(W / 2 - 130, 8, 260, 9);
-    ctx.fillStyle = b.rage ? C.orange : C.blood;
-    ctx.fillRect(W / 2 - 130, 8, 260 * Math.max(0, b.hp / b.maxHp), 9);
-    ctx.fillStyle = C.dim;
-    ctx.font = '9px Consolas,monospace';
+    const bw = 300, bx = W / 2 - bw / 2, by = 44;
     ctx.textAlign = 'center';
-    ctx.fillText('BOSS  ' + Math.ceil(Math.max(0, b.hp)) + ' / ' + Math.round(b.maxHp), W / 2, 20);
+    ctx.textBaseline = 'alphabetic';
+    // 名字 + 阶段
+    ctx.font = 'bold 11px "Microsoft YaHei",sans-serif';
+    ctx.fillStyle = '#f0dbe0';
+    ctx.fillText(b.name + (b.phase === 2 ? '　· 第二阶段' : ''), W / 2, by - 5);
+    // 底槽
+    ctx.fillStyle = 'rgba(8,10,14,.78)';
+    ctx.fillRect(bx - 3, by - 1, bw + 6, 14);
+    ctx.strokeStyle = '#4a566b'; ctx.lineWidth = 1;
+    ctx.strokeRect(bx - 2.5, by - 0.5, bw + 5, 13);
+    // 血量
+    const pct = Math.max(0, b.hp / b.maxHp);
+    ctx.fillStyle = b.phase === 2 ? C.orange : C.blood;
+    ctx.fillRect(bx, by + 2, bw * pct, 8);
+    // 50% 阶段刻度
+    ctx.fillStyle = 'rgba(232,236,242,.7)';
+    ctx.fillRect(bx + bw / 2 - 1, by, 2, 12);
+    // 数值
+    ctx.font = '9px Consolas,monospace';
+    ctx.fillStyle = '#d6dce6';
+    ctx.fillText(Math.ceil(Math.max(0, b.hp)) + ' / ' + Math.round(b.maxHp), W / 2, by + 21);
   }
+
+  // ── 当前层数徽标（左下）──
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  const dbW = 84, dbH = 20, dbX = 8, dbY = H - 28;
+  ctx.fillStyle = 'rgba(10,12,16,.78)';
+  ctx.fillRect(dbX, dbY, dbW, dbH);
+  ctx.strokeStyle = '#39445a'; ctx.lineWidth = 1;
+  ctx.strokeRect(dbX + 0.5, dbY + 0.5, dbW - 1, dbH - 1);
+  ctx.fillStyle = C.hero;
+  ctx.font = 'bold 12px "Microsoft YaHei",sans-serif';
+  ctx.fillText('第 ' + run.depth + ' 层', dbX + 9, dbY + dbH / 2 + 0.5);
+
+  // ── 房间剩余敌人（右下角小字）──
+  const aliveN = enemies.filter(e => e.alive).length;
+  const etxt = aliveN > 0 ? ('剩余 ' + aliveN + ' 敌')
+    : (rooms[curRoom] && rooms[curRoom].isBoss ? 'BOSS 已倒下' : '本房已清');
+  ctx.font = '10px Consolas,"Microsoft YaHei",monospace';
+  ctx.textAlign = 'right';
+  const ew = ctx.measureText(etxt).width;
+  ctx.fillStyle = 'rgba(10,12,16,.72)';
+  ctx.fillRect(W - 10 - ew - 8, H - 27, ew + 12, 18);
+  ctx.fillStyle = aliveN > 0 ? '#c6cdd9' : C.hero;
+  ctx.fillText(etxt, W - 14, H - 17);
   ctx.restore();
 }
 
@@ -1654,7 +1974,10 @@ function showUpgrade(pending) {
       `<div class="lv">${lv > 0 ? 'Lv' + lv + '→' + (lv + 1) : '新'}</div>` +
       `<div class="ic" style="background:${u.col}">${u.icon}</div>` +
       `<div class="nm">${u.name}</div>` +
-      `<div class="ds">${u.desc}</div>`;
+      `<div class="ds">${u.desc}</div>` +
+      // 一句话说明：告诉玩家「什么情况下该选它」，而不只是改了什么数值
+      `<div class="tip">${u.tip || ''}</div>` +
+      `<div class="key">${i + 1}</div>`;
     d.onclick = () => { takeUpgrade(u); hideUpgrade(); };
     box.appendChild(d);
   });
@@ -1972,6 +2295,18 @@ window.__SK = {
   /** 直接读最高纪录并把它写进开始面板（判据验持久化时会用到） */
   getBest() { return loadBest(); },
   updateBestLabel,
+
+  /* ---- 分层 BOSS 的测试接口 ----
+     mkBoss 只构造不入场；spawnBoss 才 push + 设 bossRef。
+     判据要分别验「构造参数对得上」和「入场后阶段/血条正常」。 */
+  mkBoss, spawnBoss, bossKindForDepth, bossEnterPhase2,
+  BOSS_DEF, BOSS_KINDS, DIFF,
+  get boss() { return bossRef; },
+  /* ---- 绘制接口：验「敌弹真的被画出来了」 ----
+     drawStats.frames 每次 draw() +1；drawStats.ebullets 是本帧实际绘制的敌弹数。 */
+  draw, drawEBullets,
+  get drawStats() { return drawStats; },
+  get lastDrawCalls() { return drawStats; },
 
   /* ---- AI 接管 / 倍速 的测试接口 ---- */
   get AI() { return AI; },

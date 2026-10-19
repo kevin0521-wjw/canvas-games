@@ -895,6 +895,198 @@ function rmTree(dir) {
          stageMap.实际[2] === stageMap.期望[2] && errs.length === errBoss,
          `第3关=${stageMap.实际[2]}（应 ${stageMap.期望[2]}），新增异常 ${errs.length - errBoss} 条`);
 
+    /* ═══════════════════════════════════════════════════════════════════
+       ★ 第七轮（2026-10-20）：关卡 3 → 5、两种新弹型、难度下调、弹幕可读性
+       ------------------------------------------------------------------
+       这一节的每一条都对应本轮的一个交付项，而且刻意**不只查字段**：
+         · 「5 关」要连 spawnBoss 的构造一起验（防 STAGES[run.stage] 少减 1 回归）；
+         · 「能推进到第 5 关」走真实的「打完第 4 关 Boss → nextStage」链路，
+           不是把 run.stage 赋成 5 就完事；
+         · 「预警圈」要证明**先有圈、后有弹**（这是本轮唯一新增的伤害来源）；
+         · 「难度下调」直接拿同关敌机的 hp 和旧公式对比，不靠感觉。
+       ═══════════════════════════════════════════════════════════════════ */
+
+    // ── 7a. 关卡总数 = 5，且每张符卡都有可解析的弹型标签 ────────────────
+    const stageDef = await evaluate(`(() => {
+      const D = ${EXPORT};
+      const missing = [];
+      D.STAGES.forEach((s, i) => s.cards.forEach((c, j) => {
+        const at = 'STAGES[' + i + '].cards[' + j + ']';
+        if (!c.pattern) missing.push(at + ' 缺 pattern');
+        else if (!c.run && !D.BOSS_PATTERNS[c.pattern]) missing.push(at + ' pattern=' + c.pattern + ' 无实现');
+      }));
+      return { n: D.STAGES.length, 每关卡数: D.STAGES.map(s => s.cards.length),
+               字段: D.STAGES.map(s => s.name), missing };
+    })()`);
+    step('★ 关卡总数 = 5，且每张符卡的 pattern 都能被 BOSS_PATTERNS 解析',
+         stageDef.n === 5 && stageDef.每关卡数.every(n => n === 2) && stageDef.missing.length === 0,
+         `共 ${stageDef.n} 关 [${stageDef.字段.join(' / ')}]，每关卡数 ${stageDef.每关卡数.join('/')}；` +
+         (stageDef.missing.length ? '缺失：' + stageDef.missing.join(' | ') : '弹型字段全部可解析'));
+
+    // ── 7b. 第 4/5 关的弹型与前三关不重叠 + spawnBoss 构造正确 ──────────
+    //   ⚠️ 这里断言的是「集合不相交」，而不是「第 4 关一定等于 crossHelix」——
+    //     将来把新弹型下放到第 3 关是允许的，只要不是把旧三关的数值改掉。
+    const patMap = await evaluate(`(() => {
+      const D = ${EXPORT};
+      const tags = n => D.STAGES[n-1].cards.map(c => c.pattern);
+      const old = new Set([].concat(tags(1), tags(2), tags(3)));
+      const p4 = tags(4), p5 = tags(5);
+      const built = (n) => {
+        D.start(); D.freeze(); D.step(2); D.gotoStage(n);
+        return D.boss ? { name: D.boss.is.name, 同引用: D.boss.is === D.STAGES[n-1],
+                          卡数: D.boss.cards.length, 弹型: D.boss.cards.map(c => c.pattern) } : null;
+      };
+      return { 旧: [...old], p4, p5, b4: built(4), b5: built(5),
+               旧三关不与新重叠: [].concat(p4, p5).every(p => !old.has(p)) };
+    })()`);
+    step('★ 第 4/5 关 BOSS 弹型字段与前三关不同，且 spawnBoss() 正确构造',
+         patMap.旧三关不与新重叠 === true &&
+         patMap.p4.indexOf('crossHelix') >= 0 && patMap.p5.indexOf('bombard') >= 0 &&
+         patMap.b4 && patMap.b5 && patMap.b4.同引用 && patMap.b5.同引用 &&
+         patMap.b4.卡数 === 2 && patMap.b5.卡数 === 2,
+         `旧弹型=[${patMap.旧}]　第4关=[${patMap.p4}] → ${patMap.b4 && patMap.b4.name}　` +
+         `第5关=[${patMap.p5}] → ${patMap.b5 && patMap.b5.name}`);
+
+    // ── 7c. ★ 真实推进到第 5 关（打完第 4 关 Boss，游戏不能结束）────────
+    //   刻意不用「把 run.stage 赋成 5」：那只测到赋值，测不到阶段机。
+    //   这里把第 4 关两张符卡打掉，走 boss.state='dying' → nextStage()，
+    //   再看 run.stage 是不是真的变成 5、over 是否仍为 false、STAGES[4] 在不在。
+    const toStage5 = await evaluate(`(() => {
+      const D = ${EXPORT};
+      D.start(); D.freeze(); D.step(2);
+      D.gotoStage(4); D.invuln();
+      const fakeShot = () => ({ x: D.boss.x, y: D.boss.y, dmg: 1e6, vx: 1, vy: 0, r: 4 });
+      for (let g = 0; g < 14 && D.boss; g++) {
+        if (D.boss.state === 'fight') D.damageBoss(fakeShot(), D.boss);
+        else D.step(100);
+      }
+      const stage = D.run.stage, over = D.run.over, has5 = !!D.STAGES[4];
+      D.step(200);           // 让第 5 关的横幅 / 波次跑一会儿
+      return { stage, over, has5, stageAfter: D.run.stage,
+               name5: D.STAGES[4] && D.STAGES[4].name, cards5: D.STAGES[4] && D.STAGES[4].cards.length,
+               overAfter: D.run.over };
+    })()`);
+    step('★ 打完第 4 关 Boss 能真正推进到第 5 关且游戏未结束（STAGES[4] 存在）',
+         toStage5.stage === 5 && toStage5.over === false && toStage5.has5 === true &&
+         toStage5.cards5 === 2 && toStage5.overAfter === false,
+         `run.stage=${toStage5.stage}（${toStage5.name5}，${toStage5.cards5} 张符卡），` +
+         `再跑 200 帧后 stage=${toStage5.stageAfter}、over=${toStage5.overAfter}`);
+
+    // ── 7d. ★ 定点轰炸：先有预警圈，后才有子弹 ──────────────────────────
+    //   这是本轮新增伤害源，最容易写错的两件事都在这里钉住：
+    //     ① 预警必须是一个**可观察的对象**（不是「画一下就完事」的特效）；
+    //     ② 引信没到之前**一发子弹都不能生成**，否则玩家没有可读的提前量。
+    const bombard = await evaluate(`(() => {
+      const D = ${EXPORT};
+      D.start(); D.freeze(); D.step(2);
+      D.gotoStage(5); D.invuln();
+      for (let i = 0; i < 500 && (!D.boss || D.boss.state !== 'fight'); i++) D.step(1);
+      const started = !!(D.boss && D.boss.state === 'fight');
+      D.bullets.length = 0;
+      D.step(24);
+      const 预警数 = D.strikes.length, 引信前弹 = D.bullets.length;
+      const 最小r = D.strikes.length ? Math.min.apply(null, D.strikes.map(s => s.r)) : 0;
+      const 剩余 = D.strikes.length ? D.strikes[0].fuse - D.strikes[0].t : 0;
+      D.step(48);
+      const 爆炸后弹 = D.bullets.length;
+      return { started, 预警数, 引信前弹, 最小r, 剩余, 爆炸后弹,
+               弹型: D.boss && D.boss.cards.map(c => c.pattern) };
+    })()`);
+    step('★ 定点轰炸：预警圈先存在、引信未到不产生子弹，爆炸后才生成放射弹',
+         bombard.started === true && bombard.预警数 > 0 && bombard.最小r > 0 &&
+         bombard.引信前弹 === 0 && bombard.爆炸后弹 >= 12,
+         `第 5 关弹型=[${bombard.弹型}]；24 帧时预警 ${bombard.预警数} 个` +
+         `（半径 ${bombard.最小r}，还剩 ${bombard.剩余} 帧），此时敌弹 ${bombard.引信前弹} 发；` +
+         `再过 48 帧炸出 ${bombard.爆炸后弹} 发`);
+
+    // ── 7e. ★ 敌弹描边 + 按速度三档（慢柔 / 快亮且边更粗）──────────────
+    //   源码扫描抓「这条规则有没有被写进渲染路径」，速度分档用真实函数验，
+    //   避免只看源码字符串就通过（注释里写一遍也能过的那种假绿）。
+    const readability = await evaluate(`(() => {
+      const D = ${EXPORT};
+      const src = document.scripts[0].textContent;
+      const tiers = [
+        D.bulletTier(D.mkBullet(0, 0, 0, 1.0, {})),
+        D.bulletTier(D.mkBullet(0, 0, 0, 2.5, {})),
+        D.bulletTier(D.mkBullet(0, 0, 0, 4.0, {}))
+      ];
+      return {
+        有描边常量: src.indexOf('BULLET_OUTLINE') >= 0,
+        有分档函数: src.indexOf('function bulletTier') >= 0,
+        无阴影模糊: src.indexOf('shadowBlur') < 0,
+        tiers, 边宽: D.BULLET_OUTLINE.slice()
+      };
+    })()`);
+    const edgeGrowing = readability.边宽[0] < readability.边宽[1] && readability.边宽[1] < readability.边宽[2];
+    step('★ 敌弹有深色描边 + 按速度三档（慢弹柔 / 快弹亮且描边更粗）',
+         readability.有描边常量 && readability.有分档函数 && readability.无阴影模糊 &&
+         readability.tiers.join(',') === '0,1,2' && edgeGrowing,
+         `tier(1.0/2.5/4.0 速)=${readability.tiers.join('/')}，描边宽度 ${readability.边宽.join('/')}px；` +
+         `源码含 BULLET_OUTLINE=${readability.有描边常量}，未使用 shadowBlur=${readability.无阴影模糊}`);
+
+    // ── 7f. ★ 激光「预热 → 发射」两段：预热阶段不能致命 ──────────────────
+    //   旧版已有时序，但没有判据；本轮把「预热不伤人」钉死 ——
+    //   如果哪天有人把 warn 去掉，玩家会看到一条「一出现就致命」的实线。
+    const laserPhase = await evaluate(`(() => {
+      const D = ${EXPORT};
+      D.start(); D.freeze(); D.step(2);
+      D.run.noSpawn = true; D.clearRoom(); D.bullets.length = 0;
+      D.pl.lives = 4; D.pl.dead = 0; D.pl.invuln = 0; D.pl.rolling = 0;
+      D.warp(300, 240); D.lasers.length = 0;
+      D.mkLaser(300, 240, 0, 400, 13, { c:'purple', warn:30, life:30 });
+      const l0 = D.pl.lives;
+      D.step(20);
+      const mid = D.pl.lives;
+      D.step(20);
+      const after = D.pl.lives;
+      D.lasers.length = 0;
+      return { l0, mid, after, warn: 30 };
+    })()`);
+    step('★ 激光两段视觉：预热 20 帧内不致命，发射后才扣命',
+         laserPhase.mid === laserPhase.l0 && laserPhase.after === laserPhase.l0 - 1,
+         `预热中 lives=${laserPhase.mid}（应保持 ${laserPhase.l0}），发射后 ${laserPhase.after}`);
+
+    // ── 7g. ★ 难度下调真的生效：同关敌机 hp 低于旧公式 ──────────────────
+    //   ⚠️ 这里直接改 run.stage 来取样（不走 gotoStage，否则会立刻进 Boss 战、
+    //      刷不出杂兵）。旧公式写在断言里：18 + lv*7。新公式必须严格更小。
+    const nerf = await evaluate(`(() => {
+      const D = ${EXPORT};
+      D.start(); D.freeze(); D.step(2);
+      D.run.stage = 4; D.run.waveN = 0; D.run.waveT = 0;
+      D.run.noSpawn = false; D.clearRoom();
+      D.step(1);
+      const cruisers = D.enemies.filter(e => e.kind === 'cruiser');
+      const darts = D.enemies.filter(e => e.kind === 'dart');
+      const oldHp = 18 + 4 * 7, oldCnt = 3 + 4;
+      return { 巡洋舰数: cruisers.length, hp: cruisers.map(e => e.hp),
+               飞艇数: darts.length, 旧公式: oldHp, 旧台数: oldCnt };
+    })()`);
+    const allNerfed = nerf.hp.length > 0 && nerf.hp.every(h => h < nerf.旧公式);
+    step('★ 难度下调生效：同关（第 4 关）敌机 hp < 旧公式 18+lv*7，密度也低于旧值',
+         allNerfed && nerf.巡洋舰数 < nerf.旧台数,
+         `巡洋舰 ${nerf.巡洋舰数} 台（旧 ${nerf.旧台数}），hp=${nerf.hp.join('/')}（旧公式 ${nerf.旧公式}）`);
+
+    // ── 7h. ★ 升级池权重：回血 / 加最大生命被抽中的概率是普通项的 3 倍 ────
+    //   只验权重函数，不验统计频率：3000 次抽样的卡方检验会因为随机种子偶发飘红，
+    //   而「权重是否真的乘进抽取」这件事，用同一个函数读一次就够确定。
+    const upWeight = await evaluate(`(() => {
+      const D = ${EXPORT};
+      const get = id => D.UPG.find(u => u.id === id);
+      const p5 = get('p5'), p9 = get('p9'), p4 = get('p4');
+      return {
+        p5: p5 ? D.upgradeWeight(p5, false) : -1,
+        p9: p9 ? D.upgradeWeight(p9, false) : -1,
+        普通: p4 ? D.upgradeWeight(p4, false) : -1,
+        他项: D.UPG.filter(u => u.id !== 'p5' && u.id !== 'p9')
+              .map(u => D.upgradeWeight(u, false)).sort((a, b) => a - b)
+      };
+    })()`);
+    step('★ 升级池：回血 / 加最大生命的权重 ≥ 普通项的 2 倍',
+         upWeight.p5 >= 2 && upWeight.p9 >= 2 &&
+         upWeight.p5 > upWeight.普通 && upWeight.p9 > upWeight.普通,
+         `p5(扩容)=${upWeight.p5}、p9(紧急维修)=${upWeight.p9}、普通项=${upWeight.普通}（权重倍数 ×3）`);
+
+
     // ── ★ Boss 打得到（判定半径 + 摆幅，别让「打不掉」伪装成「难度高」） ──
     //   改前 Boss 垂直摆幅 ±170、判定半径 30 —— 而子弹从左侧飞到 Boss 要 43 帧，
     //   等弹到目标已经漂了 80+ 像素，实测有效 DPS 只有 3.8（理论 8.3×2.5=20.8），

@@ -650,21 +650,32 @@ const CFG = {
     SCORE: 500,              // 击破得分（会再乘连击倍率）
     SCORE_PER_BOSS: 250,     // 后续 Boss 的额外分数
 
-    /* ---- 三阶段形态 ----
+    /* ---- 四阶段形态（v1.4.0 新增第四阶段）----
        为什么要有阶段：一个血量很厚但行为全程不变的 BOSS，打起来只是"按住空格等它死"，
        玩家没有任何需要重新学习的东西，BOSS 战的张力就来自"它变了，我得跟着变"。
-       阈值按剩余血量比例取，这样后续更硬的 BOSS 不需要另配一套数值。 */
+       阈值按剩余血量比例取，这样后续更硬的 BOSS 不需要另配一套数值。
+
+       v1.4.0：新增 14% 以下的「濒死形态」。它不提高弹速（那只会变成反应力测试），
+       而是把扇形从 5 发再拉开到 7 发、环形从 14 发减到 10 发但转得更快 ——
+       变成"更少的缝、更快的转"，逼玩家从"找缝"升级到"提前站到缝的位置"。 */
     PHASE_2_AT: 0.66,        // 血量降到 66% 进入二阶段
     PHASE_3_AT: 0.33,        // 33% 进入三阶段（狂暴）
+    PHASE_4_AT: 0.14,        // 14% 进入四阶段（濒死）
     SWAY_SPEED_2: 1.25,      // 二阶段横移更快 → 更难预判落点
     SWAY_SPEED_3: 1.75,
+    SWAY_SPEED_4: 2.0,
     FIRE_INTERVAL_2: 1.05,   // 二阶段开火更密
     FIRE_INTERVAL_3: 0.72,
+    FIRE_INTERVAL_4: 0.66,
     SPREAD_2: 3,             // 二阶段一次射 3 发扇形
     SPREAD_3: 5,             // 三阶段一次射 5 发
+    SPREAD_4: 7,             // 四阶段一次射 7 发（角度不变 → 覆盖更宽）
     SPREAD_ANGLE: 0.20,      // 扇形相邻两发的夹角（弧度，约 11.5°）
     RING_3: 14,              // 三阶段额外附带的环形弹幕发数（360° 均分）
-    RING_SPEED_3: 150        // 环形弹速度。比瞄准弹更慢 —— 它是"限制走位"而不是"直接打死你"
+    RING_4: 10,              // 四阶段环更稀、但转得更快：缝更多，缝移动得更快
+    RING_SPEED_3: 150,       // 环形弹速度。比瞄准弹更慢 —— 它是"限制走位"而不是"直接打死你"
+    RING_SPEED_4: 178,
+    RING_SPIN_4: 3.6         // 四阶段环的起始角倍率（原 1.7）—— 缝转得更快
   },
 
   /* ---------- 后处理（画面质感）----------
@@ -740,8 +751,11 @@ const CFG = {
 
   /* ---------- 难度曲线 ---------- */
   DIFFICULTY: {
-    SECONDS_PER_LEVEL: 16,  // 每存活 16 秒提升 1 级
-    MAX_LEVEL: 12           // 等级上限。不设上限的话后期数值会膨胀到无法游玩
+    // v1.4.0 降难度：16 → 22 秒升一级、上限 12 → 10 级。
+    //   原来 16 秒一级意味着 3 分钟就打满 12 级，后半程全在最高压状态；
+    //   现在升到顶要 3 分 40 秒，而且顶本身低了两级 —— 曲线整体向后、向下平移。
+    SECONDS_PER_LEVEL: 22,  // 每存活 22 秒提升 1 级
+    MAX_LEVEL: 10           // 等级上限。不设上限的话后期数值会膨胀到无法游玩
   },
 
   /* ---------- 粒子特效 ---------- */
@@ -2984,25 +2998,34 @@ class EnemyBullet {
   /** @param {CanvasRenderingContext2D} ctx @returns {void} */
   draw(ctx) {
     const pulse = 1 + Math.sin(this.phase) * 0.14;
+    // v1.4.0 弹幕可读性：
+    //   ① 按速度分三档，快弹的深色描边更粗 —— 星空底上"哪颗先到"一眼可读；
+    //   ② 去掉 shadowBlur（原来是 14），改用实心深色外圈做轮廓。
+    //      shadowBlur 是全局合成器开销，满屏弹幕时它是掉帧的主因。
+    const sp = Math.hypot(this.vx, this.vy);
+    const edge = sp > 260 ? 2.4 : (sp > 140 ? 1.8 : 1.3);
     ctx.save();
     ctx.translate(this.x, this.y);
 
-    ctx.globalAlpha = 0.3;
+    ctx.globalAlpha = 0.30;
     ctx.beginPath();
     ctx.arc(0, 0, this.r * 2 * pulse, 0, TAU);
     ctx.fillStyle = this.color;
     ctx.fill();
     ctx.globalAlpha = 1;
 
+    // 深色描边：先画一圈比本体大的暗色，保证亮弹在任何背景上都有轮廓
+    ctx.beginPath();
+    ctx.arc(0, 0, this.r * pulse + edge, 0, TAU);
+    ctx.fillStyle = 'rgba(6,8,18,.78)';
+    ctx.fill();
+
     ctx.beginPath();
     ctx.arc(0, 0, this.r * pulse, 0, TAU);
     ctx.fillStyle = this.color;
-    ctx.shadowColor = this.color;
-    ctx.shadowBlur = 14;
     ctx.fill();
 
     // 内层白点：让子弹有"高能量核心"的读感，也和玩家的青色子弹区分开
-    ctx.shadowBlur = 0;
     ctx.beginPath();
     ctx.arc(0, 0, this.r * 0.42, 0, TAU);
     ctx.fillStyle = '#ffffff';
@@ -3068,14 +3091,15 @@ class Boss {
   }
 
   /**
-   * 当前阶段（1 = 常规，2 = 加速，3 = 狂暴）。
+   * 当前阶段（1 = 常规，2 = 加速，3 = 狂暴，4 = 濒死）。
    * 按剩余血量比例算而不是按"被打了几次"：
    * 这样后续血量更厚的 BOSS 会自动落进同一套阈值，不需要另配一套数值。
-   * @returns {number} 1 | 2 | 3
+   * @returns {number} 1 | 2 | 3 | 4
    */
   get phaseByHp() {
     const B = CFG.BOSS;
     const ratio = this.hp / this.maxHp;
+    if (ratio <= B.PHASE_4_AT) return 4;
     if (ratio <= B.PHASE_3_AT) return 3;
     if (ratio <= B.PHASE_2_AT) return 2;
     return 1;
@@ -3100,7 +3124,8 @@ class Boss {
   /** @returns {number} 当前阶段的横移角速度 */
   get swaySpeed() {
     const B = CFG.BOSS;
-    if (this.phase >= 3) return B.SWAY_SPEED_3;
+    if (this.phase >= 4) return B.SWAY_SPEED_4;
+    if (this.phase === 3) return B.SWAY_SPEED_3;
     if (this.phase === 2) return B.SWAY_SPEED_2;
     return B.SWAY_SPEED;
   }
@@ -3108,7 +3133,8 @@ class Boss {
   /** @returns {number} 当前阶段的开火间隔 */
   get fireInterval() {
     const B = CFG.BOSS;
-    if (this.phase >= 3) return B.FIRE_INTERVAL_3;
+    if (this.phase >= 4) return B.FIRE_INTERVAL_4;
+    if (this.phase === 3) return B.FIRE_INTERVAL_3;
     if (this.phase === 2) return B.FIRE_INTERVAL_2;
     return B.FIRE_INTERVAL;
   }
@@ -3116,12 +3142,13 @@ class Boss {
   /** @returns {number} 当前阶段一次射出的扇形弹数（1 = 单发瞄准弹） */
   get spreadCount() {
     const B = CFG.BOSS;
-    if (this.phase >= 3) return B.SPREAD_3;
+    if (this.phase >= 4) return B.SPREAD_4;
+    if (this.phase === 3) return B.SPREAD_3;
     if (this.phase === 2) return B.SPREAD_2;
     return 1;
   }
 
-  /** @returns {boolean} 当前阶段是否附带环形弹幕（仅三阶段） */
+  /** @returns {boolean} 当前阶段是否附带环形弹幕（三阶段起） */
   get hasRing() { return this.phase >= 3; }
 
   /** @returns {boolean} 是否该开火了（由 Game 负责实际生成子弹并复位计时器） */
@@ -3132,8 +3159,8 @@ class Boss {
   /** 复位开火计时器。参数：无。返回：无。 */
   resetFire() {
     // 加入 ±25% 随机浮动：固定节奏会被玩家背板，随机化后必须临场反应。
-    // 三阶段浮动收窄到 ±12%，让狂暴阶段的压迫感更连贯（不再有长空档）。
-    const j = this.phase >= 3 ? 0.12 : 0.25;
+    // 三阶段浮动收窄到 ±12%、四阶段 ±8%，让末段的压迫感更连贯（不再有长空档）。
+    const j = this.phase >= 4 ? 0.08 : (this.phase >= 3 ? 0.12 : 0.25);
     this.fireTimer = this.fireInterval * rand(1 - j, 1 + j);
   }
 
@@ -3837,10 +3864,13 @@ const Game = {
     // 环形的意义不是"多打几下"，而是"封锁横向走位"：
     // 只靠左右横移躲扇形弹的玩家到这里必须学会"卡缝隙穿过去"。
     if (b.hasRing) {
-      const R = CFG.BOSS.RING_3;
-      const rs = CFG.BOSS.RING_SPEED_3;
+      // v1.4.0：四阶段的环更稀（10 发）、更快（178）、转得更快（起始角 ×3.6）。
+      //   稀 = 缝更多，快 = 缝移动得更快 —— 从"找缝"变成"提前站到缝的位置"。
+      const is4 = b.phase >= 4;
+      const R = is4 ? CFG.BOSS.RING_4 : CFG.BOSS.RING_3;
+      const rs = is4 ? CFG.BOSS.RING_SPEED_4 : CFG.BOSS.RING_SPEED_3;
       // 用自转相位当起始角：每一轮的缝隙位置都不同，防止被玩家背板
-      const off = b.spin * 1.7;
+      const off = b.spin * (is4 ? CFG.BOSS.RING_SPIN_4 : 1.7);
       for (let i = 0; i < R; i++) {
         const a = off + (TAU / R) * i;
         this.enemyBullets.push(new EnemyBullet(

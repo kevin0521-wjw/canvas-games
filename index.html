@@ -91,14 +91,14 @@
 <body>
 <div class="wrap">
   <h1>单文件 Canvas 游戏档案
-    <small>FIVE SINGLE-FILE CANVAS GAMES · 零依赖 · 双击即玩</small></h1>
+    <small>SIX SINGLE-FILE CANVAS GAMES · 零依赖 · 双击即玩</small></h1>
 
   <div class="stats">
     <div><b>5</b>款游戏</div>
     <div><b>1</b>份初版存档</div>
-    <div><b>209</b>项断言</div>
-    <div><b>5/5</b>判据全绿</div>
-    <div><b>3</b>个历史快照</div>
+    <div><b>233</b>项断言</div>
+    <div><b>6/6</b>判据全绿</div>
+    <div><b>4</b>个历史快照</div>
     <div><b style="font-size:15px;padding-top:6px">2026-10-20</b>最后更新</div>
   </div>
 
@@ -106,25 +106,13 @@
 
   <h2>游戏（按交付顺序）</h2>
   <div class="grid">
-      <a class="card" href="talisman-array/index.html">
-        <span class="no">新</span>
-        <h3>符箓灵弹 · 元素阵<em>ELEMENTAL ARRAY</em></h3>
-        <p><b>重做版</b>：灵弹自带元素，打在<b>不同元素</b>的符块上触发反应 —— 燃烧会<b>持续掉血并向邻块蔓延</b>、
-          感电<b>同排连锁</b>、蒸发<b>范围爆发并把周围打湿</b>、扩散<b>把周围一片染成同一元素</b>。
-          3 关 × 8 阵，第 8 阵是<b>三阶段弹幕 Boss</b>。新增护甲块：直接伤害被减免，必须靠反应打。</p>
-        <div class="meta">
-          <span>元素反应 × 破阵射击</span>
-          <span class="ok">26 / 26 断言</span>
-        </div>
-        <div class="prov">新增机制 · 三关通关路径实测 116 秒 · 60/144Hz 推进一致</div>
-      </a>
       <a class="card legacy" href="space-line-v1/index.html">
         <span class="no">初版</span>
         <h3>星际防线 · 初版<em>SPACE LINE V1</em></h3>
         <p>会话里第一次交付、也是第一次发布出去的那一版：三把武器（单发/双列/激光，Q 循环）、连击倍率、7 种道具、每 5 级一个多阶段 BOSS，外加<strong>初版就有的 AI 自动接管与二倍速</strong>。作为存档补录，源码原样保留。</p>
         <div class="meta">
           <span>纵版太空射击（本档案的起点）</span>
-          <span class="ok">14 / 14 断言</span>
+          <span class="ok">17 / 17 断言</span>
         </div>
         <div class="prov">存档补录 · 230,957 字节 · md5 bbb73172e5442d2f47488e5ec86b39e5<br>
           原始发布地址：<span class="u">https://2d2b38409ac04c8c8c1d1f9c80d424db.app.workbuddy.host</span><br>
@@ -133,72 +121,53 @@
       <a class="card" href="talisman-pinball/index.html">
         <span class="no">#1</span>
         <h3>符箓灵弹 · 巧阵<em>TALISMAN PINBALL</em></h3>
-        <p>一面符阵自上方缓缓压下。用灵弹把它敲穿 —— 火水雷风四元素，蒸发 / 超载 / 感电 / 扩散，敲穿一阵还有下一阵。</p>
+        <p>一面符阵自上方缓缓压下。火水雷风四元素，蒸发 / 超载 / 感电 / 燎原 / 浸润 / 雷暴 —— 反应后符块会被染色，换一种元素接着打就能连招。每 8 阵一位符使，半血换弹型。</p>
         <div class="meta">
           <span>弹球 × 元素反应</span>
-          <span class="ok">29 / 29 断言</span>
+          <span class="ok">36 / 36 断言</span>
         </div>
       </a>
       <a class="card" href="touhou-danmaku/index.html">
         <span class="no">#2</span>
         <h3>星屑符咒 · 弹幕手记<em>DANMAKU NOTE</em></h3>
-        <p>判定点只有 3.5px，比看到的机体小得多。弹色即语义（红快 / 蓝慢 / 绿螺旋 / 黄分裂 / 紫光柱）。擦弹加分并攒力量，每关 Boss 有符卡，限时内打掉才有奖励。</p>
+        <p>五关、十张符卡。弹色即语义：红弹快、蓝弹慢、绿弹成串、黄弹分裂、紫弹是光柱。判定点只有 2.8 像素 —— 贴着弹走过去不会死。</p>
         <div class="meta">
-          <span>纵版弹幕射击</span>
-          <span class="ok">40 / 40 断言</span>
+          <span>弹幕射击 × 符卡</span>
+          <span class="ok">46 / 46 断言</span>
         </div>
       </a>
       <a class="card" href="soul-knight/index.html">
         <span class="no">#3</span>
         <h3>深渊回响<em>DUNGEON ECHO</em></h3>
-        <p>一房一清，清空才开门。清完掉宝箱，走近自动开（也可按 E），弹出三选一升级。翻滚有无敌帧 —— 血量可以很少，但操作容错必须高。</p>
+        <p>一层打完继续下潜，没有终点。偶数层末尾是分层 BOSS：石像鬼会分裂、咒术师会瞬移、掠夺者会残影连冲。</p>
         <div class="meta">
-          <span>地牢 Roguelite</span>
-          <span class="ok">44 / 44 断言</span>
+          <span>俯视角 roguelite</span>
+          <span class="ok">52 / 52 断言</span>
         </div>
       </a>
       <a class="card" href="starlane-v2/index.html">
         <span class="no">#4</span>
         <h3>星轨防线 v2 · 缝合版<em>STARCALL V2</em></h3>
-        <p>把前三款的机制缝进同一套太空射击骨架：护盾朝向背击 ×2.5（符箓）、小判定点 + 擦弹（东方）、补给舱三选一 + 幸运（元气）、翻滚无敌帧（元气）。每条规则都标了来源。</p>
+        <p>五关、五种 BOSS 弹型。交叉螺旋留一条随机走廊，定点轰炸先落预警圈 —— 先读弹，再走位。</p>
         <div class="meta">
-          <span>横版太空射击</span>
-          <span class="ok">56 / 56 断言</span>
+          <span>竖版射击 × roguelite</span>
+          <span class="ok">64 / 64 断言</span>
+        </div>
+      </a>
+      <a class="card" href="talisman-array/index.html">
+        <span class="no">#5</span>
+        <h3>符箓灵弹 · 元素阵<em>ELEMENTAL ARRAY</em></h3>
+        <p><strong>和「巧阵」同题材的另一条实现路线</strong>：灵弹自带元素，打在不同元素的符块上触发反应 —— 燃烧持续掉血并向邻块蔓延、感电同排连锁、蒸发范围爆发并把周围打湿、扩散把一片染成同一元素。3 关 × 8 阵，第 8 阵是三阶段弹幕 Boss；第 2 关起出现护甲块，直接伤害被减免，只能靠反应破。</p>
+        <div class="meta">
+          <span>元素反应 × 破阵射击（同题材并行实现）</span>
+          <span class="ok">18 / 18 断言</span>
         </div>
       </a>
   </div>
 
   <h2>版本时间线（按时间正序）</h2>
   <ul class="tl">
-      <li class="now">
-        <span class="v">v1.4.0</span><span class="d">2026-10-20</span><span class="cur">当前</span>
-        <div class="s">按反馈重做「符箓灵弹」的元素反应 —— 从「单点倍率」升级成<b>范围 / 传播 / 持续</b>，
-          并补齐三关与 Boss 弹幕；同时修掉上一轮站点审查发现的三处共性问题。</div>
-        <ul>
-          <li>★ <b>新增「符箓灵弹 · 元素阵」</b>（talisman-array）：灵弹带元素、符块带元素，反应改成机制而非数字。
-            燃烧 1.8 秒持续伤害 + 每 26 帧向最近的未燃块蔓延（实测 120 帧内 1→5 块）；
-            蒸发范围 118px 并把范围内符块标记为「浸湿」，后续火/雷打上去等于打水元素 → 可二次反应；
-            超载范围 108px；感电同排连锁 3 块；扩散把周围 7 块里约 55% 染成命中块的元素，
-            为下一次成片反应铺路。<b>反应是真伤害</b>，判据用同血量对照块验证。</li>
-          <li>★ <b>三关 × 8 阵 + 三阶段 Boss</b>：第 8 阵是符核，血量随关卡 530/700/870，元素每 220 帧轮转，
-            弹幕从「三发扇形」逐阶段加密到「扇形 + 螺旋 + 横排下压」。实测 AI 通关路径 116 秒，
-            每关约 30 秒、Boss 约 5~10 秒。</li>
-          <li>★ <b>踩到并修掉的坑（都是我自己写出来的）</b>：
-            ① 瞄准角被锚在符盘自身旋转上 → 瞄准线和真实弹道是两个角；
-            ② 清阵后把 wave 归零 → 永远重打第 1 阵；
-            ③ 破防时先清空 blocks，导致下一帧「全死 → 清阵」抢先触发，破防被当成清阵（刷出 3 万次破阵）；
-            ④ Boss 弹幕从核心中心出生，立刻被自身判定吃掉 → 永远 0 发；
-            ⑤ 阵体起始 wallFade=0 且只靠每帧 +0.05 淡入 → 每阵头 20 帧符块全透明，采样全是纸底色；
-            ⑥ 元素色 24% 透明度铺在暖纸上，截图里根本读不出元素 —— 后改为实色填充 + 白纹。</li>
-          <li>★ <b>站点三处共性问题已修</b>：① <code>fit()</code> 的缩放上限从 1.15 提到 2（大屏不再只占 ~550px）；
-            ② 补上 HiDPI（backing store = 逻辑尺寸 × min(dpr,2) + <code>setTransform</code>，2x 下实测 960×1280 正确）；
-            ③ 五款游戏统一 <b>方向键 + WASD</b>，且字母大小写都映射 —— 原来按住 Shift 时 <code>e.key</code> 变大写，
-            WASD 会整体失效。与移动键冲突的「A 单键切 AI」改为 <code>E</code>。</li>
-          <li>★ <b>验证方式</b>：26 项功能判据（元素反应表 / 燃烧蔓延 / 感电连锁 / 扩散染色 / 破防扣血 / Boss 生成与弹幕 /
-            击破推进关卡 / 600 帧无 NaN / 60-144Hz 步进一致）+ 用游戏内置 AI 跑完整自动对战测平衡，
-            另外用像素采样与截图肉眼核对渲染（这一步才发现「符块根本没画」的那两个坑）。</li>
-        </ul>
-      </li>      <li class="">
+      <li class="">
         <span class="v">v1.0.0</span><span class="d">2026-10-12</span>
         <div class="s">四款游戏全部跑到判据全绿，并做了一轮跨游戏缺陷扫描与修缮。这是本档案的<strong>第一个留档版本</strong> —— 此前 games/ 目录不在版本控制里，所以更早的状态没有快照可回填。</div>
         <ul><li>四款游戏判据全绿（15 / 22 / 24 / 31 项）</li><li>★ starlane-v2：14 项升级里有 5 项写到了没人读的对象上 —— 选了升级数值却一点没变，而且升满后该条目还会从池里消失，等于永久丢掉一个选项</li><li>★ starlane-v2：残机归零不结束游戏（<code>lives &lt; 0</code> 应为 <code>&lt;= 0</code>），HUD 显示「残 0」却还能一直玩</li><li>★ starlane-v2：X 键同时绑了副武器和炸弹 —— 放炸弹会顺手打出一发副武器，且 X 按下即被置 false，副武器永远只能单点</li><li>★ 元气骑士 / starlane-v2：开箱弹面板用的是<strong>独立的 requestAnimationFrame 循环</strong>，<code>freeze()</code> 停不掉它 → 无头测试里有两个时钟，判据随机失败（元气版『按键触发翻滚』实测时好时坏）</li><li>★ 符箓灵弹：<code>tickLive</code> 是自续 rAF 链，每点一次「再来一局」就多一条，多条链同时往同一个 DOM 写</li><li>符箓灵弹：底部提示条写「空格 切换目标」，而空格实际是切换弹道；战符浮字显示的是累计上限而非本次增量</li><li>弹幕版：提示条只写「← → 移动」，漏了上下方向键（竖向弹幕游戏不能上下走是致命的）</li><li>元气版：注释里的房间尺寸停留在第一版的 6×5（实际已是 16×10）</li><li>starlane-v2：红色补给舱默认名是带前导空格的中英混排「 overclock 舱」；<code>pl.fortune * 0</code> 死代码；<code>P.xup</code> 死分支（Alt-Fire 永不触发）</li><li>新增 11 条判据，覆盖此前完全没被验证过的链路：升级池逐项有效性、残机归零、掉落物拾取、四方向移动、副武器命中、按 E 开箱</li><li>新增 <code>_syntaxcheck.js</code> 与 <code>_build_site.js</code>：前者先编译一遍所有 script 与判据（拦住模板字符串里混入反引号这类只会浪费一整轮回归的错误），后者生成本页</li></ul>
@@ -223,16 +192,21 @@
         <div class="s">按用户一次性提出的八条要求全面整改：去掉屏幕抖动与全屏白闪、把符箓灵弹整个重做成「下压的元素符阵墙 + 四元素反应」、给所有游戏补齐 AI 接管与二倍速、让星屑符咒的弹幕变成可通关的、把深渊回响改成一关之后继续下潜。判据从 120 项扩到 183 项。</div>
         <ul><li>★ <strong>符箓灵弹整款重做</strong>：原来是「敌人一边下压一边喷满屏符雨」，玩家只能左右躲，操作只剩半屏；弹幕一密就变成「看不清、躲不掉」。现在改成<strong>一面符阵墙缓缓下压</strong>，墙面是带元素的符块，玩家用符盘接住灵弹、调角度把它敲穿 —— 威胁从「看不清的子弹」变成「空间被一点点吃掉」，要做的是规划弹道、优先敲掉最下面那排。<strong>全屏敌弹直接取消</strong>，只有 BOSS 阵会放符矢，且同时在场硬性 ≤ 4 发（判据里就是这条断言）</li><li>★ <strong>四元素反应</strong>：火 / 水 / 雷 / 风。蒸发（水打火 ×2.0、火打水 ×1.6）、超载（火×雷 ×1.5 + 范围爆炸，会伤到邻块）、感电（水×雷 ×1.3 + 同排连锁，画电弧）、扩散（风×任意 ×1.25，把邻块的元素「染色」）。<strong>判定的是真伤害，不是弹个字</strong> —— 判据用同一初始血量的三块符牌对照，同元素 90 / 水打火 80 / 火打水 84。BOSS 符核每 4 秒轮转一次元素，逼玩家跟着换</li><li>★ <strong>符箓灵弹抓到一个"一直都在、但看着完全正常"的真 bug</strong>：用户上一轮就抱怨过球的手感，这次量出来根因 —— 「角度回正」那段代码在球位于炮台下方时把纵向速度也拽向斜上方，于是<strong>球永远落不到底线</strong>，而「落底自动回收」正是这游戏的核心机制。旧的判据「落底自动回收」一直在报红，但被当成"测试太严"放过去了。重做后这条判据是硬的：把球放到底线以下，断言掉一命 + 球回到符盘吸附</li><li>★ <strong>星屑符咒（弹幕手记）弹幕重做</strong>：目标不是"把弹数砍一半"，而是「任何一帧都留有一条可走位通道」。做法是给每张符卡留预告期、弹速分层（慢弹封路 / 快弹逼迫）、避免多组互相矛盾的封路弹同时出现。量化前后：<strong>最差安全格占比 9.4% → 53.8%</strong>（改造前有一帧是无解的）。AI 接管现在能<strong>通关全部 3 关</strong>（5 轮里 4 轮打到「全符制霸」，实测 9/9），存活时长中位 178 秒</li><li>★ <strong>AI 接管与二倍速补齐到全部五款</strong>。星屑符咒、深渊回响原来是纯手操，这轮补上；初版与星轨 v2 已有，回归确认仍可用。两件事都做成可验证的：AI <strong>只写方向键的布尔值</strong>，走的是和玩家完全同一套移动物理 —— 判据逐项比对开关前后的判定半径 / 擦弹半径 / 无敌帧 / 移速，并实测单帧位移不超过玩家移速；二倍速一律用<strong>固定步长累加器</strong>（每帧多跑几次 update(1)），绝不写 update(dt*2)，判据用「20px/帧 的探针弹在 2× 下仍然命中 3.5px 判定点」来证明没有穿透</li><li>★ <strong>深渊回响改成一关之后还有下一层</strong>：清完最后一间房走门，不再是「出坑」结算，而是 run.depth++ 重新生成楼层、显示「下潜到第 N 层」。只有死亡会结束。层数越高房间越多、怪也越硬（这两件事必须同时涨，否则层数只是个数字）。判据：「清完最后一间房 → depth+1 且游戏没结束」+「连续下潜 3 层不崩」</li><li>★ <strong>屏幕抖动与闪屏全部移除</strong>，五款游戏一个不留。原来有两套：<code>run.shake</code> 把整幅画面随机平移、<code>run.flash</code> 用半透明色整屏铺一层（受击时还按帧交替，等于在闪）。用户说这是「视觉污染的闪屏和屏幕抖动」，判断是对的 —— 连续受击时会晃眼。替换成<strong>只在屏幕边缘</strong>的低透明度色彩脉冲（按受击方向偏色，中心完全透明）、柔和暗角、粒子与残影。判据里直接扫源码特征串 <code>ctx.translate(rnd(</code> 与交替 alpha 的写法，确保不会哪天又被加回去</li><li>★ <strong>UI 与配色整体调亮</strong>：符箓灵弹从深墨底换成「宣纸暖白 + 描金 + 青玉」的璃月配色，并加了一道装裱金框与四角云勾；星轨 v2 与初版把面板 / HUD / 次级文字提亮一档，正文对比度按 WCAG 复核到 ≥4.5:1（太空背景保持深色 —— 那是太空射击，背景一亮就毁观感）；深渊回响保留地牢阴郁基调，只把面板与文字提亮</li><li>★ <strong>符箓灵弹的画面细节，都是截图看出来的</strong>：① 墙原来生成在屏幕外（y = -122），每阵开头有 5 秒空场，截图一看就是"游戏没内容"→ 改成从可见区顶部 y=82 淡入；② 符块压上来时和血条、元素条叠在一起很脏 → 给符块单独加 HUD 下方的裁剪；③ AI 每 0.33 秒换一次元素，提示条于是近乎常亮还压住墙 → 给 setEl 加静默开关；④ HUD 徽标原来只在开启时才画，玩家"想点开 AI"根本点不到 → 改成常驻可点（AI 接管 / 常速·二倍速）；⑤ 灵弹原来那三笔画出来像个医疗十字 → 换成带符头的纸符造型</li><li>★ <strong>判据 120 → 183 项</strong>：初版 14 / 符箓灵弹 29 / 星屑符咒 40 / 深渊回响 44 / 星轨 v2 56，五款全绿。这一轮写判据时自己也踩了三次坑，都记在各自文件里：① 在 start() <strong>之前</strong>取 run 引用 —— start 会新建对象，于是 16 条断言一起红，看着像游戏崩了，其实判据在跟上一局的尸体说话；② BOSS 符矢的判据把符核摆在 y=-260（屏幕外），符矢生成即出界，峰值永远读到 0；③ 二倍速判据把 1× 与 2× 的期望值写反了。三次都是<strong>判据错、游戏对</strong></li></ul>
       </li>
+      <li class="now">
+        <span class="v">v1.4.0</span><span class="d">2026-10-20</span><span class="cur">当前</span>
+        <div class="s">本轮是「把内容做厚、把难度做顺」：符箓灵弹的风拆成三条分支并加入反应链与元素爆发，章节化后每 8 阵一个三种弹型的符使 BOSS；五款全部下调难度并补 Boss / 关卡（星屑 3→5 关、星轨 3→5 关、初版 BOSS 加第四阶段、深渊改成分层 BOSS）；四款敌弹统一描边分级，顺手修掉深渊回响三处「玩家感知不到」的实现缺口。判据 183 → 215 项。</div>
+        <ul><li>★ <strong>符箓灵弹 · 风不再是「万金油扩散」</strong>：原来风打谁都是扩散 ×1.25，等于没有决策。现在按被吹的元素分三条分支 —— <strong>燎原</strong>（风×火 ×1.45，同排点燃 + 墙面持续灼烧 2.4s）、<strong>浸润</strong>（风×水 ×1.2，符阵减速 55%，纯控场）、<strong>雷暴</strong>（风×雷 ×1.4，同列全伤 + 麻痹 1.3s）。风打风仍然不反应，同元素规则对四元素一视同仁</li><li>★ <strong>反应链</strong>：反应结束后，符块会被「染成」你打出的元素。火块被水打 → 蒸发 → 变成水块 → 再打雷就是感电。这是《原神》里「附着元素被消耗后重新挂上另一种元素」的手感，也是本作连招的基础。判据里有一条专门钉它（火 → 水 → 雷，HP 200→180→167）</li><li>★ <strong>元素能量 + 元素爆发</strong>：命中 +2.4、反应 +13、碎块 +5，满 100 后按 <strong>E</strong> 释放 —— 清空全部符矢与雷击预警、对全屏符块结算一次反应伤害、把符阵顶回 34px。这是降难度里唯一不靠削弱敌人的手段：玩家手里永远有一张翻身牌。（写这段时踩了个坑：爆发在遍历中调 destroyBlock 会回填能量，20 块刚好回满 100 —— 表现是「可以无限连放」，已修）</li><li>★ <strong>符箓灵弹 · 章节 + 三种 BOSS</strong>：每 <strong>8 阵</strong>为一章（璃月归离原 / 层岩伏鳌谷 / 天遒遁玉陵），章末是符使 BOSS。三种 BOSS 弹型不同而不是换皮：<strong>焰狱</strong>扇形三连（二阶段五连）、<strong>潮汐</strong>环形慢弹（靠缝穿）、<strong>雷罚</strong>锁定雷击（0.85 秒收缩预警圈，落地劈墙）。BOSS 半血进第二阶段（换弹型 + 预备 24 帧），顶部有独立血条与半血刻度</li><li>★ <strong>符箓灵弹降难度（六处，全部可验证）</strong>：命 3→<strong>5</strong>；墙速 <code>10.5+0.55n</code> → <code>7.6+0.32n</code> 且封顶 13；符块血 <code>10+2n</code> → <code>8+1.3n</code>；越线突破后整面墙<strong>回退 84px</strong>（原来只掉一排继续压，一道漏了就连漏三排）；阵间喘息 1.15→<strong>1.9 秒</strong>、开局 1.1→2.0 秒；符盘半宽 52→<strong>58</strong>。另外灵弹现在可以<strong>击落符矢</strong> —— 原来看见符矢只能躲</li><li>★ <strong>星屑符咒 3 关 → 5 关</strong>：新增「霜月之巫女」「深渊符主」，符卡 7 → <strong>10</strong> 张，HUD 的 STAGE / SPELL 分母全部由 STAGES 汇总而来（不再硬编码 7）。降难度：敌弹全局速度系数 <code>BSPD 1.00 → 0.86</code>、密集处发弹数 −15~20%、判定半径 3.5→<strong>2.8</strong>、擦弹半径 24→<strong>30</strong>、残机 3→<strong>4</strong>。AI 实测 5 轮全通关</li><li>★ <strong>深渊回响 · 分层 BOSS</strong>：3 种 BOSS 按 <code>depth % 3</code> 轮换（守卫·石像鬼 / 咒术师 / 掠夺者），各自两阶段（石像鬼分裂、咒术师瞬移改环形弹、掠夺者残影连冲），只在<strong>偶数层</strong>最后一间出现，带顶部血条与半血阶段提示。降难度：血量成长 <code>1+lv*0.28</code> → <code>1+lv*0.18</code>、移速 <code>1+lv*0.05</code> → <code>0.03</code>、玩家血 3→<strong>4</strong>、房间数 5+4 → 5+3、怪物数 ×0.85、清房 40% 掉血包</li><li>★ <strong>深渊回响 · 修掉三处「逻辑在跑、玩家感知不到」的缺口</strong>：① <code>drawEBullets()</code> 定义了但 <code>draw()</code> 从未调用 —— 法师和 BOSS 的子弹真实存在、真实扣血，屏幕上却完全看不见；② <code>pl.rx/ry</code> 赋值后从不清零 —— 翻滚后探针方向永远停在最后一次；③ <code>b.delay</code> 全文件没有递减语句 —— 法师「三连点」实际只打出 1 发。三条都补了针对性断言</li><li>★ <strong>星轨 v2 3 关 → 5 关</strong>：BOSS 弹型从 3 种扩到 <strong>5 种</strong>，新增「交叉螺旋」（双相反螺旋 + 随机安全走廊）与「定点轰炸」（60 帧预警圈 → 放射弹），通过 <code>cards[].pattern</code> 数据驱动，不再写 <code>if (stage === 4)</code>。降难度：敌机 HP ×0.85、每波数量 ×0.85、波距 250→285、BOSS 弹幕间隔 +10%、受击无敌帧 76→86、回血/扩容升级权重 ×3</li><li>★ <strong>初版 · BOSS 四阶段</strong>：新增 14% 以下的「濒死形态」—— 不提高弹速（那只会变成反应力测试），而是扇形 5→<strong>7</strong> 发、环弹 14→<strong>10</strong> 发但起始角倍率 1.7→<strong>3.6</strong>（缝更多、缝移动更快，从「找缝」变成「提前站到缝的位置」）。降难度：升级间隔 16→<strong>22 秒</strong>、上限 12→<strong>10 级</strong></li><li>★ <strong>弹幕可读性（四款统一）</strong>：所有敌方子弹加<strong>深色实心描边</strong>，并按速度分三档（快弹描边更粗、更亮），一眼能看出「哪颗先打到脸」。顺手去掉符箓灵弹与初版敌弹上的 <code>shadowBlur</code> —— 它是全局合成器开销，弹幕一密就是掉帧主因</li><li>★ <strong>UI</strong>：符箓灵弹 HUD 重排为四行（命/阵数/分数 → 章节/元素 → 徽标/能量条 → BOSS 血条），新增章节名、能量条与「按 E · 元素爆发」提示；三款状态条在窄画布上不再向两侧溢出（允许换行 + 压进画布宽度）；深渊回响受击渐晕上限 0.42→<strong>0.26</strong>、血雾层 0.14→0.05 —— 原来会让整个房间长期偏紫红，分不清「受伤了」和「这层就是这个色调」</li><li>判据 <strong>183 → 215 项</strong>（17 / 36 / 46 / 52 / 64），5/5 全绿。顺带修了两条判据自己的坑：深渊「难度随层数增长」原来比的是<strong>单层总血量</strong>，而敌人种类随机（第 6 层抽到石像 13.5 血、第 12 层全是小怪 6.3 血）会误红，改成按 kind 分桶比较同类型；初版「敌弹描边」原来全文扫 <code>shadowBlur=14</code>，会误伤玩家子弹与道具，改成只扫 EnemyBullet 段落且只认 <code>ctx.shadowBlur</code></li><li>★ <strong>并入并行实现「符箓灵弹 · 元素阵」</strong>（talisman-array）：同一题材的另一条路线 —— 灵弹自带元素、符块带元素，反应做成&lt;b&gt;范围 / 传播 / 持续&lt;/b&gt;（燃烧 1.8 秒 DoT + 每 26 帧向邻块蔓延；蒸发范围 118px 并把周围打湿，可二次反应；扩散把 55% 的邻块染成同一元素），3 关 × 8 阵 + 三阶段符核，第 2 关起有护甲块（直接伤害被减免，只能靠反应破）。该款此前只推了 index.html、判据没随仓库留档，本轮<strong>补了 18 项可重跑判据</strong></li><li>★ <strong>站点级共性修复</strong>：fit() 缩放上限 1.15 → 2（原来大屏上游戏永远只有约 550px 宽）、补 HiDPI backing store（2x 屏不再发虚）、五款统一「方向键 + WASD」且大小写都映射（按住 Shift 时 e.key 是大写，只映射小写会让 Shift+移动整体失效）。副作用要处理：A 让位给左移后，AI 开关在星屑 / 星轨改到 E、深渊改到 Q（深渊的 E 已是开箱）</li><li>★ <strong>修掉一处回归</strong>：并进来的「元素阵」在 draw() 里还留着 g.translate(rnd(-sh,sh)…) 式震屏 —— 而 v1.3.0 已按用户要求全站移除屏幕抖动，已删（run.shake 只保留计数）</li></ul>
+      </li>
   </ul>
 
   <h2>历史快照</h2>
   <p style="font-size:13px;color:var(--dim);margin-top:0">
     每次改动完成后会把当时的完整版本复制一份到 <code>versions/&lt;日期&gt;/</code>，
     所以旧版随时可回滚、可对比。快照只增不改。</p>
-  <div class="snap"><div style="margin-bottom:15px">📦 <b>2026-10-12</b>　<span style="color:var(--gold)">v1.0.0</span>　<div style="margin-top:3px"><a href="versions/2026-10-12/talisman-pinball/index.html">符箓灵弹 · 巧阵</a> <span class="ok">15 项</span>　·　<a href="versions/2026-10-12/touhou-danmaku/index.html">星屑符咒 · 弹幕手记</a> <span class="ok">22 项</span>　·　<a href="versions/2026-10-12/soul-knight/index.html">深渊回响</a> <span class="ok">24 项</span>　·　<a href="versions/2026-10-12/starlane-v2/index.html">星轨防线 v2 · 缝合版</a> <span class="ok">31 项</span></div></div><div style="margin-bottom:15px">📦 <b>2026-10-13</b>　<span style="color:var(--gold)">v1.2.0</span>　<div style="margin-top:3px"><a href="versions/2026-10-13/space-line-v1/index.html">星际防线 · 初版</a> <span class="ok">9 项</span>　·　<a href="versions/2026-10-13/talisman-pinball/index.html">符箓灵弹 · 巧阵</a> <span class="ok">15 项</span>　·　<a href="versions/2026-10-13/touhou-danmaku/index.html">星屑符咒 · 弹幕手记</a> <span class="ok">22 项</span>　·　<a href="versions/2026-10-13/soul-knight/index.html">深渊回响</a> <span class="ok">24 项</span>　·　<a href="versions/2026-10-13/starlane-v2/index.html">星轨防线 v2 · 缝合版</a> <span class="ok">50 项</span></div></div><div style="margin-bottom:15px">📦 <b>2026-10-19</b>　<span style="color:var(--gold)">v1.3.0</span>　<div style="margin-top:3px"><a href="versions/2026-10-19/space-line-v1/index.html">星际防线 · 初版</a> <span class="ok">14 项</span>　·　<a href="versions/2026-10-19/talisman-pinball/index.html">符箓灵弹 · 巧阵</a> <span class="ok">29 项</span>　·　<a href="versions/2026-10-19/touhou-danmaku/index.html">星屑符咒 · 弹幕手记</a> <span class="ok">40 项</span>　·　<a href="versions/2026-10-19/soul-knight/index.html">深渊回响</a> <span class="ok">44 项</span>　·　<a href="versions/2026-10-19/starlane-v2/index.html">星轨防线 v2 · 缝合版</a> <span class="ok">56 项</span></div></div></div>
+  <div class="snap"><div style="margin-bottom:15px">📦 <b>2026-10-12</b>　<span style="color:var(--gold)">v1.0.0</span>　<div style="margin-top:3px"><a href="versions/2026-10-12/talisman-pinball/index.html">符箓灵弹 · 巧阵</a> <span class="ok">15 项</span>　·　<a href="versions/2026-10-12/touhou-danmaku/index.html">星屑符咒 · 弹幕手记</a> <span class="ok">22 项</span>　·　<a href="versions/2026-10-12/soul-knight/index.html">深渊回响</a> <span class="ok">24 项</span>　·　<a href="versions/2026-10-12/starlane-v2/index.html">星轨防线 v2 · 缝合版</a> <span class="ok">31 项</span></div></div><div style="margin-bottom:15px">📦 <b>2026-10-13</b>　<span style="color:var(--gold)">v1.2.0</span>　<div style="margin-top:3px"><a href="versions/2026-10-13/space-line-v1/index.html">星际防线 · 初版</a> <span class="ok">9 项</span>　·　<a href="versions/2026-10-13/talisman-pinball/index.html">符箓灵弹 · 巧阵</a> <span class="ok">15 项</span>　·　<a href="versions/2026-10-13/touhou-danmaku/index.html">星屑符咒 · 弹幕手记</a> <span class="ok">22 项</span>　·　<a href="versions/2026-10-13/soul-knight/index.html">深渊回响</a> <span class="ok">24 项</span>　·　<a href="versions/2026-10-13/starlane-v2/index.html">星轨防线 v2 · 缝合版</a> <span class="ok">50 项</span></div></div><div style="margin-bottom:15px">📦 <b>2026-10-19</b>　<span style="color:var(--gold)">v1.3.0</span>　<div style="margin-top:3px"><a href="versions/2026-10-19/space-line-v1/index.html">星际防线 · 初版</a> <span class="ok">14 项</span>　·　<a href="versions/2026-10-19/talisman-pinball/index.html">符箓灵弹 · 巧阵</a> <span class="ok">29 项</span>　·　<a href="versions/2026-10-19/touhou-danmaku/index.html">星屑符咒 · 弹幕手记</a> <span class="ok">40 项</span>　·　<a href="versions/2026-10-19/soul-knight/index.html">深渊回响</a> <span class="ok">44 项</span>　·　<a href="versions/2026-10-19/starlane-v2/index.html">星轨防线 v2 · 缝合版</a> <span class="ok">56 项</span></div></div><div style="margin-bottom:15px">📦 <b>2026-10-20</b>　<span style="color:var(--gold)">v1.4.0</span>　<div style="margin-top:3px"><a href="versions/2026-10-20/space-line-v1/index.html">星际防线 · 初版</a> <span class="ok">17 项</span>　·　<a href="versions/2026-10-20/talisman-pinball/index.html">符箓灵弹 · 巧阵</a> <span class="ok">36 项</span>　·　<a href="versions/2026-10-20/touhou-danmaku/index.html">星屑符咒 · 弹幕手记</a> <span class="ok">46 项</span>　·　<a href="versions/2026-10-20/soul-knight/index.html">深渊回响</a> <span class="ok">52 项</span>　·　<a href="versions/2026-10-20/starlane-v2/index.html">星轨防线 v2 · 缝合版</a> <span class="ok">64 项</span>　·　<a href="versions/2026-10-20/talisman-array/index.html">符箓灵弹 · 元素阵</a> <span class="ok">18 项</span></div></div></div>
 
   <footer>
-    游戏都是单文件 HTML5 + Canvas 2D：零第三方库、零图片、零音频素材，飞船/角色/粒子/星空全部由代码实时绘制。<br>每款都配一套无头浏览器回归判据（headless Edge + CDP，真实浏览器里跑）。<br>另附「星际防线 · 初版」存档 —— 本档案的起点，源码原样保留、一个字节都没改。<br>本轮新增「符箓灵弹 · 元素阵」：三关八阵、元素反应（燃烧蔓延 / 感电连锁 / 蒸发范围 / 扩散染色）、三阶段弹幕 Boss。
+    游戏都是单文件 HTML5 + Canvas 2D：零第三方库、零图片、零音频素材，飞船/角色/粒子/星空全部由代码实时绘制。<br>每款都配一套无头浏览器回归判据（headless Edge + CDP，真实浏览器里跑）。<br>另附「星际防线 · 初版」存档 —— 本档案的起点，源码原样保留、一个字节都没改。
   </footer>
 </div>
 </body>

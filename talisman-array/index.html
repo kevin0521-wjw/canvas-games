@@ -192,19 +192,22 @@
 
   /* ---- 手感 / 平衡（集中在这里调） ---- */
   const CFG = {
-    hp: 4,                     // 初始心数
+    // ⚠️ 2026-10-20 并入时按「降低游戏难度」这一条统一调过数值：
+    //   心数 4→5、下压速度 10.5+0.55×波 → 8.8+0.36×波、符块血 10+2×波 → 9+1.5×波。
+    //   调的是「压力增长曲线」而不是把敌人删掉 —— 前几阵几乎没变，第 6 阵以后才明显缓下来。
+    hp: 5,                     // 初始心数
     fireCd: 26,                // 发弹冷却（帧）；打中符块返还 6 帧 → 约等于连发
     fireCdBounce: 8,           // 灵弹被弹回时返还的冷却帧
     ballReturn: 1500,          // 一发灵弹最长存活帧数，超时自动回收（防止永久失联）
     aimSpd: 0.042,             // 瞄准角速度（弧度/帧）
     aimRange: Math.PI / 2 - 0.32,
     dmgBase: 12,               // 灵弹基础伤害
-    wallBaseSpeed: 10.5,       // 第 1 阵下压速度（像素/帧）
-    wallSpeedGain: 0.55,       // 每阵 +0.55
+    wallBaseSpeed: 8.8,        // 第 1 阵下压速度（像素/帧）
+    wallSpeedGain: 0.36,       // 每阵 +0.36
     wallSlowOnHit: 0.10,       // 命中一块让墙体瞬间减速（压力反馈）
     wallSlowMax: 3.2,          // 减速最多累积到多少
-    blockHpBase: 10,           // 符块基础血量
-    blockHpGain: 2,            // 每阵 +2
+    blockHpBase: 9,            // 符块基础血量
+    blockHpGain: 1.5,          // 每阵 +1.5
     burnDmg: 0.55,             // 燃烧每帧伤害（按 60fps 折算）
     burnSpread: 2,             // 燃烧每次向外蔓延的块数
     burnSpreadCd: 26,          // 蔓延间隔（帧）
@@ -1326,10 +1329,12 @@
    * 缩放上限取 1.6：再大在大屏上也够用，同时避免 4K 上 fill 成本过高。
    */
   function resize() {
-    _dpr = Math.min(window.devicePixelRatio || 1, 2);
     const s = Math.min(innerWidth / W, innerHeight / H) * 0.99;
     cv.style.width  = (W * s) + 'px';
     cv.style.height = (H * s) + 'px';
+    // ⚠️ backing 比例必须是「CSS 缩放 × 像素比」：只按 dpr 放大时，
+    //   大屏上（s 接近 2）backing 只有实际显示像素的一半，照样发虚。
+    _dpr = Math.min(window.devicePixelRatio || 1, 2) * s;
     cv.width  = Math.round(W * _dpr);
     cv.height = Math.round(H * _dpr);
     ctx.setTransform(_dpr, 0, 0, _dpr, 0, 0);
@@ -1342,10 +1347,10 @@
     g.setTransform(_dpr, 0, 0, _dpr, 0, 0);
     g.clearRect(0, 0, W, H);
 
-    // 震屏（只作用于战场层，HUD 不跟着抖）
-    const sh = run.shake || 0;
+    // ⚠️ 震屏已移除（这是 v1.3.0 定下的硬要求：不要「视觉污染的屏幕抖动」——
+    //    连续受击时整幅画面平移会晃眼）。run.shake 的计数与衰减保留，
+    //    但不再 translate 画布；save/restore 保留，后面的战场层绘制依赖它。
     g.save();
-    if (sh > 0) g.translate(rnd(-sh, sh) * 0.5, rnd(-sh, sh) * 0.5);
 
     g.drawImage(bgCanvas, 0, 0);
 

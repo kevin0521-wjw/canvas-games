@@ -607,8 +607,11 @@ function rmTree(dir) {
       D.draw();
       const c = document.querySelector('canvas');
       const g = c.getContext('2d');
-      const px = g.getImageData(bx, by, 1, 1).data;
-      const bg = g.getImageData(bx - 40, by, 1, 1).data;
+      // ⚠️ HiDPI 之后 backing store 是逻辑坐标的 k 倍，getImageData 取的是
+      //    **设备像素**，所以采样点必须乘上当前变换的缩放（直接读变换，不猜常量）。
+      const k = g.getTransform().a;
+      const px = g.getImageData(Math.round(bx * k), Math.round(by * k), 1, 1).data;
+      const bg = g.getImageData(Math.round((bx - 40) * k), Math.round(by * k), 1, 1).data;
       const diff = Math.abs(px[0] - bg[0]) + Math.abs(px[1] - bg[1]) + Math.abs(px[2] - bg[2]);
       return { frames: D.drawStats.frames - f0, drawn: D.drawStats.ebullets,
                px: [px[0], px[1], px[2]], bg: [bg[0], bg[1], bg[2]], diff };
@@ -627,8 +630,9 @@ function rmTree(dir) {
       D.run.hintT = 0; D.run.transT = 0;
       const g = document.querySelector('canvas').getContext('2d');
       D.draw();
+      const k = g.getTransform().a;      // HiDPI：设备像素 = 逻辑 × k
       const normal = { bar: D.drawStats.bossBar,
-                       px: Array.from(g.getImageData(250, 50, 1, 1).data) };
+                       px: Array.from(g.getImageData(Math.round(250 * k), Math.round(50 * k), 1, 1).data) };
       D.run.depth = 2; D.genFloor();
       const last = D.rooms.length - 1;
       D.placeInRoom(last);                  // 偶数层最后一间 → 刷 BOSS
@@ -636,7 +640,7 @@ function rmTree(dir) {
       D.draw();
       const boss = { bar: D.drawStats.bossBar, isBoss: D.rooms[last].isBoss,
                      alive: !!(D.boss && D.boss.alive), kind: D.boss && D.boss.kind,
-                     px: Array.from(g.getImageData(250, 50, 1, 1).data) };
+                     px: Array.from(g.getImageData(Math.round(250 * k), Math.round(50 * k), 1, 1).data) };
       return { normal, boss };
     })()`);
     step('★ BOSS 血条只在 BOSS 房绘制，且血条像素确实是血红色',

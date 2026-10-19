@@ -1992,6 +1992,15 @@
     const s = Math.min(innerWidth / W, innerHeight / H) * 0.985;
     cv.style.width = (W * s) + 'px';
     cv.style.height = (H * s) + 'px';
+    // v1.4.0 HiDPI：backing store 按 devicePixelRatio 放大，再把绘制坐标系缩回去。
+    //   逻辑尺寸 W/H 保持不变（所有绘制与触屏坐标都用它们），
+    //   放大的只是像素密度 —— 否则 2x 屏上符纹的细线会糊成一片。
+    // ⚠️ 必须是「CSS 缩放 × 像素比」而不是单纯的 dpr：s 可能到 2，
+    //   只按 dpr 放大时 backing 比实际显示像素少一半，大屏上照样发虚。
+    const k = Math.min(window.devicePixelRatio || 1, 2) * s;
+    cv.width  = Math.round(W * k);
+    cv.height = Math.round(H * k);
+    ctx.setTransform(k, 0, 0, k, 0, 0);
   }
   addEventListener('resize', fit);
   fit();

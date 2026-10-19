@@ -80,7 +80,7 @@
 <canvas id="cv" width="640" height="448"></canvas>
 <div id="ui">
   <div id="live"></div>
-  <div id="tip">WASD / 方向键 移动　　J 射击　　Shift 翻滚　　E 开箱　　A AI 接管　　T 二倍速　　P 暂停</div>
+  <div id="tip">WASD / 方向键 移动　　J 射击　　Shift 翻滚　　E 开箱　　Q AI 接管　　T 二倍速　　P 暂停</div>
 
   <div class="panel" id="p0">
     <h1>深渊回响<small>DUNGEON ECHO</small></h1>
@@ -2096,14 +2096,26 @@ function drawIdle() {
 }
 
 function fit() {
-  const s = Math.min(innerWidth / W, innerHeight / H, 1.15);
+  // v1.4.0：缩放上限 1.15 → 2。原来大屏上游戏永远只有约 550px 宽 ——
+  //   封顶的应该是「逻辑尺寸」，不是缩放比例。
+  const s = Math.min(innerWidth / W, innerHeight / H, 2);
   cv.style.width = (W * s) + 'px';
   cv.style.height = (H * s) + 'px';
+  // HiDPI：backing store 按 devicePixelRatio 放大，再把绘制坐标系缩回去。
+  //   不这么做的话 2x/3x 屏上画布被 CSS 拉大，线条发虚。
+  // ⚠️ 必须是「CSS 缩放 × 像素比」而不是单纯的 dpr：s 可能到 2，
+  //   只按 dpr 放大时 backing 比实际显示像素少一半，大屏上照样发虚。
+  const k = Math.min(window.devicePixelRatio || 1, 2) * s;
+  cv.width  = Math.round(W * k);
+  cv.height = Math.round(H * k);
+  ctx.setTransform(k, 0, 0, k, 0, 0);
 }
 addEventListener('resize', fit);
 
 const KEYS = {
-  a:'a', d:'d', w:'w', s:'s',
+  // 方向键与 WASD 同时支持；字母大小写都映射 —— 按住 Shift（翻滚）时
+  // e.key 会变成大写，只映射小写会让「Shift + 移动」整体失效。
+  a:'a', A:'a', d:'d', D:'d', w:'w', W:'w', s:'s', S:'s',
   ArrowLeft:'a', ArrowRight:'d', ArrowUp:'w', ArrowDown:'s',
   j:'j', J:'j', z:'z', Z:'z', Shift:'Shift',
 };
@@ -2113,7 +2125,9 @@ addEventListener('keydown', e => {
   if (e.key === 'p' || e.key === 'P') togglePause();
   if (e.key === 'e' || e.key === 'E') tryOpenNearest();
   // AI 接管 / 二倍速 的快捷键（用 !e.repeat：按住不放不该来回切）
-  if (!e.repeat && (e.key === 'a' || e.key === 'A')) toggleAI();
+  // ⚠️ AI 切换从 A 改成 Q：A 现在要用来「左移」，否则 WASD 每按一次左
+  //    都会顺手开关一次 AI。也不能用 E —— E 已经是开箱。
+  if (!e.repeat && (e.key === 'q' || e.key === 'Q')) toggleAI();
   if (!e.repeat && (e.key === 't' || e.key === 'T')) toggleSpeed();
   // 三选一快捷键
   if (run.choosing && pendingUpgrade) {

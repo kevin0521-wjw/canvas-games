@@ -68,7 +68,7 @@
        KEYS 表里、movePlayer 也真的读它们（第 216-217 行）。
        竖向弹幕游戏只提示左右，玩家会以为不能上下走 —— 而「往上压」是这类
        游戏最基本的走位。补全四个方向。 -->
-  <div id="tip">← → ↑ ↓ 移动　　Z 射击　　Shift 精确低速　　X 炸弹　　A AI 接管　　T 二倍速　　P 暂停</div>
+  <div id="tip">← → ↑ ↓ 移动　　Z 射击　　Shift 精确低速　　X 炸弹　　E AI 接管　　T 二倍速　　P 暂停</div>
 
   <div class="panel" id="p0">
     <h1>星屑符咒<small>弹 幕 手 记 · DANMAKU NOTE</small></h1>
@@ -92,7 +92,7 @@
     <div class="leg"><i style="background:#b98cff;box-shadow:0 0 8px #b98cff"></i>紫 · 光柱 / 激光柱，先躲再说</div>
     <hr>
     <p><b>两个可开的开关：</b><br>
-      · <span class="k">A</span> <b>AI 接管</b> —— 电脑替你走位、开火、擦弹、放炸弹。
+      · <span class="k">E</span> <b>AI 接管</b> —— 电脑替你走位、开火、擦弹、放炸弹。
       它<b>不作弊</b>：判定点、无敌帧、移速全部和你一样，只是把方向向量交给同一套物理。<br>
       · <span class="k">T</span> <b>二倍速</b> —— 逻辑步进翻倍（固定步长累加器），
       不是把每步位移乘 2，所以判定精度和常速完全一致。</p>
@@ -2423,14 +2423,26 @@ function drawIdle() {
 }
 
 function fit() {
-  const s = Math.min(innerWidth / W, innerHeight / H, 1.15);
+  // v1.4.0：缩放上限 1.15 → 2（大屏不再只占约 550px 宽）。
+  const s = Math.min(innerWidth / W, innerHeight / H, 2);
   cv.style.width = (W * s) + 'px';
   cv.style.height = (H * s) + 'px';
+  // HiDPI：backing store 按 devicePixelRatio 放大，再把绘制坐标系缩回去。
+  // ⚠️ 必须是「CSS 缩放 × 像素比」而不是单纯的 dpr：s 可能到 2，
+  //   只按 dpr 放大时 backing 比实际显示像素少一半，大屏上照样发虚。
+  const k = Math.min(window.devicePixelRatio || 1, 2) * s;
+  cv.width  = Math.round(W * k);
+  cv.height = Math.round(H * k);
+  ctx.setTransform(k, 0, 0, k, 0, 0);
 }
 addEventListener('resize', fit);
 
 const KEYS = {
+  // 方向键与 WASD 同时支持；大小写都映射 —— 按住 Shift（精确低速）时
+  // e.key 是大写，只映射小写会让「Shift + 移动」完全失效。
   ArrowLeft: 'ArrowLeft', ArrowRight: 'ArrowRight', ArrowUp: 'ArrowUp', ArrowDown: 'ArrowDown',
+  a: 'ArrowLeft', A: 'ArrowLeft', d: 'ArrowRight', D: 'ArrowRight',
+  w: 'ArrowUp', W: 'ArrowUp', s: 'ArrowDown', S: 'ArrowDown',
   z: 'z', Z: 'z', x: 'x', X: 'x', Shift: 'Shift',
 };
 addEventListener('keydown', e => {
@@ -2440,7 +2452,8 @@ addEventListener('keydown', e => {
   // A / T 是「开关型」快捷键：只在按下那一下翻转一次。
   // keydown 会自动重复（按住就狂发），必须用 e.repeat 挡住，
   // 否则按住 A 会在开/关之间高频抖动。
-  if (!e.repeat && (e.key === 'a' || e.key === 'A')) toggleAI();
+  // ⚠️ v1.4.0：AI 切换从 A 改到 E（A 已让位给 WASD 的左移）。
+  if (!e.repeat && (e.key === 'e' || e.key === 'E')) toggleAI();
   if (!e.repeat && (e.key === 't' || e.key === 'T')) toggleSpeed();
 });
 addEventListener('keyup', e => {

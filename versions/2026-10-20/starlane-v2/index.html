@@ -110,7 +110,7 @@
          · 补给舱是**靠近自动开**（22px 内磁力吸附），没有 E 这个键，
          · Shift 同时承担「翻滚」和「精确低速」两件事，只写一个会误导。
        提示与实际不符比没有提示更糟：玩家会以为键盘坏了。 -->
-  <div id="tip">← → ↑ ↓ 移动　Z 主武器　X 副武器　C 炸弹　Shift 翻滚 / 精确　A AI 接管　T 二倍速　P 暂停</div>
+  <div id="tip">← → ↑ ↓ 移动　Z 主武器　X 副武器　C 炸弹　Shift 翻滚 / 精确　E AI 接管　T 二倍速　P 暂停</div>
 
   <div class="panel" id="p0">
     <!-- 正文区可滚、底部按钮条常驻：窗口再矮，出击键也一定在屏幕里（见 .panel / .pfoot 注释） -->
@@ -2411,14 +2411,25 @@ function drawIdle() {
 }
 
 function fit() {
-  const s = Math.min(innerWidth / W, innerHeight / H, 1.15);
+  // v1.4.0：缩放上限 1.15 → 2（大屏不再只占约 550px 宽）。
+  const s = Math.min(innerWidth / W, innerHeight / H, 2);
   cv.style.width = (W * s) + 'px';
   cv.style.height = (H * s) + 'px';
+  // HiDPI：backing store 按 devicePixelRatio 放大，再把绘制坐标系缩回去。
+  // ⚠️ 必须是「CSS 缩放 × 像素比」而不是单纯的 dpr：s 可能到 2，
+  //   只按 dpr 放大时 backing 比实际显示像素少一半，大屏上照样发虚。
+  const k = Math.min(window.devicePixelRatio || 1, 2) * s;
+  cv.width  = Math.round(W * k);
+  cv.height = Math.round(H * k);
+  ctx.setTransform(k, 0, 0, k, 0, 0);
 }
 addEventListener('resize', fit);
 
 const KEYS = {
+  // 方向键与 WASD 双支持；大小写都映射（按住 Shift 精确/翻滚时 e.key 是大写）。
   ArrowLeft:'ArrowLeft', ArrowRight:'ArrowRight', ArrowUp:'ArrowUp', ArrowDown:'ArrowDown',
+  a:'ArrowLeft', A:'ArrowLeft', d:'ArrowRight', D:'ArrowRight',
+  w:'ArrowUp', W:'ArrowUp', s:'ArrowDown', S:'ArrowDown',
   z:'z', Z:'z', x:'x', X:'x', c:'c', C:'c', Shift:'Shift',
 };
 addEventListener('keydown', e => {
@@ -2427,7 +2438,8 @@ addEventListener('keydown', e => {
   if (e.key === 'p' || e.key === 'P') togglePause();
   // A / T 是「开关型」快捷键，只在按下那一下翻转一次状态。
   // 这里必须排除按住重复触发（keydown 会自动重复），所以用 e.repeat 挡住。
-  if (!e.repeat && (e.key === 'a' || e.key === 'A')) toggleAI();
+  // ⚠️ v1.4.0：AI 切换从 A 改到 E（A 已让位给 WASD 的左移）。
+  if (!e.repeat && (e.key === 'e' || e.key === 'E')) toggleAI();
   if (!e.repeat && (e.key === 't' || e.key === 'T')) toggleSpeed();
   if (run.choosing && pendingUpgrade) {
     const i = { '1':0, '2':1, '3':2 }[e.key];

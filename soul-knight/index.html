@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
@@ -1773,14 +1773,23 @@ function drawIdle() {
 }
 
 function fit() {
-  const s = Math.min(innerWidth / W, innerHeight / H, 1.15);
-  cv.style.width = (W * s) + 'px';
-  cv.style.height = (H * s) + 'px';
-}
+      // 缩放上限从 1.15 提到 2：原来大屏上游戏永远只有 ~550px 宽，
+      // 封顶的应该是「逻辑尺寸」而不是缩放比例。
+      const s = Math.min(innerWidth / W, innerHeight / H, 2);
+      cv.style.width = (W * s) + 'px';
+      cv.style.height = (H * s) + 'px';
+      // HiDPI：backing store 按 devicePixelRatio 放大，再把绘制坐标系缩回去。
+      // 不这么做的话，2x/3x 屏上画布会被 CSS 拉大而发虚（审查时实测：backing 720 / css 828）。
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      cv.width  = Math.round(W * dpr);
+      cv.height = Math.round(H * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);    }
 addEventListener('resize', fit);
 
 const KEYS = {
-  a:'a', d:'d', w:'w', s:'s',
+  // 方向键与 WASD 同时支持；字母大小写都映射，
+  // 否则按住 Shift 时 e.key 变成大写，移动会整体失效。
+  a:'a', A:'a', d:'d', D:'d', w:'w', W:'w', s:'s', S:'s',
   ArrowLeft:'a', ArrowRight:'d', ArrowUp:'w', ArrowDown:'s',
   j:'j', J:'j', z:'z', Z:'z', Shift:'Shift',
 };
@@ -1790,7 +1799,8 @@ addEventListener('keydown', e => {
   if (e.key === 'p' || e.key === 'P') togglePause();
   if (e.key === 'e' || e.key === 'E') tryOpenNearest();
   // AI 接管 / 二倍速 的快捷键（用 !e.repeat：按住不放不该来回切）
-  if (!e.repeat && (e.key === 'a' || e.key === 'A')) toggleAI();
+  // A 已让位给「左移」，AI 切换保留在界面按钮与 E 键上
+  if (!e.repeat && (e.key === 'e' || e.key === 'E')) toggleAI();
   if (!e.repeat && (e.key === 't' || e.key === 'T')) toggleSpeed();
   // 三选一快捷键
   if (run.choosing && pendingUpgrade) {

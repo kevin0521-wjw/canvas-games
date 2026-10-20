@@ -262,6 +262,16 @@ const html = `<!DOCTYPE html>
     所以旧版随时可回滚、可对比。快照只增不改。</p>
   <div class="snap">${snapHtml}</div>
 
+  <h2>实现解析</h2>
+  <p style="font-size:13px;color:var(--dim);margin-top:0">
+    一份对着源码写的技术解析：六款共用的八层骨架、元素反应的三层递进（表 → 副作用 → 反应链）、
+    章节 BOSS 与二段式弹型、AI 为什么只能写「虚拟摇杆」、二倍速的三种写法，
+    以及判据自己会犯的九种错。行号引用的是解析时的快照。</p>
+  <p><a href="docs/${encodeURIComponent('实现解析.html')}"
+        style="display:inline-block;padding:9px 16px;border:1px solid var(--line);
+               border-radius:7px;text-decoration:none;color:var(--ink);background:#fff">
+    打开《canvas-games 实现解析》→</a></p>
+
   <footer>
     ${footerHtml(manifest.footer)}
   </footer>

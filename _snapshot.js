@@ -77,5 +77,19 @@ if (fs.existsSync(logSrc)) {
   }
 }
 
-console.log(`✅ 已快照 ${n} 款游戏${logN ? ` + ${logN} 份回归日志` : ''} → versions/${date}/`);
+// 实现解析文档也一并进快照：它写的是「这一版的机制和数字」，
+// 只留在 docs/ 里的话，半年后就分不清它描述的是哪一版了。
+const docSrc = path.join(ROOT, 'docs');
+let docN = 0;
+if (fs.existsSync(docSrc)) {
+  const docDest = path.join(dest, 'docs');
+  fs.mkdirSync(docDest, { recursive: true });
+  for (const f of fs.readdirSync(docSrc)) {
+    if (!f.endsWith('.html')) continue;
+    fs.copyFileSync(path.join(docSrc, f), path.join(docDest, f));
+    docN++;
+  }
+}
+
+console.log(`✅ 已快照 ${n} 款游戏${logN ? ` + ${logN} 份回归日志` : ''}${docN ? ` + ${docN} 份解析文档` : ''} → versions/${date}/`);
 console.log('   下一步：node _build_site.js 重新生成档案页（快照会自动出现在「历史快照」区）');

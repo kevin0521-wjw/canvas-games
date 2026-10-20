@@ -53,6 +53,9 @@ _run_all.js                 ← 一键并行回归全部游戏，输出到 _logs
 _snapshot.js                ← 把当前版本留档到 versions/<日期>/
 _build_site.js              ← 用 manifest + _logs 生成 index.html
 
+docs/实现解析.html            ← 技术解析：骨架、元素反应、BOSS、AI、二倍速、降难度、缺陷
+                                （站点首页底部有入口；随快照一起归档到 versions/<日期>/docs/）
+
 <游戏目录>/
   index.html                ← 唯一源文件，整个游戏都在这儿
   verify/smoke.js           ← 冒烟判据（headless Edge + CDP）

@@ -1,0 +1,878 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>canvas-games 实现解析</title>
+<style>
+  :root{
+    --paper:#fbfaf6; --card:#ffffff; --ink:#24211c; --ink2:#5a5348; --ink3:#8c8478;
+    --line:#e4ddcf; --line2:#f0ebe0;
+    --red:#a8402c; --blue:#1f5f86; --jade:#1c6b52; --gold:#8a6410; --violet:#5b3f8f;
+    --codebg:#f6f3ec;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--paper); color:var(--ink);
+    font:15px/1.75 "Segoe UI","Microsoft YaHei",system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1000px;margin:0 auto;padding:44px 30px 90px}
+  header{border-bottom:3px double var(--line);padding-bottom:22px;margin-bottom:34px}
+  h1{font-size:30px;margin:0 0 8px;letter-spacing:-.4px}
+  .sub{color:var(--ink2);font-size:14px}
+  .meta{margin-top:14px;font-size:12.5px;color:var(--ink3);display:flex;gap:18px;flex-wrap:wrap}
+  h2{font-size:21px;margin:44px 0 14px;padding-left:11px;border-left:4px solid var(--red);letter-spacing:-.2px}
+  h3{font-size:16px;margin:26px 0 9px;color:var(--blue)}
+  h4{font-size:14px;margin:18px 0 6px;color:var(--ink2);font-weight:600}
+  p{margin:9px 0}
+  code{background:var(--codebg);padding:1px 5px;border-radius:3px;font:12.5px/1.5 Consolas,"Courier New",monospace;color:var(--red)}
+  pre{
+    background:var(--codebg);border:1px solid var(--line2);border-left:3px solid var(--line);
+    padding:12px 14px;overflow-x:auto;margin:10px 0;border-radius:0 4px 4px 0;
+    font:12.5px/1.65 Consolas,"Courier New",monospace;color:#332e26;
+  }
+  pre code{background:none;padding:0;color:inherit}
+  table{width:100%;border-collapse:collapse;margin:12px 0;font-size:13.5px}
+  th,td{border:1px solid var(--line);padding:7px 10px;text-align:left;vertical-align:top}
+  th{background:#f4f0e6;font-weight:600;font-size:13px}
+  tr:nth-child(even) td{background:#fdfcf8}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px;margin:16px 0}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:7px;padding:13px 15px}
+  .card .t{font-weight:700;font-size:13.5px;margin-bottom:4px}
+  .card .d{font-size:12.5px;color:var(--ink2);line-height:1.6}
+  .tag{display:inline-block;font-size:11px;padding:1px 7px;border-radius:10px;margin-right:5px;
+        border:1px solid currentColor;vertical-align:1px}
+  .t-red{color:var(--red)} .t-blue{color:var(--blue)} .t-jade{color:var(--jade)}
+  .t-gold{color:var(--gold)} .t-violet{color:var(--violet)}
+  .note{background:#fdf6e6;border:1px solid #ecdcb8;border-radius:6px;padding:11px 15px;margin:14px 0;font-size:13.5px}
+  .warn{background:#fbecea;border:1px solid #e7c3bd;border-radius:6px;padding:11px 15px;margin:14px 0;font-size:13.5px}
+  .warn b{color:var(--red)}
+  .ok{background:#eaf5ef;border:1px solid #c2ded0;border-radius:6px;padding:11px 15px;margin:14px 0;font-size:13.5px}
+  ul,ol{margin:8px 0 8px 22px;padding:0}
+  li{margin:4px 0}
+  .lead{font-size:15.5px;color:var(--ink2);margin:6px 0 18px}
+  .kbd{font:11.5px Consolas,monospace;background:#fff;border:1px solid var(--line);
+       border-bottom-width:2px;border-radius:4px;padding:1px 5px}
+  hr{border:0;border-top:1px solid var(--line);margin:34px 0}
+  .toc{background:var(--card);border:1px solid var(--line);border-radius:7px;padding:14px 20px;font-size:13.5px}
+  .toc ol{margin:6px 0 0 20px;columns:2;column-gap:30px}
+  .file{font:12.5px Consolas,monospace;color:var(--jade);word-break:break-all}
+  footer{margin-top:50px;padding-top:16px;border-top:1px solid var(--line);font-size:12.5px;color:var(--ink3)}
+  @media print{body{background:#fff}.wrap{padding:0}h2{page-break-after:avoid}pre,table{page-break-inside:avoid}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>canvas-games 实现解析</h1>
+  <div class="sub">六款单文件 HTML5 Canvas 游戏 —— 源码地图、架构拆解、算法细节与实际缺陷</div>
+  <div class="meta">
+    <span>初稿 2026-10-19 · 复核 2026-10-20（v1.4.0）</span>
+    <span>源码合计 17,171 行 / 约 739 KB</span>
+    <span>外部依赖 0</span>
+    <span>判据 233 项</span>
+  </div>
+</header>
+
+<div class="toc">
+  <b>目录</b>
+  <ol>
+    <li><a href="#map">源码地图</a></li>
+    <li><a href="#skeleton">共同骨架与三种代码风格</a></li>
+    <li><a href="#v1">星际防线 · 初版</a></li>
+    <li><a href="#tp">符箓灵弹 · 巧阵</a></li>
+    <li><a href="#ta">符箓灵弹 · 元素阵</a></li>
+    <li><a href="#dm">星屑符咒 · 弹幕手记</a></li>
+    <li><a href="#sk">深渊回响</a></li>
+    <li><a href="#sl">星轨防线 v2</a></li>
+    <li><a href="#ai">AI 接管的五条技术路线</a></li>
+    <li><a href="#speed">二倍速的三种写法</a></li>
+    <li><a href="#read">弹幕可读性：把威胁变成信息</a></li>
+    <li><a href="#diff">降难度：加解法，而不是减威胁</a></li>
+    <li><a href="#bugs">缺陷：发现的与修掉的</a></li>
+    <li><a href="#verify">判据如何验证这些实现</a></li>
+  </ol>
+</div>
+
+<h2 id="map">1 · 源码地图</h2>
+
+<p class="lead">六款游戏都是<b>单文件</b>：HTML + CSS + 全部游戏逻辑压在一个 <code>index.html</code> 里，双击即可运行，不联网、无第三方库、无图片/音频素材 —— 所有图形由 Canvas 2D 实时绘制。其中两款是<b>同一题材的两条实现路线</b>（巧阵 / 元素阵），放在一起看比单独看更有信息量。</p>
+
+<table>
+  <tr><th>游戏</th><th>文件</th><th>行数 / 体积</th><th>逻辑分辨率</th><th>代码组织</th><th>判据</th></tr>
+  <tr>
+    <td>星际防线 · 初版</td>
+    <td class="file">games/space-line-v1/index.html</td>
+    <td>5,649 行 / 236 KB</td>
+    <td>800 × 600</td>
+    <td>ES class ×13 + 单例对象，IIFE</td>
+    <td>17 项</td>
+  </tr>
+  <tr>
+    <td>符箓灵弹 · 巧阵</td>
+    <td class="file">games/talisman-pinball/index.html</td>
+    <td>2,056 行 / 84 KB</td>
+    <td>520 × 880（竖）</td>
+    <td>纯函数 + 模块级变量，IIFE</td>
+    <td>36 项</td>
+  </tr>
+  <tr>
+    <td>符箓灵弹 · 元素阵</td>
+    <td class="file">games/talisman-array/index.html</td>
+    <td>1,877 行 / 74 KB</td>
+    <td>520 × 880（竖）</td>
+    <td>纯函数 + 模块级变量，IIFE</td>
+    <td>18 项</td>
+  </tr>
+  <tr>
+    <td>星屑符咒 · 弹幕手记</td>
+    <td class="file">games/touhou-danmaku/index.html</td>
+    <td>2,610 行 / 120 KB</td>
+    <td>480 × 640（场地 400 + HUD 80）</td>
+    <td>纯函数，非 IIFE</td>
+    <td>46 项</td>
+  </tr>
+  <tr>
+    <td>深渊回响</td>
+    <td class="file">games/soul-knight/index.html</td>
+    <td>2,339 行 / 100 KB</td>
+    <td>640 × 448（像素风）</td>
+    <td>纯函数，非 IIFE</td>
+    <td>52 项</td>
+  </tr>
+  <tr>
+    <td>星轨防线 v2 · 缝合版</td>
+    <td class="file">games/starlane-v2/index.html</td>
+    <td>2,640 行 / 125 KB</td>
+    <td>720 × 480（场地 624 + HUD 96）</td>
+    <td>纯函数，非 IIFE</td>
+    <td>64 项</td>
+  </tr>
+</table>
+
+<h4>配套工具链（同目录）</h4>
+<table>
+  <tr><th>文件</th><th>作用</th></tr>
+  <tr><td class="file">_run_all.js</td><td>一条命令跑完「语法自检 + 配色对比度 + 六款冒烟测试」，并行执行</td></tr>
+  <tr><td class="file">_build_site.js</td><td>扫 manifest + 日志，生成档案站 <code>index.html</code>（断言数从日志自动回填）</td></tr>
+  <tr><td class="file">_snapshot.js</td><td>把六款源码 + 判据 + 日志打一份带日期的快照进 <code>versions/</code></td></tr>
+  <tr><td class="file">*/verify/smoke.js</td><td>每款的无头回归：起本地 HTTP、headless Edge、CDP 直连，不开 puppeteer</td></tr>
+  <tr><td class="file">_tools/*.cjs</td><td>平衡性探针（例如「原地不动能活多久」「弹幕密度曲线」）</td></tr>
+</table>
+
+<h2 id="skeleton">2 · 共同骨架与三种代码风格</h2>
+
+<p class="lead">六款的玩法差别很大，但工程骨架是同一套。把它们拆开对齐后，能看出一个很稳定的八层结构。</p>
+
+<table>
+  <tr><th>层</th><th>职责</th><th>六款的实现方式</th></tr>
+  <tr><td>① 舞台</td><td>固定逻辑分辨率 + <code>fit()</code> 等比缩放</td><td>写死 <code>W/H</code>，CSS 只改显示尺寸，坐标永不换算</td></tr>
+  <tr><td>② 配置</td><td>数值集中，改手感只改一处</td><td>初版是 <code>CFG</code> 二十一组；其余是顶部常量区</td></tr>
+  <tr><td>③ 状态</td><td>一局的所有可变数据</td><td>统一 <code>newRun()</code> 返回一个大对象，重开即重建</td></tr>
+  <tr><td>④ 输入</td><td>键盘 / 指针 / 触屏 → 一个方向量</td><td>玩家输入对象 <code>K</code> 与 AI 输入 <code>AIK</code> 在 <code>inp()</code> 合并</td></tr>
+  <tr><td>⑤ 时钟</td><td>rAF → 归一化 dt → 固定步长</td><td>全部 <code>dt / 16.6667</code>，再 <code>clamp(dt, 0, 3)</code></td></tr>
+  <tr><td>⑥ 更新</td><td>按固定次序推进子系统</td><td><code>update(1)</code> 只接收 1，绝不接收缩放后的 dt</td></tr>
+  <tr><td>⑦ 渲染</td><td>背景 → 实体 → 粒子 → HUD → 屏幕级反馈</td><td>层序固定；反馈画在屏幕坐标系，不进世界坐标</td></tr>
+  <tr><td>⑧ 探针</td><td>把内部状态暴露给无头测试</td><td><code>__SpaceLine / __TP / __DM / __SK / __SL</code>（两款符箓都叫 <code>__TP</code>，不同页面互不冲突）</td></tr>
+</table>
+
+<h3>三种代码风格（同一套骨架的不同表达）</h3>
+
+<div class="grid">
+  <div class="card">
+    <div class="t t-blue">A · 配置驱动 + class（初版）</div>
+    <div class="d">13 个实体类，各自 <code>update(dt, input)</code> / <code>draw(ctx)</code>，<code>Game</code> 是单例对象字面量。全部数值进 <code>CFG</code>。可读性最好，文件也最长（5,619 行）。</div>
+  </div>
+  <div class="card">
+    <div class="t t-jade">B · 纯函数 + 模块级变量（两款符箓 / 星屑 / 深渊 / 星轨）</div>
+    <div class="d">实体就是普通对象字面量，数组 <code>bullets / enemies / parts</code> 挂在模块作用域。没有 class、没有 <code>this</code>，靠命名前缀区分系统。</div>
+  </div>
+  <div class="card">
+    <div class="t t-gold">C · 加密作用域（两款符箓 / 初版）</div>
+    <div class="d"><code>(function(){ … })()</code> 包起来，内部 <code>const</code> 不泄漏。外层只能拿到显式挂的 <code>window.__XX</code>。星屑 / 深渊 / 星轨没包，靠顶层的 <code>const</code> 落在脚本作用域里。</div>
+  </div>
+</div>
+
+<h4>为什么统一「dt 归一化成帧数」</h4>
+<p>六款的 <code>update</code> 收的都是<b>「多少帧」</b>而不是秒。全项目只有一处除以 16.6667，其余代码里 <code>dt * 3</code> 就是「3 帧走这么远」。好处是数值可以直接按 60fps 手写（球速 9 像素/帧），坏处是<b>所有以秒计的计时器必须乘 0.0166</b> —— 符箓灵弹的无敌帧就是因为漏了这个系数，从 1.15 秒缩成 1 帧，玩家会被同一波连扣三下。</p>
+
+<h4>站点级的三个共性（2026-10-20 统一）</h4>
+<table>
+  <tr><th>问题</th><th>现象</th><th>修法</th></tr>
+  <tr><td><code>fit()</code> 上限 1.15</td><td>1440p 屏上游戏永远只有约 550px 宽，四周一片空白</td><td>上限放到 2：大屏吃满，小屏照旧等比缩</td></tr>
+  <tr><td>画布发虚</td><td>2× 屏上文字与细线糊成一团</td><td>backing store = <b>CSS 缩放 × min(dpr, 2)</b>，不是只乘 dpr</td></tr>
+  <tr><td>键位不统一</td><td>有的只认方向键、有的只认 WASD；按住 <code>Shift</code> 时移动整体失效</td><td>六款统一「方向键 + WASD」，且大小写都映射 —— <code>Shift</code> 按住时 <code>e.key</code> 是大写</td></tr>
+</table>
+<div class="note"><b>HiDPI 那个坑值得单独说：</b>只按 <code>devicePixelRatio</code> 放大 backing store，在 CSS 缩放 <code>s=2</code> 的屏上仍然只画了一半的物理像素。<code>setTransform(k,0,0,k,0,0)</code> 里的 <code>k</code> 必须是<b>两者相乘</b>。副作用是判据里的像素采样要跟着乘 —— <code>getImageData</code> 读的是设备像素，见第 14 节。</div>
+
+<h2 id="v1">3 · 星际防线 · 初版</h2>
+
+<p class="lead">六款里唯一的重工程写法：13 个实体类 + 21 组配置 + 一套 205 格的网格搜索 AI。文件头自带了 70 行中文结构说明。</p>
+
+<h3>3.1 配置驱动：手感被拆成可改的标量</h3>
+<pre><code>WEAPON: {
+  PULSE: { key:'pulse', name:'单发', cd:0.13, dmg:1 },
+  TWIN:  { key:'twin',  name:'双列', cd:0.17, dmg:1, offset:11 },
+  LASER: { key:'laser', name:'激光', cd:0,    dps:16, width:10 }
+},</code></pre>
+<p>三把枪是同一张表的三行；新增武器只需加一行 + 一个分支。触摸手感同样被压成三个标量（<code>FOLLOW=17</code> 跟手程度、<code>DRAG_GAIN=1.42</code> 手指 1px 等于飞船几 px、<code>TAP_MS=220</code>）。其中 1.42 是纯算术补偿：手机可用宽约 360 CSS px，逻辑宽 800，1:1 时飞船物理上够不到两侧。</p>
+
+<h3>3.2 难度：连续时间 → 阶梯等级</h3>
+<pre><code>this.elapsed += dt;
+const lv = 1 + Math.floor(this.elapsed / CFG.DIFFICULTY.SECONDS_PER_LEVEL);
+const newLevel = Math.min(CFG.DIFFICULTY.MAX_LEVEL, lv);   // 22 秒一级，上限 10</code></pre>
+<p>等级是阶梯，但三个消费量都是等级的线性函数，所以同级内手感恒定、跨级瞬间跳变：</p>
+<table>
+  <tr><th>量</th><th>公式</th><th>Lv.1</th><th>Lv.5</th><th>Lv.10（封顶）</th></tr>
+  <tr><td>敌机速度</td><td><code>95 + 14·(lv-1)</code>，再乘随机 0.82~1.18</td><td>95</td><td>151</td><td>221 px/s</td></tr>
+  <tr><td>生成基础间隔</td><td><code>max(0.32, 1.05 − 0.06·(lv-1))</code></td><td>1.05 s</td><td>0.81 s</td><td>0.51 s</td></tr>
+  <tr><td>精英概率</td><td><code>min(0.42, 0.06 + 0.05·(lv-1))</code></td><td>6%</td><td>26%</td><td>42%（Lv.8 封顶）</td></tr>
+</table>
+<div class="note"><b>两个从代码里读出来、注释没写的副作用：</b>① <code>MIN_INTERVAL</code> 只约束基础值，最后还要乘 0.55~1.45 的随机，所以 Lv.10 实际区间是 0.28~0.74 秒，下限会轻微击穿 0.32；② <code>MAX_LEVEL=10</code> 与 <code>BOSS.EVERY_LEVELS=5</code> 组合后，一局最多出现 2 个 BOSS，第二个正好卡在等级上限 —— <b>v1.4.0 把上限从 12 降到 10，就是让「满级」和「最后一个 BOSS」同时到来</b>，而不是满级之后还有两分钟无所事事的高压空转。</div>
+
+<h3>3.3 主循环：两次钳制</h3>
+<pre><code>let dt = (ts - this._lastTs) / 1000;
+if (!isFinite(dt) || dt &lt; 0) dt = 0;      // 时钟回拨 / NaN 归零
+dt = Math.min(dt, CFG.MAX_DT);            // 1/30 秒
+…
+let step = dt;
+if (this.state === 'playing' &amp;&amp; this.timeScale !== 1) {
+  step = Math.min(dt * this.timeScale, CFG.MAX_DT);   // 缩放后再钳一次
+}</code></pre>
+<p>第二处钳制是关键：二倍速在 60Hz 下 16.7ms × 2 = 33.3ms，正好等于 <code>MAX_DT</code>；若不再钳，最大逻辑步长会变成 1/15 秒，640px/s 的子单帧走 42.7px，可能跨过 48px 的重叠带。代价是帧率低于 30 时二倍速自动衰减回一倍速 —— 代码选择了「宁可慢，不漏判」。</p>
+<p>配套还有<b>两条时间轴</b>：<code>elapsed</code>（吃倍速，驱动难度）与 <code>realElapsed</code>（不吃，用于结算），否则二倍速下的「存活 60 秒」就是假话。</p>
+
+<h3>3.4 碰撞：没有空间分区</h3>
+<pre><code>for (let j = this.bullets.length - 1; j &gt;= 0; j--) {
+  const b = this.bullets[j];
+  if (!aabbOverlap(b.box, eb)) continue;
+  const dmg = b.damage;
+  this.bullets.splice(j, 1);          // 命中即消耗
+  if (e.hit(dmg)) { this.enemies.splice(i, 1); this.killEnemy(e); break; }
+}</code></pre>
+<p>子弹 × 敌人是<b>全量两两</b> <code>O(E×B)</code>，没有网格或四叉树。选 AABB 的理由：子弹与敌人都近似方正，4 次比较，是每帧跑几百次的热点；而玩家相关全用圆（<code>circleOverlap</code> 比距离平方，省一次 <code>sqrt</code>，且擦弹更符合直觉）。</p>
+<p>实体上限：粒子有 700 的<b>软</b>上限（判断写在 <code>if (len &gt; MAX) return</code>，一次 60 粒爆可以顶到 760）；子弹/敌人/敌弹无硬上限，靠出界回收与生成间隔自然约束。</p>
+
+<h3>3.5 打击反馈：从世界坐标搬到屏幕坐标</h3>
+<pre><code>impactWeights() {
+  if (!(this.impactT &gt; 0)) return { l:0, r:0, t:0, b:0 };
+  if (this.impactOmni) return { l:.7, r:.7, t:.7, b:.7 };
+  const c = Math.cos(this.impactAng), s = Math.sin(this.impactAng);
+  return { l: Math.max(0,-c)+0.12, r: Math.max(0,c)+0.12,
+           t: Math.max(0,-s)+0.12, b: Math.max(0,s)+0.12 };
+}</code></pre>
+<p>旧的震屏被<b>删除而不是调小</b>，因为抖动会让弹幕真实位置短暂失真 —— 对靠读弹幕活命的游戏这是功能性伤害。替代方案只写 4 个标量（强度/角度/全向/颜色），用 <code>cos/sin</code> 分解成四条边的权重，各留 0.12 底数。这个方法被特意抽成独立函数，因为判据要断言「左侧受击时左边缘更亮」，渲染与测试必须读同一份真相。</p>
+
+<h3>3.6 BOSS 的第四个阶段：改节奏，不改数量</h3>
+<pre><code>PHASE_1_AT: 0.72, PHASE_2_AT: 0.45, PHASE_3_AT: 0.26, PHASE_4_AT: 0.14
+SPREAD_4: 7,        // 四阶段一次 7 发（角度不变 → 覆盖更宽）
+RING_4: 10,         // 环弹从 12 发降到 10 发 —— 更稀
+RING_SPIN_4: 3.6,   // 但转速 ×2：缝更多，缝也在动</code></pre>
+<p>前三个阶段是「越来越密」，第四个阶段换的是<b>节奏</b>：扇形从 5 发加到 7 发，环弹反而从 12 发减到 10 发、转速翻倍。血量低于 14% 时玩家通常已经残命，继续堆弹数只会让人放弃；加转速会让人<b>重新开始读弹</b> —— 这是四阶段唯一值得加的难度。</p>
+
+<h2 id="tp">4 · 符箓灵弹 · 巧阵</h2>
+
+<p class="lead">弹球 + 元素反应 + 一面缓缓下压的符阵墙。这是六款里机制最密的一款，也最依赖「几何解算」而不是「遍历检测」。</p>
+
+<h3>4.1 核心威胁模型：不是弹幕，是空间被吃掉</h3>
+<pre><code>const rows = boss ? 3 : Math.min(2 + Math.floor((n - 1) / 2), 5);
+run.wallY = 82;                                  // 从可见区顶部淡入，不是从屏幕外飘进来
+run.wallFade = 0;
+run.wallSpeed = Math.min(13, 7.6 + n * 0.32);    // v1.4.0：封顶 13（旧 10.5 + 0.55n 无上限）
+const baseHp = 8 + n * 1.3;                      // v1.4.0：旧 10 + 2n</code></pre>
+<p>第 1 阵 2 排共 16 块，此后每两阵加一排（最多 5 排），血量线性增长。墙从 <code>y=82</code> 开始，越过 <code>DANGER_Y=816</code> 判突破：<b>同排一起碎 + 扣一颗心 + 墙整体回退 84px</b>。所以玩家的核心压力是「清得比它压得快」，而不是「躲子弹」。</p>
+<div class="note">取「最下面」那一排（<code>b.row</code> 最大）而不是数组里第一个越线的 —— 数组按 <code>row</code> 升序生成，第一个越线的反而是最上面那排。取错就表现为「底下几排一起压下来，却只扣上面那排」。</div>
+
+<h3>4.2 元素反应：表 → 副作用 → 反应链，三层递进</h3>
+<p>v1.4.0 把这张表从 4 条扩到 9 条（ 左边是攻击元素）。<b>第一层只是倍率</b>，真正的设计在第二、三层。</p>
+<pre><code>const RX = {
+  'hydro+pyro':    { name:'蒸发', mul:2.0,  kind:'vapor', tip:'伤害翻倍' },
+  'pyro+hydro':    { name:'蒸发', mul:1.6,  kind:'vapor', tip:'伤害提升' },
+  'pyro+electro':  { name:'超载', mul:1.5,  kind:'aoe',   tip:'范围爆炸' },
+  'electro+pyro':  { name:'超载', mul:1.5,  kind:'aoe',   tip:'范围爆炸' },
+  'electro+hydro': { name:'感电', mul:1.3,  kind:'chain', tip:'同排连锁' },
+  'hydro+electro': { name:'感电', mul:1.3,  kind:'chain', tip:'同排连锁' },
+  'anemo+pyro':    { name:'燎原', mul:1.45, kind:'burn',  tip:'同排点燃' },
+  'anemo+hydro':   { name:'浸润', mul:1.20, kind:'soak',  tip:'符阵减速' },
+  'anemo+electro': { name:'雷暴', mul:1.40, kind:'storm', tip:'同列麻痹' },
+};</code></pre>
+
+<h4>第二层：副作用必须改变「下一步怎么打」</h4>
+<table>
+  <tr><th>反应</th><th>倍率</th><th>副作用</th><th>改变的是什么</th></tr>
+  <tr><td class="t-blue">蒸发</td><td>2.0 / 1.6</td><td>无，纯伤害</td><td>什么都不改 —— 所以它是「默认答案」，不是「决策」</td></tr>
+  <tr><td class="t-violet">超载</td><td>1.5</td><td>半径 104px 范围伤 14</td><td>从「打一块」变成「打一片」，密集阵里比蒸发划算</td></tr>
+  <tr><td class="t-blue">感电</td><td>1.3</td><td>同排最近 3 块各 10 伤 + 电弧</td><td>顺着排走，适合清「已经贴脸的那一排」</td></tr>
+  <tr><td class="t-gold">燎原</td><td>1.45</td><td>同排点燃（持续掉血）</td><td>把「这排会一直掉」写进战场，玩家可以先不管它</td></tr>
+  <tr><td class="t-jade">浸润</td><td>1.20</td><td>符阵减速</td><td>唯一<b>买时间</b>的反应：伤害最低，但墙压得慢</td></tr>
+  <tr><td class="t-violet">雷暴</td><td>1.40</td><td>同列麻痹</td><td>硬控一列，专治「某一列血特别厚」</td></tr>
+</table>
+
+<h3>4.3 风的去万金油化：一条 <code>if</code> 拆成三条分支</h3>
+<p>旧版是 <code>if (atk === 'anemo')</code> → 扩散 ×1.25，不管打什么元素都一样。看着优雅，实际等于<b>没有选择</b>：风永远是最优解之一，且永远不需要看对手是什么。现在拆成三条，副作用互不重叠：</p>
+<pre><code>anemo + pyro    → 燎原 1.45   同排点燃   ← 打「持续」
+anemo + hydro   → 浸润 1.20   符阵减速   ← 换「时间」
+anemo + electro → 雷暴 1.40   同列麻痹   ← 换「控场」</code></pre>
+<p>倍率也不再是同一个数：想清理密集排就燎原，想喘口气就浸润（宁可少打点），想拆一列硬块就雷暴。风从「万能钥匙」变成「工具箱」。</p>
+
+<h3>4.4 第三层：反应链 —— 符块会被「染成」你打它的元素</h3>
+<pre><code>function transmute(blk, atkEl) {
+  if (blk.alive &amp;&amp; blk.el !== atkEl) { blk.el = atkEl; blk.tint = 1; }
+}</code></pre>
+<p>每次反应之后，被打的符块改成<b>攻击方的元素</b>。于是「火 → 水 → 雷」三发可以打出<b>蒸发 → 感电</b>两段连锁，同一块石头的元素属性被玩家一路改写。</p>
+<div class="ok"><b>这一条才是「有决策」和「有数值」的分界线。</b>只有表的时候，玩家会挑倍率最高的那一发，然后重复；有了链，玩家会开始数「我下三发该打什么顺序」—— <b>决策空间从「选元素」变成「排顺序」</b>，而排列组合的空间比多加两个反应大得多。判据里专门有一条断言：火块打水 → 变水块 → 再打雷，血量 180 → 167，且第二次反应记的是「感电」。</div>
+
+<h3>4.3 关卡：8 阵一章，BOSS 按章轮换</h3>
+<pre><code>const WAVES_PER_CHAPTER = 8;
+const BOSS_KINDS = [
+  { key:'pyro',    name:'焰 狱 符 使', fire:'fan'  },   // 扇形
+  { key:'hydro',   name:'潮 汐 符 使', fire:'ring' },   // 环形
+  { key:'electro', name:'雷 罚 符 使', fire:'bolt' },   // 落雷
+];
+function chapterOf(n)   { return Math.floor((n - 1) / WAVES_PER_CHAPTER); }
+function isBossWave(n) { return n % WAVES_PER_CHAPTER === 0; }
+const kind = BOSS_KINDS[ch % BOSS_KINDS.length];</code></pre>
+<p>第 8 / 16 / 24 阵各出一个 BOSS，元素按章轮换。写成分函数而不是 <code>if (wave === 8)</code>，好处是加章节只改 <code>CHAPTERS</code> 数组，而且判据可以直接断言 <code>chapterOf(9) === 1</code>，不必真的跑到第 9 阵。</p>
+<table>
+  <tr><th>弹型</th><th>形态</th><th>给玩家的解法</th><th>硬上限</th></tr>
+  <tr><td><code>fan</code> 扇形</td><td>朝符盘 3 发（二阶段 5 发），每发偏 0.17 弧度</td><td>三发之间留缝，缝的位置随玩家横向移动改变</td><td>5</td></tr>
+  <tr><td><code>ring</code> 环形</td><td>以 BOSS 为中心 5 发（二阶段 6 发），间隔 0.30 弧度</td><td>奇数发 → 正下方必有一道「缝」，绕缝走是唯一解</td><td>5</td></tr>
+  <tr><td><code>bolt</code> 落雷</td><td>0.85 秒收缩虚线圈（51 帧）→ 落地劈墙</td><td>预警圈本身就是解法：走出去即可</td><td>2 处</td></tr>
+</table>
+<p><code>PROJ_CAP = 5</code> 是符矢同时在场的硬上限。从 4 提到 5 的唯一理由是环形弹要奇数发才有「正下方那道缝」；再往上提，缝会被描边吃掉，看起来像一堵墙 —— 那时难度不是变高，是<b>变成无解</b>。</p>
+<p>半血切二阶段时 <code>core.fireT = -24</code>：这 24 帧不发射。少了这个缓冲，玩家会在「BOSS 变色」的动画里挨完整一轮弹 —— 看起来像难度陡增，实际是漏了一次暂停。</p>
+
+<h3>4.4 元素爆发：给玩家第五个动作</h3>
+<pre><code>const ENERGY_MAX = 100, EN_HIT = 2.4, EN_RX = 13, EN_BREAK = 5, BURST_DMG = 26;
+
+function elementalBurst() {
+  run.projs.length = 0;                     // ① 清掉全部符矢
+  run.bolts.length = 0;
+  for (const blk of run.blocks.slice()) {   // ② 每块按反应倍率吃 26 伤 + 吃副作用
+    const rx = reactionOf(atkEl, blk.el);
+    blk.hp -= BURST_DMG * (rx ? rx.mul : 1);
+    if (rx) { ...; applyRx(rx, blk, atkEl); transmute(blk, atkEl); }
+  }
+  run.wallY -= 34;                          // ③ 把墙推回去
+  run.energy = 0;                           // ④ 必须**再清一次**
+}</code></pre>
+<p>三个作用分别对应三种死法：被符矢逼死、清不动墙、墙已经贴脸。能量来自命中（2.4）、触发反应（13）、击碎符块（5）—— 打得越凶回得越快，所以它顺风是加速器、逆风是保命符。</p>
+<div class="warn"><b>④ 那个「再清一次」是被判据逼出来的。</b><code>destroyBlock()</code> 内部会 <code>gainEnergy(5)</code>，爆发遍历 20 块刚好回填 100 点 —— 判据「放完 <code>energy === 0</code>」红了一次，表现就是<b>爆发可以无限连放</b>。写的时候看着像冗余，实测是必需。</div>
+
+<h3>4.5 球的碰撞：最小重叠轴分离</h3>
+<pre><code>const ox = (w / 2 + BALL_R) - Math.abs(b.x - (x + w / 2));
+const oy = (h / 2 + BALL_R) - Math.abs(b.y - (y + h / 2));
+if (ox &lt;= 0 || oy &lt;= 0) continue;
+if (ox &lt; oy) { b.x += (b.x &lt; x + w/2 ? -ox : ox); b.vx = -b.vx; }
+else          { b.y += (b.y &lt; y + h/2 ? -oy : oy); b.vy = -b.vy; }
+hitBlock(blk, run.el, DMG_BASE);
+break;   // 一帧只处理一次碰撞，避免同一帧连撞两块导致穿透</code></pre>
+<p>先算两个轴的重叠深度，<b>从重叠更浅的那个轴弹出</b> —— 这样从侧面撞和从上面撞的反射方向都是对的。<code>break</code> 不是优化，是正确性：不 break 时球会在一帧里连续弹两块，可能出现两块之间来回弹。</p>
+
+<h3>4.6 拍面：倾角决定反弹角</h3>
+<pre><code>const hit = clamp((b.x - paddle.x) / PADDLE_HW, -1, 1);
+const ang = clamp(paddle.aim + hit * 0.36, -Math.PI + 0.30, -0.30);
+b.vx = Math.cos(ang) * BALL_SPD;
+b.vy = Math.sin(ang) * BALL_SPD;</code></pre>
+<p><code>paddle.aim</code> 本身由倾角决定（<code>-π/2 + tilt</code>），所以这是一个「双层控制」：左右移动决定接球点，上下键调倾角决定出球方向。命中点偏移再叠加 ±0.36 弧度，避免贴着边接球时方向完全由倾角决定，手感发死。</p>
+
+<h3>4.7 AI：预测落点 + 反解倾角</h3>
+<pre><code>const land = predictLanding(b);          // 逐帧模拟侧墙/顶墙，求落点
+const dx = land - paddle.x;
+if (dx &lt; -4) AIK.left = true; else if (dx &gt; 4) AIK.right = true;
+…
+const ang = Math.atan2(blockCY(tgt) - b.y, blockCX(tgt) - b.x);
+wantTilt = clamp(clamp(ang, -Math.PI + 0.4, -0.4) + Math.PI / 2, -TILT_MAX, TILT_MAX);</code></pre>
+<p>三段式：① 接球走位 ② 球接近拍面时按「目标块得分」反解倾角（得分 = 倍率×46 − 高度×0.055 − 水平距离×0.045 − 血量×0.55）③ 每 20 帧换一次元素（走 <code>setEl(i, true)</code> 静默通道，不弹提示条）。</p>
+
+<h2 id="ta">5 · 符箓灵弹 · 元素阵</h2>
+
+<p class="lead">同一题材的第二条实现路线：去掉「拍面接球」，改成「灵弹自带元素直射」，把元素反应从「单点倍率」推向<b>范围、传播、持续</b>。两款放在一起看，正好是「元素反应可以做成什么样」的两种答案。</p>
+
+<h3>5.1 两条路线对照</h3>
+<table>
+  <tr><th></th><th>巧阵（talisman-pinball）</th><th>元素阵（talisman-array）</th></tr>
+  <tr><td>操作</td><td>左右接球 + 上下调倾角（几何解算）</td><td>左右走位 + 上下瞄准（直射）</td></tr>
+  <tr><td>反应粒度</td><td>单块 × 倍率 + 连锁染色</td><td>范围 118px / 同排传导 / 时间维度 DoT</td></tr>
+  <tr><td>难度来源</td><td>墙压下来的速度</td><td>元素配错就打不动（护甲）</td></tr>
+  <tr><td>判据</td><td>36 项</td><td>18 项</td></tr>
+</table>
+
+<h3>5.2 把反应做成「过程」：燃烧会自己蔓延</h3>
+<pre><code>burnDmg: 0.55,        // 燃烧每帧伤害
+burnSpread: 2,        // 每次向外蔓延的块数
+burnSpreadCd: 26,     // 蔓延间隔（帧）
+vaporRadius: 118,     // 蒸发的范围半径</code></pre>
+<p>这条路线里「点燃」不是一次性伤害，而是一个<b>会自己扩散的状态机</b>：着火块首次点燃给 110 帧（约 1.8 秒），每 26 帧把火传给相邻 2 块 —— 一次点燃能烧穿一片。水打火换成<b>范围</b>：118px 内邻块被打湿（<code>wet</code>），后续任何火/雷再命中就是二次反应。风则是<b>概率染色</b>：55% 的邻块直接被染成攻击元素。</p>
+<table>
+  <tr><th>形态</th><th>反应</th><th>载体</th><th>玩家怎么利用</th></tr>
+  <tr><td class="t-gold">时间</td><td>燃烧</td><td>1.8 秒 DoT + 每 26 帧蔓延 2 块</td><td>点一排，先不管它，去拆别处</td></tr>
+  <tr><td class="t-blue">空间</td><td>蒸发</td><td>118px 半径打湿邻块</td><td>先打中心，再换火收四周</td></tr>
+  <tr><td class="t-jade">概率</td><td>扩散</td><td>55% 邻块染色</td><td>赌一次成片，收益方差大</td></tr>
+</table>
+
+<h3>5.3 护甲：唯一「必须靠反应」的防御</h3>
+<pre><code>const real = Math.max(1, dmg - (blk.armor || 0));
+// 第 2 关起，(row + col) % 7 === 0 的块带 4 点护甲</code></pre>
+<p>12 点基础伤害打 4 点护甲的块只剩 8，而<b>反应伤害走的是另一条结算</b>，不受护甲影响。于是「这块血厚」不再等于「多打两下」，而是「<b>必须换元素</b>」。这是整个仓库里唯一一处把元素系统写成<b>硬约束</b>而不是增益的设计。</p>
+
+<h3>5.4 关卡与符核</h3>
+<p>3 关 × 8 阵，每关的 <code>rows / mixChance / speedMul</code> 递增（3→4→5 排、混色概率 10%→22%→34%、速度 ×1.00→1.18→1.36），末阵是<b>三阶段符核</b>（<code>boss: true</code> 的 2 格宽大块）。降难度调的是这三条曲线的斜率，不是把块变多。</p>
+
+<h3>5.5 并入仓库时做的三件事</h3>
+<ol>
+  <li><b>补判据（18 项）</b>：这条线当时只推了 <code>index.html</code>，自称的 26 项判据没随仓库留档 —— 也就是任何人都无法重跑它来证明「这版当时是好的」。补的断言覆盖反应表、蔓延、护甲、符核、降难度数值。</li>
+  <li><b>删掉残留的震屏</b>：<code>draw()</code> 里还留着 <code>g.translate(rnd(-sh, sh) …)</code>。v1.3.0 已按「无抖屏无闪屏」把全站抖动移除，这是并行开发带进来的回归。</li>
+  <li><b>难度按统一口径下调</b>：心 4→5、墙速 <code>10.5+0.55n</code> → <code>8.8+0.36n</code>、符块血 <code>10+2n</code> → <code>9+1.5n</code>。改的是压力增长的斜率，前几阵几乎没变。</li>
+</ol>
+
+<h2 id="dm">6 · 星屑符咒 · 弹幕手记</h2>
+
+<p class="lead">六款里算法密度最高的一款。它的 AI 不是「躲最近的弹」，而是<b>解一个两体最近接近点问题</b>，再在 17 个候选方向里做字典序选择。</p>
+
+<h3>6.1 威胁表：相对速度的解析最近接近点</h3>
+<pre><code>const rx = b.x - px, ry = b.y - py;
+const rvx = pvx - b.vx, rvy = pvy - b.vy;
+const rr = rvx*rvx + rvy*rvy;
+let tt = rr &gt; 1e-6 ? -(rx*rvx + ry*rvy) / rr : 0;
+if (tt &lt; 0) tt = 0; else if (tt &gt; T.look) tt = T.look;   // look = 30 帧
+const d = Math.hypot(rx + rvx*tt, ry + rvy*tt);</code></pre>
+<p>这是<b>闭式解</b>而非采样：把「玩家速度 + 弹速度」合成相对速度，直接求两条匀速直线的最近距离时刻 <code>t* = −(r·v)/|v|²</code>，钳到 30 帧视界内。</p>
+<div class="warn"><b>为什么不只看当前位置：</b>只看当前位置的话，远处正朝你飞来的弹不算威胁，等它靠近已经来不及。<br><b>为什么不按「是否远离」排除：</b>代码里留了实测记录 —— 只看弹速会把慢弹判成无害，同帧对照出现过 <code>d=15</code>（真实贴脸）与 <code>d=74</code>（调试快照）的分歧。</div>
+
+<h3>6.2 候选打分：字典序 + 自适应容差</h3>
+<pre><code>for (const th of threats) {
+  const relx = ux * step - th.vx, rely = uy * step - th.vy;
+  let tt = vv &gt; 1e-6 ? -(r0x*relx + r0y*rely) / vv : 0;
+  tt = clamp(tt, 0, T.hor);                       // hor = 22
+  const dd = Math.hypot(r0x + relx*tt, r0y + rely*tt) - th.r - player.hitR;
+  if (dd &lt; clear) clear = dd;                     // 安全余量（px）
+  if (clear &lt; -30) break;
+}</code></pre>
+<p>17 个候选（16 个均分方向 + 原地不动）各算一个「安全余量」。关键在于<b>不用加权和</b>：</p>
+<pre><code>const tol = capClear &gt; 45 ? 12 : capClear &gt; 20 ? 6 : 2;
+const thr = Math.max(0, capClear - tol);
+…
+const score = (c.ux*nx + c.uy*ny) * T.objDot      // 目标方向
+            + (c.ux*AI.lx + c.uy*AI.ly) * T.inertia  // 惯性
+            + (c.stay ? 1.5 : 0);</code></pre>
+<p>先取全局最优余量 <code>maxClear</code>，再按「余量越紧、容差越小」设阈值（12/6/2），<b>只让接近最优的方向</b>进入第二轮用目标点积排序。这样「为了瞄准站着不动」不会因为目标权重大而反噬安全性 —— 这是第一版 <code>min(clear,70) + dot*24</code> 踩过的死结。</p>
+
+<h3>6.3 判定与擦弹</h3>
+<table>
+  <tr><th>量</th><th>值</th><th>说明</th></tr>
+  <tr><td>判定半径 <code>hitR</code></td><td>2.8 px</td><td>机体视觉约 14×25，视觉/判定 ≈ 9:1（v1.4.0 从 3.5 收到 2.8）</td></tr>
+  <tr><td>擦弹半径 <code>grazeR</code></td><td>30 px</td><td>生效半径 <code>b.r + 30</code>（v1.4.0 从 24 放宽）</td></tr>
+  <tr><td>残机</td><td>4</td><td>v1.4.0 从 3 加到 4</td></tr>
+  <tr><td>爆弹无敌</td><td>180 帧</td><td>3 秒</td></tr>
+  <tr><td>死亡硬直</td><td>60 帧</td><td>期间不可动、不判定；复活<b>没有</b>独立无敌</td></tr>
+  <tr><td>弹量上限</td><td>190 发</td><td><code>pushB</code> 里静默丢弃，防数量级写错</td></tr>
+</table>
+<p>擦弹是<b>每弹一次</b>（<code>b.grazed</code> 门闩），不是每帧；累计 100 次结算一次火力 +0.14。判定在 <code>hitPlayer</code> 之后且带 <code>continue</code>，所以同一帧不会既擦又死。</p>
+
+<h3>6.4 弹型与节流</h3>
+<table>
+  <tr><th>生成器</th><th>语义</th></tr>
+  <tr><td><code>PAT.ring(x,y,n,spd,{off})</code></td><td>全周环，步长 <code>TAU/n</code>，默认随机相位</td></tr>
+  <tr><td><code>PAT.aimed(x,y,n,spd,spread)</code></td><td>自机狙扇形，基准角指向玩家，第 i 发偏 <code>(i-(n-1)/2)*spread</code></td></tr>
+  <tr><td><code>PAT.wall(y,spd,gapX,gapW)</code></td><td>横向弹墙，缺口宽度 <code>gapW</code>，可正弦平移</td></tr>
+  <tr><td><code>PAT.spiral(x,y,arms,spd)</code></td><td>多条臂，返回本帧角速度供调用方累加</td></tr>
+</table>
+<p>节流有四层，全部是帧级计步：每卡定时器（<code>e.cd -= dt</code>）、相位取模错拍（<code>patN % 90 === 50</code>）、弹自带 <code>delay</code>（只递减不移动也不绘制）、以及 190 发的硬熔断。</p>
+
+<h3>6.5 关卡链</h3>
+<p>五关，每关 3 波杂兵后出 BOSS；BOSS 状态机 <code>enter → declare(90帧) → fight → next(40帧) → dying(120帧) → nextStage()</code>。符卡时限单位换算是这类代码最容易错的地方：</p>
+<pre><code>c.timeSec  = c.time;        // 秒
+c.timeLeft = c.time * FPS;  // 帧，FPS = 60
+// 结算：bonus = round(200000 * (timeLeft / totalFrames)) + 80000</code></pre>
+<p>击破满分 28 万（时间奖励 20 万 + 基础 8 万），超时不加分。符卡表共 <b>10 张</b>（每关 2 张），血量 130~300；末关 BOSS 本体 900 血，符卡结算另有时间奖励。</p>
+<div class="note"><b>v1.4.0 的降难度在这一款是「全局系数」：</b><code>BSPD = 0.86</code> 把<b>所有</b>敌弹速度乘 0.86，再对最密的几处单独减 15~20% 发弹数。改单个弹型会破坏关卡节奏（下一关突然变快），改全局系数则整条难度曲线一起平移 —— 判据里用「20px/帧 探针弹在 2× 下仍命中 2.8px 判定点」来保证这一步没有引入穿透。</div>
+
+<h2 id="sk">7 · 深渊回响</h2>
+
+<p class="lead">俯视角房间清怪 roguelite。结构上最不像前几款：它没有连续的战场，而是「一间房 = 一个 16×10 格的小迷宫」，清完走门进下一间。</p>
+
+<h3>7.1 楼层生成：线性房间数组，不是迷宫</h3>
+<pre><code>const n = 5 + Math.min(3, Math.floor((run.depth || 1) / 2));
+for (let i = 0; i &lt; n; i++) {
+  rooms.push({ i, cleared:false, visited:false,
+    isBoss: (i === n - 1), w:16, h:10, x0:2, y0:2, spawned:false });
+}</code></pre>
+<p>房间数 5~8（层数越深越多，v1.4.0 从 +4 收到 +3），所有房间尺寸完全相同。没有走廊、没有分支、没有 BFS —— <b>「进下一间」是把整张 map 重建，然后把玩家瞬移到新房中心</b>。所以门只是触发器，不是可通行通道。</p>
+<pre><code>function descend() {
+  run.depth++;
+  clearFloor(); genFloor(); placeInRoom(0);
+  run.transT = 100;   // 转场文字
+}</code></pre>
+<p><code>run.depth</code> 只在这一处自增，触发点是「打完本层最后一间房并踩到门」。</p>
+
+<h3>7.2 移动：双轴同时施加，再按轴回退</h3>
+<pre><code>pl.x = clamp(pl.x, 24, W - 24);
+pl.y = clamp(pl.y, 24, H - 24);
+if (!isFloor(pl.x + Math.sign(pl.rx || ax || 0) * pl.r, pl.y)) pl.x -= ax * pl.spd * dt;
+if (!isFloor(pl.x, pl.y + Math.sign(pl.ry || ay || 0) * pl.r)) pl.y -= ay * pl.spd * dt;</code></pre>
+<p>不是经典的「先移 X 再解 X、再移 Y 再解 Y」，而是同帧双轴先施加、再逐轴检查前缘采样点（当前坐标 + 朝向 × 半径）。前缘不在可走格就把该轴这一帧的位移撤回。<code>isFloor</code> 把 <code>DOOR</code> 也算可走，玩家才能踩进门格。</p>
+
+<h3>7.3 敌人 AI：四种运动学模板</h3>
+<table>
+  <tr><th>类型</th><th>行为</th></tr>
+  <tr><td>史莱姆</td><td>直线追，撞墙置 <code>bounce</code>（不改速度，实际仍会穿墙环带）</td></tr>
+  <tr><td>蝙蝠</td><td>追击角叠加 <code>sin(t*0.18)*0.9</code> 的正弦摆动</td></tr>
+  <tr><td>法师</td><td>距离带控制：&lt;110 后退、&gt;170 前进、中间站定，每 84 帧三连点</td></tr>
+  <tr><td>石像</td><td>慢速直追，撞墙沿 <code>a+1.6</code> 侧移</td></tr>
+  <tr><td>BOSS</td><td><b>三种，按 <code>depth % 3</code> 轮换，只在偶数层出现</b>：<code>warden</code> 慢/血最厚/二阶段分裂出 2 只小守卫；<code>hexer</code> 中速/会瞬移/扇形三连 + 召唤，二阶段改环形弹；<code>reaver</code> 快/冲刺撞击，二阶段残影连冲。<code>move ⇄ attack</code> 状态机，血量 ≤50% 进狂暴。单发伤害一律 ≤2，保证不会「一发秒人」</td></tr>
+</table>
+
+<h3>7.4 升级系统：轮盘法 + 一次三选一不重复</h3>
+<pre><code>const pool = UPG.filter(u =&gt; (pl.levels[u.id] || 0) &lt; u.max);
+for (let k = 0; k &lt; n; k++) {
+  const idx = rndi(0, pool.length - 1);
+  out.push(pool[idx]); pool.splice(idx, 1);   // 抽走即移除
+}</code></pre>
+<p>16 项升级（7 武器 + 9 被动），满级自动从池里消失，全满时返回空数组并提示「没有可提升的东西」。宝箱品质用<b>轮盘法</b>（<code>r -= p</code> 累减）四档：木箱 1 选、铜箱 1 选、银箱 2 选、金箱 3 选；<code>fortune</code> 抬高时会重配分母，不是简单平移概率。</p>
+
+<h3>7.5 受击反馈：把渐变圆心推到受击来向的反面</h3>
+<pre><code>const ox = -Math.cos(run.hurtDir) * W * 0.34;
+const oy = -Math.sin(run.hurtDir) * H * 0.34;
+const grad = ctx.createRadialGradient(W/2+ox, H/2+oy, 70, W/2+ox, H/2+oy, 470);
+grad.addColorStop(0, 'rgba(255,91,110,0)');
+grad.addColorStop(1, 'rgba(255,91,110,' + a.toFixed(3) + ')');</code></pre>
+<p>单次径向渐变同时编码了强度与方向：圆心被推到受击来向的反面，于是「伤害来的那一侧」离圆心最远、染色最深。外面再叠一层 <code>a*0.05</code> 全屏血雾和 <code>a*0.8</code> 的 4px 描边脉冲。</p>
+<div class="note"><b>v1.4.0 把这两个系数都调小了</b>（渐晕上限 0.42 → 0.26、血雾 0.14 → 0.05）。旧的叠法会把整间房长期染成紫红，玩家分不清「我受伤了」和「这层地板就是这个色」。<b>受伤反馈的价值在「变化」，不在「浓度」。</b></div>
+
+<h2 id="sl">8 · 星轨防线 v2 · 缝合版</h2>
+
+<p class="lead">这一款的设计目标写在代码注释里：把「初版」的太空射击，与「星屑符咒」的符卡、「深渊回响」的升级箱缝合到一起。所以它的解析重点是<b>三套系统怎么共存</b>。v1.4.0 扩到 5 关 / 8 张符卡 / 7 种弹型。</p>
+
+<h3>8.1 缝合三件套</h3>
+<table>
+  <tr><th>来自</th><th>机制</th><th>缝合方式</th></tr>
+  <tr><td>星屑符咒</td><td><code>STAGES</code> + <code>PAT</code> 符卡表</td><td>整张表搬过来：5 关 / 8 张符卡，BOSS 的 <code>run(b,dt)</code> 按 <code>card.pattern</code> 分发</td></tr>
+  <tr><td>深渊回响</td><td><code>UPG</code> 升级池</td><td>14 项，但 <code>apply(w, p)</code> 改成写<b>派生参数对象</b> <code>WS</code> 而不是直接改玩家字段</td></tr>
+  <tr><td>自制</td><td>护盾朝向 / 背击</td><td><code>isFromBack()</code> 判弹道与护盾法线夹角，背后命中 ×2.5 伤害</td></tr>
+</table>
+
+<h3>8.2 参数派生：升级不直接改玩家，改一张「计算表」</h3>
+<pre><code>function weaponStats() {
+  return { dmg1:1.10, dmg2:0.85, cd:11, bspd:8.2,
+           shots1:1, shots2:1, spread1:0.10, spread2:0.0,
+           pierce:0, homing:0, fortune:0, powerMax:4.0, grazeMul:1 };
+}
+let WS = weaponStats();
+
+// 升级：{ id:'w4', desc:'两武器伤害 +30%，射速 -12%',
+//        apply(w){ w.dmg1 *= 1.3; w.dmg2 *= 1.3; w.cd *= 1.12; } }</code></pre>
+<p>好处是<b>可重置</b>：想重算一整套加成，只要 <code>WS = weaponStats()</code> 再按 <code>levels</code> 重放一遍 <code>apply</code>，不需要「记下原始值再反算」。代价是每次升级都要保证 <code>apply</code> 只写 <code>WS</code>，不能顺手改 <code>pl</code>（<code>p3</code> 迅捷是个例外，它写 <code>p.spd</code>）。</p>
+
+<h3>8.3 背击：一条几何判定决定 2.5 倍伤害</h3>
+<pre><code>const shotAng = Math.atan2(s.vy, s.vx);
+const fromBack = isFromBack(shotAng, e.shieldAng + e.shieldRot);
+const mul = fromBack ? 2.5 : 1.0;</code></pre>
+<pre><code>function isFromBack(shotAng, shieldAng) {
+  let d = ((shotAng - shieldAng) % TAU + TAU) % TAU;
+  return d &gt; Math.PI * 0.5 &amp;&amp; d &lt; Math.PI * 1.5;   // 落在盾后的 180°
+}</code></pre>
+<p>把角度差归一化到 <code>[0, TAU)</code> 再判断，避免负数取模的坑。这个函数被单独导出（<code>__SL.isFromBack</code>），因为判据要断言「绕后打伤害是正面的 2.5 倍」，不能让测试自己再实现一遍三角函数。</p>
+
+<h3>8.4 数值调优：注释里留着两次过冲</h3>
+<pre><code>const AVOID = 3.4, AVOID_CAP = 16;
+// 原来 5.2：134 发弹各贡献 5.2×w² 后 dx/dy 直接饱和 →
+//   「躲弹」占了绝对主导，y 回不到瞄准线，第 2 关死两次。
+// 试过 2.6：过头上头，变成「为了瞄准不躲」，第 1 关就被打死。
+// 3.4 是两头之间量出来的折中。</code></pre>
+<p>这类注释在 v2 里很密集。它记录的其实是<b>调参的方法论</b>：先用实测找一个过头值、再找一个不足值，取中间；而不是凭手感微调。</p>
+
+<h3>8.5 保命优先级：分级而不是阈值</h3>
+<pre><code>if (close &gt;= 9 &amp;&amp; pl.bombs &gt; 0 &amp;&amp; AI.bombCd &lt;= 0) AI.wantBomb = true;
+else if (close &gt;= 6 &amp;&amp; pl.rollT &lt;= 0 &amp;&amp; (dx || dy)) AI.wantRoll = true;
+// close 1~5：不翻滚，走位躲就行，别浪费无敌帧</code></pre>
+<p>早版本是「贴脸 ≥3 发就翻滚」，结果 AI 冷却一好就立刻翻，等于一直在滚、从不停下瞄准。改成分级后：被围（≥9）先放炸弹（比翻滚划算，还有清屏收益），围上来（≥6）才翻滚，1~5 发靠走位。</p>
+
+<h3>8.6 BOSS 弹型：七种，全部数据驱动</h3>
+<table>
+  <tr><th><code>pattern</code></th><th>弹型</th><th>留下的解</th></tr>
+  <tr><td><code>ring</code></td><td>全周环</td><td>等间隔环，靠移动钻缝</td></tr>
+  <tr><td><code>meteor</code></td><td>流星落</td><td>落点分散，靠位置预判</td></tr>
+  <tr><td><code>wall</code></td><td>弹墙推进</td><td>固定缺口，靠横向冲刺</td></tr>
+  <tr><td><code>helix</code></td><td>双螺旋</td><td>两条反向臂，绕臂转向</td></tr>
+  <tr><td><code>chaos</code></td><td>乱数风暴</td><td>无法完全预测 —— 只保证「密度有上限」</td></tr>
+  <tr><td><code>crossHelix</code></td><td>交叉螺旋</td><td>留一条<b>随机游走</b>的走廊</td></tr>
+  <tr><td><code>bombard</code></td><td>定点轰炸</td><td>先落预警圈，再砸 —— 先读圈，再走位</td></tr>
+</table>
+<p>加弹型不需要改 BOSS 逻辑：<code>cards[].pattern</code> 换一个字符串，<code>run(b, dt)</code> 里的 <code>switch</code> 就换一套发射规则。这也是为什么 5 关 8 张卡只写了 7 种弹型 —— 弹型是<b>词汇</b>，关卡是<b>句子</b>，句子不必每个词都不同。</p>
+
+<h2 id="ai">9 · AI 接管的五条技术路线</h2>
+
+<p class="lead">六款都有 AI 接管，但实现思路完全不同。这是整个仓库里最有技术含量的分歧点，也是「AI 能不能不作弊地打通关」这个问题的答案所在。</p>
+
+<table>
+  <tr><th>游戏</th><th>方法</th><th>候选/维度</th><th>选择策略</th><th>保命手段</th></tr>
+  <tr>
+    <td>初版</td>
+    <td>网格搜索（连续空间）</td>
+    <td>41 × 5 = 205 格</td>
+    <td>单标量 <code>gain − danger×4.2</code></td>
+    <td>危险度 &gt; 1.0 时冲刺硬扛</td>
+  </tr>
+  <tr>
+    <td>星屑符咒</td>
+    <td>射线候选 + 字典序</td>
+    <td>17 个方向</td>
+    <td>先安全阈值、再目标点积</td>
+    <td>贴脸 ≥5 放炸弹</td>
+  </tr>
+  <tr>
+    <td>符箓灵弹</td>
+    <td>解析预测 + 反解</td>
+    <td>1 个落点 + 1 个目标块</td>
+    <td><code>atan2</code> 反解倾角</td>
+    <td>无（接球即保命）</td>
+  </tr>
+  <tr>
+    <td>元素阵</td>
+    <td>规则型三段</td>
+    <td>1 个目标块 + 1 个落点</td>
+    <td>先选「能触发 ≥1.3 倍且不是燃烧」的元素，再瞄最低块，灵弹在飞时优先接落点</td>
+    <td>接球即保命</td>
+  </tr>
+  <tr>
+    <td>深渊回响</td>
+    <td>势场（加权求和）</td>
+    <td>6 项力叠加</td>
+    <td>归一化后映射成摇杆行程</td>
+    <td>贴脸 ≥3 翻滚</td>
+  </tr>
+  <tr>
+    <td>星轨 v2</td>
+    <td>势场 + 分级保命</td>
+    <td>弹幕项 + 瞄准项 + 惯性</td>
+    <td>累积向量封顶 16</td>
+    <td>≥9 炸弹 / ≥6 翻滚</td>
+  </tr>
+</table>
+
+<h3>9.1 共同的不作弊约束：AI 只写一个「虚拟摇杆」</h3>
+<pre><code>function inp() {
+  return { left: K.left || AIK.left, right: K.right || AIK.right,
+           up: K.up || AIK.up, down: K.down || AIK.down };
+}</code></pre>
+<p>六款都是这个形状：玩家输入对象与 AI 输入对象<b>在同一个函数里合并</b>，之后走同一套物理。<code>Game.controlInput</code>（初版）甚至只是一个 getter：</p>
+<pre><code>get controlInput() { return AutoPilot.on ? AutoPilot.input : Input; }</code></pre>
+<p>所以「AI 有没有作弊」是可以逐项验证的：判定半径、擦弹半径、无敌帧、移速、单帧位移上限 —— 开关 AI 前后这些量必须<b>逐个相同</b>。判据就是这么写的，实测单帧位移 ≤ 7.8px（等于玩家移速）。</p>
+
+<h3>9.2 为什么「敌弹」和「敌机」不能用同一套威胁模型</h3>
+<p>初版的注释里有一段价值很高的实测记录：如果敌机也按 time-to-hit 推演，AI 会把<b>「站到它下面开火」</b>判成高危 —— 那格危险度 8.01 × 4.2 = −33 分，而击杀收益只有 1.34。结果 AI 宁可站着不动让敌机漏掉，<b>87% 的命丢在漏怪上</b>。</p>
+<p>于是改成两套数学：</p>
+<table>
+  <tr><th>对象</th><th>模型</th><th>理由</th></tr>
+  <tr><td>敌弹（不可打掉）</td><td>time-to-hit，1.5 秒视界，紧迫度 <code>1/(t+0.08)</code></td><td>必须真躲</td></tr>
+  <tr><td>敌机（可以打掉）</td><td>只在 0.5 秒内落到头上才算威胁，三次衰减</td><td>打掉比躲开更优</td></tr>
+</table>
+<div class="note">这条经验可以直接迁移：<b>在「威胁可以消除」的场景里，用躲避模型会得到保守到自毁的策略。</b>弹幕游戏里子弹不可消、敌人可消，所以必须分开建模。</div>
+
+<h3>9.3 输出幅度也是一个参数</h3>
+<pre><code>const mag = bestClear &gt; 0 ? 1 : 0.72;   // 有余量就全速，被围死才微调
+return { ax: bx * mag, ay: by * mag };</code></pre>
+<p>星屑符咒这里踩过坑：早版本按「余量越紧走得越慢」设计，结果被围时慢慢挪，反而死了。现在改成「只要还有一点余量就全速冲出去」。</p>
+
+<h2 id="speed">10 · 二倍速的三种写法</h2>
+
+<p class="lead">六款都有二倍速，但实现分三档。这一节值得单独看，因为<b>「怎么实现二倍速」直接决定了判定准不准</b>。</p>
+
+<table>
+  <tr><th>写法</th><th>哪几款</th><th>做法</th><th>风险</th></tr>
+  <tr>
+    <td class="t-red">A · 全局缩放 dt</td>
+    <td>初版</td>
+    <td><code>step = min(dt * timeScale, MAX_DT)</code></td>
+    <td>缩放后<b>必须再钳一次</b>，否则单步位移翻倍会穿透</td>
+  </tr>
+  <tr>
+    <td class="t-jade">B · 固定步长累加器</td>
+    <td>星屑 / 深渊 / 星轨 / 元素阵</td>
+    <td><code>acc += frames * SPEED; while(acc&gt;=1){ update(1); acc--; }</code></td>
+    <td>需要 <code>MAX_STEP</code> 防追帧雪崩</td>
+  </tr>
+  <tr>
+    <td class="t-gold">C · 累加器 + 独立 tick</td>
+    <td>符箓灵弹</td>
+    <td>抽成 <code>tick(dtFrames)</code>，判据可直接驱动</td>
+    <td>guard 上限写成 8 会把 <code>tick(10)</code> 截断</td>
+  </tr>
+</table>
+
+<h3>10.1 为什么不能直接 <code>update(dt*2)</code></h3>
+<p>星屑符咒的注释算过这笔账：自机弹 3.6px/帧、判定圆直径 7px，<code>dt=2</code> 时单步 7.2px，已经跨过整个判定圈；深渊回响同理 —— 最快敌弹 3.1px/帧，玩家有效受击半径 <code>10×0.62 + 5 ≈ 11.2px</code>，<code>dt=2</code> 时 6.2px 在部分入射角会一步跨过。固定步长让物理步长恒为 1，<b>判定精度与倍速彻底解耦</b>。</p>
+
+<h3>10.2 累加器的三个隐藏细节</h3>
+<pre><code>function advance(frames) {
+  if (run.scene !== 'play' || run.paused || run.over || run.choosing) { acc = 0; return 0; }
+  acc += frames * SPEED;
+  let n = 0;
+  while (acc &gt;= 1 &amp;&amp; n &lt; MAX_STEP) {
+    if (run.scene !== 'play' || run.paused || run.over || run.choosing) break;
+    update(1); acc -= 1; n++;
+  }
+  if (acc &gt; MAX_STEP) acc = 0;
+  return n;
+}</code></pre>
+<ol>
+  <li><b>入口闸门要 <code>acc = 0</code></b>。不清零的话暂停期间 acc 一直涨，解除暂停瞬间补跑好几帧。</li>
+  <li><b>循环体内要再判一次</b>。因为 <code>update</code> 内部可能触发 <code>gameOver()</code> 或 <code>showUpgrade()</code>，必须当帧就停。</li>
+  <li><b>切换倍速、重开局都要清零 acc</b>。否则带着旧的小数相位跳变。</li>
+</ol>
+
+<h2 id="read">11 · 弹幕可读性：把「威胁」变成「信息」</h2>
+
+<p class="lead">v1.4.0 改弹幕的重点既不是「更密」也不是「更稀」，而是<b>让玩家在一眼里读出「哪颗先到、哪颗必须躲」</b>。六款统一了三件事，另一件是删掉的。</p>
+
+<h3>11.1 描边：为什么不用 shadowBlur</h3>
+<pre><code>// ❌ 旧写法：每颗弹触发一次全局合成器 pass
+ctx.shadowBlur = 14; ctx.shadowColor = col;
+ctx.arc(...); ctx.fill();
+
+// ✅ 新写法：先画大一圈深色实心，再画本体
+ctx.fillStyle = 'rgba(6,8,18,.78)';
+ctx.beginPath(); ctx.arc(x, y, r + 2.2, 0, TAU); ctx.fill();
+ctx.fillStyle = col;
+ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.fill();</code></pre>
+<p>视觉上都是「弹外面有一圈暗边」，代价完全不同：<code>shadowBlur</code> 会为每颗弹触发一次离屏模糊，弹幕一密就掉帧，<b>掉帧又会让判定看起来「穿过去了」</b>。两个实心圆只是两次 <code>arc</code> —— 没有额外 <code>save/restore</code>、没有合成层。</p>
+<div class="warn"><b>这一条是性能修复，不是美化。</b>去掉 <code>shadowBlur</code> 之后，符箓灵弹与初版在同屏 100+ 弹时的帧率都回到 60；「发光感」改由外圈暗边 + 本体高光来表达，玩家看到的对比度反而更高。</div>
+
+<h3>11.2 速度分三档，描边粗细也分三档</h3>
+<pre><code>const sp = Math.hypot(p.vx, p.vy);
+const w  = sp &gt; 260 ? 2.4 : (sp &gt; 140 ? 1.8 : 1.3);</code></pre>
+<p>快弹的暗边更粗，视觉上「更重、更靠前」。玩家不需要读数字，扫一眼就知道哪几颗会先到 —— 这是把<b>速度信息编码进外观</b>，而不是再加一条 HUD。</p>
+
+<h3>11.3 预警：先画「将要发生」，再画「已经发生」</h3>
+<table>
+  <tr><th>威胁</th><th>预警形态</th><th>留给玩家的时间</th></tr>
+  <tr><td>符箓落雷（<code>bolt</code>）</td><td>0.85 秒收缩虚线圈，落地才劈墙</td><td>51 帧</td></tr>
+  <tr><td>星轨激光</td><td>预热虚线 → 发射实线（两段，不是直接出线）</td><td>约 0.6 秒</td></tr>
+  <tr><td>星屑延迟弹</td><td>原地收缩警示圈，<code>delay</code> 归零才开始飞</td><td>按弹型 20~60 帧</td></tr>
+</table>
+<p>共同点：<b>危险源在预警阶段不参与判定</b>。玩家看到圈、走出圈，就这么简单 —— 难度来自「同时有三处预警」，不来自「看不见的东西突然出现」。</p>
+
+<h2 id="diff">12 · 降难度：加解法，而不是减威胁</h2>
+
+<p class="lead">六款都在 v1.4.0 降了难度，但没有一款是靠「把敌人削软」降的。原则只有一条：<b>让玩家多一个可执行的动作，而不是让敌人少一个动作。</b></p>
+
+<table>
+  <tr><th>做法</th><th>本质</th><th>本轮的实例</th></tr>
+  <tr><td class="t-jade">加解法</td><td>玩家多一个按钮</td><td>元素爆发（清符矢 + 全屏反应 + 推墙 34px）、灵弹可击落符矢、越线后墙回退 84px</td></tr>
+  <tr><td class="t-blue">给容错</td><td>同样的失误不再致命</td><td>命 3→5、符盘 52→58、判定 3.5→2.8、擦弹 24→30、残机 3→4、玩家血 3→4</td></tr>
+  <tr><td class="t-gold">缓曲线</td><td>前几关几乎不变，后期才明显缓</td><td>墙速 <code>min(13, 7.6+0.32n)</code>、符块血 <code>8+1.3n</code>、初版升级 16→22 秒 / 上限 12→10</td></tr>
+</table>
+
+<h3>12.1 为什么「只改数字」不够</h3>
+<p>把敌人血量乘 0.8 是最省事的降难度，但玩家的主观感受是<b>「变钝了」</b>：同样的操作、同样的节奏，只是每样东西多活两秒。加了元素爆发之后，同一个局面从「我清不动这面墙」变成「我现在放，还是再攒两块一起放」—— <b>难度没消失，但玩家有了选择。</b>这是这轮改动里唯一需要新代码的部分，也是唯一值得写进版本记录的部分。</p>
+
+<h3>12.2 逐款清单</h3>
+<table>
+  <tr><th>游戏</th><th>改动</th><th>预期效果</th></tr>
+  <tr><td>符箓 · 巧阵</td><td>命 3→5；符盘 52→58；墙速封顶 13；符块血 <code>8+1.3n</code>；阵间喘息 1.15→1.9 秒；开局 1.1→2.0 秒；越线回退 84px；新增元素爆发</td><td>压力曲线整体右移，中位推进从「第 4~6 阵」到「第 9~12 阵」</td></tr>
+  <tr><td>符箓 · 元素阵</td><td>心 4→5；墙速 <code>8.8+0.36n</code>；符块血 <code>9+1.5n</code></td><td>第 6 阵以后明显缓，前 3 阵几乎不变</td></tr>
+  <tr><td>星屑符咒</td><td>全局弹速 <code>BSPD=0.86</code>；判定 3.5→2.8；擦弹 24→30；残机 3→4；密集处发弹数 −15~20%</td><td>AI 连跑 5 轮全通关（原先偶发死在第 2 关）</td></tr>
+  <tr><td>深渊回响</td><td>血量成长 <code>1+0.18·lv</code>（旧 0.28）；移速成长 0.05→0.03；玩家血 3→4；房间数 <code>5+min(3,⌊d/2⌋)</code>；怪物数 ×0.85；清房有概率掉血包</td><td>下潜深度中位数明显上移</td></tr>
+  <tr><td>星轨 v2</td><td>敌机血 ×0.85；每波台数 ×0.85；波距 250→285 帧；BOSS 弹幕间隔 +10%；受击无敌 +13%；回血/扩容升级权重 ×3</td><td>第 3 关之后的存活率显著上升</td></tr>
+  <tr><td>初版</td><td>升级 16→22 秒；等级上限 12→10</td><td>「满级」与「最后一个 BOSS」同时到来，不再有满级后的高压空转</td></tr>
+</table>
+<div class="note"><b>为什么统一在「曲线」上动手：</b>六款的降难度都落在<b>斜率</b>而不是<b>截距</b>上（<code>a + b·n</code> 里改的是 b）。前几关的绝对难度几乎没动，玩家不会觉得「一开始就没意思」；后期才是原本劝退的地方。</div>
+
+<h2 id="bugs">13 · 缺陷：发现的、修掉的、以及判据自己的错</h2>
+
+<p class="lead">解析代码时对着「定义 → 调用」做了交叉核对，在深渊回响找到 3 处<b>逻辑在跑、但玩家感知不到</b>的缺口。它们当时都没被 44 项判据抓到（说明判据覆盖不到这几处），但影响实际游玩 —— <b>v1.4.0 已全部修掉</b>，并补了 3 条对应的回归断言。</p>
+
+<div class="warn">
+<b>① 敌人子弹完全不渲染。</b><span class="tag t-jade">已修 v1.4.0</span><br>
+<code>drawEBullets()</code> 定义在 1481 行，做了双层 <code>lighter</code> 光晕，但 <code>draw()</code>（1183–1200）的调用表里<b>没有它</b>：<br>
+<code>drawFloor → drawDoors → drawDrops → drawChests → drawBullets → drawEnemies → drawPlayer → drawParts → drawHurtOverlay → drawHUD</code><br>
+后果：法师、BOSS 发的弹<b>真实存在、真实扣血，但屏幕上什么都没有</b>。玩家只能看到自己莫名其妙掉血。<br>
+已修：一行 —— 在 <code>drawEnemies()</code> 之后补 <code>drawEBullets();</code>。<b>但这不是纯 bugfix</b>：凭空出现的伤害变成可见威胁后游戏明显变难，所以同步做了降难度（血量成长 ×0.64、玩家血 3→4）。
+</div>
+
+<div class="warn">
+<b>② 翻滚时不会撞墙。</b><span class="tag t-jade">已修 v1.4.0</span><br>
+<code>pl.rx/ry</code> 在 616 行赋值后<b>从不清零</b>，而碰撞回退量写的是 <code>ax * pl.spd * dt</code>（手操位移），不是 <code>pl.rx * dt</code>（翻滚位移）。松手翻滚时 <code>ax = 0</code> → 回退量 0 → 只剩 <code>clamp(24, W-24)</code> 的屏幕边界。<br>
+另外前缘探针用的是 <code>pl.rx || ax</code>，而 <code>rx</code> 永不清零，所以翻滚结束后探针方向永远停在最后一次翻滚的方向，与当前移动方向无关。<br>
+已修：翻滚结束（<code>rollT</code> 归零）时把 <code>rx/ry</code> 清零，并把回退量改成「本帧实际位移量」。
+</div>
+
+<div class="warn">
+<b>③ 法师的「三连点」只打出 1 发。</b><span class="tag t-jade">已修 v1.4.0</span><br>
+1002 行生成三发时给了 <code>delay: i * 9</code>，但全文<b>没有任何地方递减 <code>b.delay</code></b>（只在 771/1485/1492 被读）。于是第 2、3 发永久 <code>delay &gt; 0</code>：既不渲染、也不参与判定，白白飞出场外。<br>
+已修：在 <code>updateEBullets</code> 里补 <code>if (b.delay &gt; 0) { b.delay -= dt; continue; }</code>。<b>修完法师真的变成三连发</b>，难度同样跟着复核过了。
+</div>
+
+<div class="ok">
+这三条的共同点值得记一笔：<b>「定义了却没人调用」和「字段只写不读」是静态检查抓不到的一类 bug</b>。语法通过、判据全绿、页面能玩，但机制衰减或消失。可行的自动检查是对每个 <code>function drawXxx</code> 断言它在 <code>draw()</code> 里被引用一次，对每个「有 <code>delay:</code> 赋值」的字段断言存在递减语句。
+</div>
+
+<h3>13.2 v1.4.0 这一轮新抓到的五处</h3>
+<table>
+  <tr><th>症状</th><th>真因</th><th>怎么发现的</th></tr>
+  <tr><td>元素爆发可以无限连放</td><td><code>elementalBurst()</code> 遍历时调 <code>destroyBlock()</code> → 内部 <code>gainEnergy(5)</code>，20 块回填 100 点</td><td>判据「放完 <code>energy === 0</code>」红</td></tr>
+  <tr><td>元素阵又出现屏幕抖动</td><td>并行实现里保留了 <code>g.translate(rnd(-sh,sh)…)</code></td><td>合并时对着 v1.3.0 的「无抖屏」逐条核</td></tr>
+  <tr><td>星屑 / 星轨 / 深渊的状态条溢出画布</td><td><code>#live</code> 是 <code>white-space:nowrap</code>，项数变多后向两侧溢出</td><td><b>截图</b> —— 判据量不到「字跑到画布外面」</td></tr>
+  <tr><td>深渊整间房长期偏紫红</td><td>受击渐晕上限 0.42 + 血雾 0.14 叠在冷色地板上</td><td>截图（分不清「受伤了」和「这层就这色」）</td></tr>
+  <tr><td>符箓 BOSS 名字被符块盖住</td><td>提示条 <code>top:38%</code> 正好落在墙中间</td><td>截图（改到 <code>74%</code>，即符盘上方的空场）</td></tr>
+</table>
+<div class="note"><b>五条里三条是截图发现的。</b>这不是判据不够多，而是判据量的是<b>状态</b>（数值、标志位），量不到<b>可见性</b>（东西在哪、字有没有出界、颜色有没有盖住）。所以每轮改完的固定动作是：跑判据 → 截图 → 人眼看。</div>
+
+<h3>13.3 判据自己也会错</h3>
+<p>这一节单独列，因为「判据红了」十次里有七次是判据的问题，而不是游戏的问题。把它写清楚，下次先查这些。</p>
+
+<h2 id="verify">14 · 判据如何验证这些实现</h2>
+
+<p class="lead">233 项判据不是「跑一遍不报错」，而是每一条都指向一个具体机制。六份 <code>verify/smoke.js</code> 共用同一套基础设施（17 / 36 / 46 / 52 / 64 / 18）。</p>
+
+<h3>14.1 测试基础设施</h3>
+<pre><code>node verify/smoke.js index.html __TP</code></pre>
+<p>起本地 HTTP 服务 → 启动 headless Edge → 用原生 WebSocket 直连 CDP → 轮询 <code>typeof window.__TP !== 'undefined'</code>。不依赖 puppeteer。所有游戏都导出了 <code>freeze()</code> / <code>step(n)</code>，让测试成为唯一时钟。</p>
+
+<h3>14.2 判据的三个层次</h3>
+<table>
+  <tr><th>层</th><th>长什么样</th><th>例子</th></tr>
+  <tr><td>硬断言（机制触发）</td><td>某个动作必须产生某个状态变化</td><td>「敲光墙 → <code>wave</code> 加 1」「清完最后房间 → <code>depth</code> 加 1 且游戏未结束」</td></tr>
+  <tr><td>数值对照（同初始条件比伤害）</td><td>控制变量，只改一个因素</td><td>「同一块符石：同元素 12 伤 / 水打火 24 伤 / 火打水 19.2 伤」</td></tr>
+  <tr><td>统计量（多轮取中位数）</td><td>跑 N 轮，看分布</td><td>「AI 连续 3 轮各 90 秒，每轮破阵 ≥ 2」；「AI 9/9 通关，存活中位 178 秒」</td></tr>
+</table>
+
+<h3>14.3 反作弊判据怎么写的</h3>
+<pre><code>// 开关 AI 前后，这些量必须逐个相同
+const before = snapshot(D);      // PADDLE_HW / BALL_R / PADDLE_SPD / BALL_SPD …
+D.toggleAI();
+const after = snapshot(D);
+assert('AI 未改变物理参数', same(before, after));
+// 再实测：连续推进 N 帧，单帧位移不得超过玩家移速
+assert('AI 单帧位移 ≤ 玩家移速', maxStep ≤ D.PADDLE_SPD);</code></pre>
+
+<h3>14.4 判据本身会出错 —— 九种变种</h3>
+<table>
+  <tr><th>变种</th><th>症状</th><th>真因</th></tr>
+  <tr><td>在 <code>start()</code> 前取 <code>run</code> 引用</td><td>16 条同时红，全是「什么都没发生」</td><td><code>start()</code> 内 <code>newRun()</code> 重建了对象，判据改的是上一局的尸体</td></tr>
+  <tr><td>被测对象摆在屏幕外</td><td>读数恒为 0</td><td>BOSS 符矢在 <code>wallY=-260</code> 生成即被出界过滤</td></tr>
+  <tr><td>假设实现内部的 guard 上限</td><td><code>tick(10)</code> 只推进 8 步</td><td>判据不该依赖被测代码的保护值</td></tr>
+  <tr><td>1× / 2× 期望值写反</td><td>「两倍速比常速慢」</td><td>标签和断言对不上</td></tr>
+  <tr><td>统计断言时间预算不足</td><td>AI 破阵 0</td><td>实测 AI 在 53 秒时已破 13 块，只是给的窗口太短</td></tr>
+  <tr><td>全仓改 HiDPI 后像素采样偏</td><td>读到的永远是背景色</td><td><code>getImageData</code> 读设备像素，采样坐标要乘 <code>getTransform().a</code></td></tr>
+  <tr><td>在 <code>destroyBlock</code> 之后读 <code>run.boss</code></td><td>恒为 <code>false</code></td><td>击破时副作用会把它置空，取值顺序必须在副作用之前</td></tr>
+  <tr><td>用「单层总血量」比难度</td><td>样本 24 次，但结论是倒的</td><td>敌人种类随机：第 6 层抽到石像（13.5 血）、第 12 层全是小怪（6.3 血 ×8）。改成按 <code>kind</code> 分桶比同类型</td></tr>
+  <tr><td>全文正则扫特征串</td><td>「旧 shadowBlur 还在」误报</td><td>命中的是<b>注释</b>和别的类。只扫目标段落，且只认 <code>ctx.shadowBlur</code> 这种真实调用</td></tr>
+</table>
+
+<div class="ok">
+<b>最后一条经验来自这次解析：</b>判据全绿之后仍然要截图 / 人眼看一眼。符箓灵弹的「墙生成在屏幕外，每阵开头 5 秒空场」、深渊回响的「敌弹从不渲染」，都是判据抓不到、肉眼一眼就能看出来的问题。
+</div>
+
+<footer>
+  解析对象：<span class="file">games/</span> 下六款单文件游戏 · 判据 233 项 · 一条命令跑完全仓<br>
+  v1.4.0（2026-10-20）复核：元素反应三层递进、章节 BOSS、元素爆发、弹幕可读性、六款降难度。<br>
+  <b>行号引用沿用初稿快照（v1.3.0）</b>，v1.4.0 普遍有数十行偏移；机制描述以 v1.4.0 为准。第 13 节的三处缺陷均已修复。
+</footer>
+
+</div>
+</body>
+</html>

@@ -196,6 +196,30 @@ function rmTree(dir) {
       wall0.dy > 60 && wall0.dy < 320,
       '下移 ' + wall0.dy + 'px（配置速度 ' + wall0.speed + '）');
 
+    /* ---------- 1.5 平衡数值：射速 / 墙速 / 血量（2026-10-22 用户实测反馈后调的） ---------- */
+    const bal = await evaluate(`(() => {
+      const D = ${EXPORT}, C = D.CFG;
+      D.startRun(); D.freeze();
+      const R = D.run;
+      D.fireBall();
+      return {
+        cd: C.fireCd, bounce: C.fireCdBounce, net: C.fireCd - C.fireCdBounce,
+        cdAfterFire: R.fireCd,
+        wallBase: C.wallBaseSpeed, wallGain: C.wallSpeedGain,
+        slowMax: C.wallSlowMax,
+        hpBase: C.blockHpBase, hpGain: C.blockHpGain, dmg: C.dmgBase,
+      };
+    })()`);
+    step('★ 射速：冷却 40 帧，命中只返还 5（净 35 帧 ≈0.58s，不再约等于连发）',
+      bal.cd === 40 && bal.bounce === 5 && bal.net === 35 && bal.cdAfterFire === 40,
+      'fireCd=' + bal.cd + ' 返还=' + bal.bounce + ' 净冷却=' + bal.net + ' 帧');
+    step('★ 墙速：21+0.55×波 px/s（10 秒约走 210px，减速余量放到 9.5）',
+      bal.wallBase === 21 && bal.wallGain === 0.55 && bal.slowMax === 9.5,
+      'base=' + bal.wallBase + ' gain=' + bal.wallGain + ' slowMax=' + bal.slowMax);
+    step('★ 符块血量 14+2.2×波 > 直接伤害 12（≥1.3 倍反应才能一发破）',
+      bal.hpBase === 14 && bal.hpGain === 2.2 && bal.hpBase > bal.dmg,
+      'hp=' + bal.hpBase + '+' + bal.hpGain + '×波 vs 直接伤害 ' + bal.dmg);
+
     /* ---------- 2. 元素反应表 ---------- */
     const table = await evaluate(`(() => {
       const D = ${EXPORT}, r = D.reactionOf;
@@ -214,13 +238,85 @@ function rmTree(dir) {
       table.anemoSelf === '燃烧:1',
       JSON.stringify(table));
 
+    /* ---------- 2.5 冰系反应（2026-10-22 新增第五元素） ---------- */
+    const ice = await evaluate(`(() => {
+      const D = ${EXPORT}, r = D.reactionOf;
+      const g = (a, b) => { const x = r(a, b); return x ? x.name + ':' + x.mul + ':' + x.kind : 'none'; };
+      return {
+        meltA: g('cryo', 'pyro'), meltB: g('pyro', 'cryo'),
+        frzA: g('cryo', 'hydro'), frzB: g('hydro', 'cryo'),
+        scA: g('cryo', 'electro'), scB: g('electro', 'cryo'),
+        iceSelf: g('cryo', 'cryo'), anemoCryo: g('anemo', 'cryo'),
+        cryoAnemo: g('cryo', 'anemo'),
+        n: D.EL_ORDER.length, names: D.EL_ORDER.map(k => D.EL[k].name).join(''),
+      };
+    })()`);
+    step('★ 冰系：融化 2.0/1.6 · 冻结（冰水/冰冰）· 超导 1.4/1.3 · 风冰→扩散',
+      ice.meltA === '融化:2:melt' && ice.meltB === '融化:1.6:melt' &&
+      ice.frzA === '冻结:1:freeze' && ice.frzB === '冻结:1.2:freeze' &&
+      ice.scA === '超导:1.4:superconduct' && ice.scB === '超导:1.3:superconduct' &&
+      ice.iceSelf === '冻结:1:freeze' &&
+      ice.anemoCryo === '扩散:1.1:swirl' && ice.cryoAnemo === '扩散:1.1:swirl',
+      JSON.stringify(ice));
+    step('五元素入列：火水雷风冰，setEl(cryo) 生效',
+      ice.n === 5 && ice.names === '火水雷风冰',
+      'EL_ORDER=' + ice.names);
+
+    /* ---------- 2.6 冻结 → 破冰 / 冰甲 ---------- */
+    const frz = await evaluate(`(() => {
+      const D = ${EXPORT};
+      D.startRun(); D.freeze();
+      const R = D.run;
+      const mk = (el, hp, extra) => ({ col:0, row:0, w:58, h:34, el, hp, maxHp:hp,
+        flash:0, alive:true, boss:false, burn:0, burnTick:0, wet:0, frozen:0,
+        reactCd:0, armor:0, shift:0 });
+      R.wallY = 200;
+      // 冰打水 → 冻结
+      const a = mk('hydro', 300); R.blocks = [a];
+      D.hitBlock(a, 'cryo', 10);
+      const frozen = a.frozen;
+      // 火打冻结块 → 破冰 ×1.8（10 × 蒸发1.6 × 1.8 = 28.8）
+      const b = mk('hydro', 300); b.frozen = 100; R.blocks = [b];
+      const hp1 = b.hp;
+      D.hitBlock(b, 'pyro', 10);
+      const dmgBreak = +(hp1 - b.hp).toFixed(2);
+      // 风打冻结块 → 冰甲未破 ×0.6（10 × 扩散1.1 × 0.6 = 6.6）
+      const c = mk('hydro', 300); c.frozen = 100; R.blocks = [c];
+      const hp2 = c.hp;
+      D.hitBlock(c, 'anemo', 10);
+      const dmgSoft = +(hp2 - c.hp).toFixed(2);
+      return { frozen, dmgBreak, dmgSoft, burnCleared: a.burn };
+    })()`);
+    step('★ 冻结：冰水反应挂冻；火/雷破冰 1.8 倍，其他元素 ×0.6',
+      frz.frozen > 0 && frz.dmgBreak === 28.8 && frz.dmgSoft === 6.6,
+      '冻结 ' + frz.frozen + ' 帧；破冰掉 ' + frz.dmgBreak + '（期望 28.8）；冰甲掉 ' + frz.dmgSoft + '（期望 6.6）');
+
+    /* ---------- 2.7 超导：范围削甲 ---------- */
+    const sc = await evaluate(`(() => {
+      const D = ${EXPORT};
+      D.startRun(); D.freeze();
+      const R = D.run;
+      const mk = (col, el, hp) => ({ col, row:0, w:58, h:34, el, hp, maxHp:hp,
+        flash:0, alive:true, boss:false, burn:0, burnTick:0, wet:0, frozen:0,
+        reactCd:0, armor:0, shift:0 });
+      R.wallY = 200;
+      const t = mk(1, 'electro', 300), n = mk(2, 'electro', 300);
+      t.armor = 4; n.armor = 4;
+      R.blocks = [t, n];
+      D.hitBlock(t, 'cryo', 10);          // 冰打雷 → 超导，范围削甲
+      return { armorSrc: t.armor, armorNear: n.armor, rx: R.reactions['超导'] || 0 };
+    })()`);
+    step('★ 超导：范围内每块削 3 点护甲（源块不动）',
+      sc.armorSrc === 4 && sc.armorNear === 1 && sc.rx === 1,
+      '源块甲 ' + sc.armorSrc + ' → 邻块甲 ' + sc.armorNear + '，触发 ' + sc.rx + ' 次');
+
     /* ---------- 3. 反应是真伤害，不是弹个字 ---------- */
     const dmg = await evaluate(`(() => {
       const D = ${EXPORT};
       D.startRun(); D.freeze();
       const R = D.run;
       const mk = el => ({ col:0, row:0, w:58, h:34, el, hp:200, maxHp:200,
-        flash:0, alive:true, boss:false, burn:0, burnTick:0, wet:0, reactCd:0, armor:0 });
+        flash:0, alive:true, boss:false, burn:0, burnTick:0, wet:0, frozen:0, reactCd:0, armor:0 });
       const a = mk('pyro'); R.blocks = [a];
       const ra = D.hitBlock(a, 'pyro', 10);          // 同元素 → 燃烧 ×1.0
       const b = mk('pyro'); R.blocks = [b];
@@ -243,7 +339,7 @@ function rmTree(dir) {
       D.startRun(); D.freeze();
       const R = D.run;
       const mk = (col, el, hp) => ({ col, row:0, w:58, h:34, el, hp, maxHp:hp,
-        flash:0, alive:true, boss:false, burn:0, burnTick:0, wet:0, reactCd:0, armor:0, shift:0 });
+        flash:0, alive:true, boss:false, burn:0, burnTick:0, wet:0, frozen:0, reactCd:0, armor:0, shift:0 });
       const a = mk(0, 'pyro', 300), b = mk(1, 'pyro', 300), c = mk(2, 'pyro', 300);
       R.blocks = [a, b, c];
       R.wallY = 200;
@@ -269,7 +365,7 @@ function rmTree(dir) {
       D.startRun(); D.freeze();
       const R = D.run;
       const mk = (col, el, hp) => ({ col, row:0, w:58, h:34, el, hp, maxHp:hp,
-        flash:0, alive:true, boss:false, burn:0, burnTick:0, wet:0, reactCd:0, armor:0, shift:0 });
+        flash:0, alive:true, boss:false, burn:0, burnTick:0, wet:0, frozen:0, reactCd:0, armor:0, shift:0 });
       const t = mk(1, 'hydro', 300), l = mk(0, 'pyro', 300), r = mk(2, 'pyro', 300);
       R.blocks = [t, l, r];
       R.wallY = 200;
@@ -290,7 +386,7 @@ function rmTree(dir) {
       D.startRun(); D.freeze();
       const R = D.run;
       const mk = (col, row, el, hp) => ({ col, row, w:58, h:34, el, hp, maxHp:hp,
-        flash:0, alive:true, boss:false, burn:0, burnTick:0, wet:0, reactCd:0, armor:0, shift:0 });
+        flash:0, alive:true, boss:false, burn:0, burnTick:0, wet:0, frozen:0, reactCd:0, armor:0, shift:0 });
       const t = mk(1, 0, 'pyro', 300), n = mk(2, 0, 'pyro', 300);
       R.blocks = [t, n];
       R.wallY = 200;
@@ -368,7 +464,97 @@ function rmTree(dir) {
       breach.hp1 <= breach.hp0 - 2 && breach.y <= 120,
       'HP ' + breach.hp0 + '→' + breach.hp1 + '，墙 y=' + breach.y);
 
-    /* ---------- 10. 稳定性 ---------- */
+    /* ---------- 11. 环境弹幕「天象」（2026-10-22 新增） ---------- */
+    const env = await evaluate(`(() => {
+      const D = ${EXPORT};
+      D.startRun(); D.freeze();
+      const R = D.run;
+      const mk = (el, hp) => ({ col:0, row:0, w:58, h:34, el, hp, maxHp:hp,
+        flash:0, alive:true, boss:false, burn:0, burnTick:0, wet:0, frozen:0,
+        reactCd:0, armor:0, shift:0 });
+
+      // ① spawnEnv 直接落弹：结构 + 元素性格（水弹半径最大）
+      R.shots.length = 0;
+      D.spawnEnv('hydro');
+      const s = R.shots[0] || {};
+
+      // ② 自动调度：timer 归零 → 预警线（元素合法）→ 预警结束落弹
+      R.shots.length = 0;
+      R.env.timer = 1;
+      D.step(5);
+      const warn = R.env.warn;
+      const warnElOk = warn ? D.EL_ORDER.includes(warn.el) : false;
+      D.step(D.CFG.envWarn + 10);
+      const autoShots = R.shots.filter(x => x.env).length;
+
+      // ③ 环境弹打在符块上 = 完整反应，但**不计分**
+      const a = mk('pyro', 300);
+      R.blocks = [a]; R.wallY = 200;
+      const score0 = R.score;
+      D.hitBlock(a, 'hydro', D.CFG.envDmg, true);
+      const rxN = R.reactions['蒸发'] || 0;
+
+      // ④ 水弹命中后溅成两滴小的（斜向上溅 + 轻重力，出生点在命中点上方）
+      //    ⚠️ 必须在命中【当帧】就抓：小水滴带重力会落、横漂会出界，
+      //    step 一大段时间再查只会看到"被回收剩下的"，那是判据自己错。
+      R.blocks = [a]; R.shots.length = 0;
+      D.spawnEnv('hydro');
+      R.shots[0].x = D.blockCX(a);
+      R.shots[0].y = 100;
+      let small = 0, smallVy = [], guard = 0;
+      while (guard++ < 200) {
+        D.step(1);
+        const sp = R.shots.filter(x => x.split);
+        if (sp.length) { small = sp.length; smallVy = sp.map(x => +x.vy.toFixed(2)); break; }
+      }
+
+      // ⑤ 冰弹命中玩家 → 扣一心 + 符盘被冻（移速 ×0.55 由 updatePlayer 实现）
+      D.startRun(); D.freeze();
+      const R2 = D.run;
+      const hp0 = R2.hp;
+      D.spawnEnv('cryo');
+      R2.shots[0].x = D.paddle.x;
+      R2.shots[0].y = 780;                 // PADDLE_Y=792，贴符盘
+      D.step(2);
+      return {
+        env: s.env === true, el: s.el, r: s.r,
+        warned: !!warn, warnElOk, autoShots,
+        rxN, scoreGain: R.score - score0,
+        small, smallVy,
+        hpLost: hp0 - R2.hp, frozenPaddle: R2.paddleFreeze,
+      };
+    })()`);
+    step('★ 天象弹结构：env 标记 + 元素字段（水弹半径最大 = 封走位）',
+      env.env === true && env.el === 'hydro' && env.r === 8,
+      'env=' + env.env + ' el=' + env.el + ' r=' + env.r);
+    step('★ 天象自动调度：倒计时 → 预警线（0.75s）→ 落弹',
+      env.warned === true && env.warnElOk === true && env.autoShots >= 1,
+      '预警元素合法=' + env.warnElOk + '，预警后落了 ' + env.autoShots + ' 发');
+    step('★ 天象弹打符块触发完整反应，但不计分（不能站着白刷）',
+      env.rxN === 1 && env.scoreGain === 0,
+      '蒸发 ' + env.rxN + ' 次，得分变化 ' + env.scoreGain);
+    step('★ 水弹命中后溅成两滴小的（命中当帧溅出，斜向上）',
+      env.small === 2 && env.smallVy.length === 2 && env.smallVy.every(v => v < 0),
+      '水花 ' + env.small + ' 滴，vy=' + env.smallVy.join('/'));
+    step('★ 冰弹命中玩家：扣心 + 符盘冻结 1.5 秒',
+      env.hpLost === 1 && env.frozenPaddle > 0,
+      'HP -' + env.hpLost + '，冻结 ' + env.frozenPaddle + ' 帧');
+
+    /* ---------- 13. Q 键循环覆盖五元素 ---------- */
+    const q = await evaluate(`(() => {
+      const D = ${EXPORT};
+      D.startRun(); D.freeze();
+      const seq = [];
+      for (let i = 0; i < 6; i++) {
+        dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyQ' }));
+        seq.push(D.run.el);
+      }
+      return seq.join(',');
+    })()`);
+    step('Q 循环覆盖全部五元素（火→水→雷→风→冰→火）',
+      q === 'hydro,electro,anemo,cryo,pyro,hydro', q);
+
+    /* ---------- 12. 稳定性 ---------- */
     const stable = await evaluate(`(() => {
       const D = ${EXPORT};
       D.startRun(); D.freeze();

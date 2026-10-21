@@ -9,13 +9,18 @@
   符箓灵弹 · 元素阵 —— 单文件 Canvas 游戏（无外部资源）
   --------------------------------------------------------------------------
   玩法：一面元素符阵自上方压下。你的灵弹自带元素，用「克制元素」打上去
-        会触发反应，反应不只是加伤害，而是**范围 / 传播 / 持续**的效果：
+        会触发反应，反应不只是加伤害，而是**范围 / 传播 / 持续 / 状态**的效果：
           · 火 × 同中火        → 燃烧：持续掉血，并且向邻块蔓延
           · 雷 × 任意          → 感电：同排连锁，链到的块再触发一次小反应
           · 水 × 火            → 蒸发：范围爆发 + 附近符块被浸湿（水元素残留）
           · 风 × 任意          → 扩散：把命中块的元素吹散到周围一片，制造连锁
+          · 冰 × 火            → 融化：最高倍率，但会熄灭火（失去持续伤害）
+          · 冰 × 水 / 冰 × 冰  → 冻结：块变硬（临时护甲），火/雷打上去破冰 1.8 倍
+          · 冰 × 雷            → 超导：范围削甲，让直接伤害重新打得动
         三关，每关 8 阵，第 8 阵是 Boss（三阶段弹幕）。
-  操作：← → 走位　↑ ↓ 瞄准　1-4 / Q 换元素　空格 发弹　P 暂停
+        阵中还会随机落「天象」—— 带元素的弹幕，落前有预警线。
+        它可以躲，也可以故意不躲：打在符块上就是一次白拿的元素反应。
+  操作：← → 走位　↑ ↓ 瞄准　1-5 / Q 换元素（火水雷风冰）　空格 发弹　P 暂停
   运行：直接双击本文件，或放到任意静态服务器。
   ==========================================================================
 -->
@@ -75,6 +80,7 @@
     color:#fff;vertical-align:-4px}
   .e.pyro{background:#d04a20} .e.hydro{background:#1f6fb2}
   .e.electro{background:#6b46c1} .e.anemo{background:#1f8f6d}
+  .e.cryo{background:#128ba6}
 
   .btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;
     padding:9px 22px;cursor:pointer;border-radius:3px;
@@ -109,18 +115,18 @@
   <canvas id="cv" width="520" height="880"></canvas>
   <div id="ui">
     <div id="toast"></div>
-    <div id="tip">← → 走位　↑ ↓ 瞄准　1-4 换元素　空格 发弹　P 暂停</div>
+    <div id="tip">← → 走位　↑ ↓ 瞄准　1-5 换元素　空格 发弹　P 暂停</div>
 
     <!-- 开始面板 -->
     <div class="panel" id="p0">
       <div class="pscroll">
         <h1>符箓灵弹<small>元 素 阵 · ELEMENTAL ARRAY</small></h1>
         <p class="lead">一面<b>元素符阵</b>自上方压下，落到符盘之前把它敲穿。灵弹自带元素，
-          打在<b>不同元素</b>的符块上会触发反应 —— 反应会<b>烧、会链、会扩散</b>，用好它一片片清。</p>
+          打在<b>不同元素</b>的符块上会触发反应 —— 反应会<b>烧、会链、会冻、会扩散</b>，用好它一片片清。</p>
         <ul class="rules">
           <li><span class="kk">走 位</span><span class="k">←</span><span class="k">→</span>　<span class="kk">瞄 准</span><span class="k">↑</span><span class="k">↓</span></li>
-          <li><span class="kk">换元素</span><span class="k">1</span><span class="k">2</span><span class="k">3</span><span class="k">4</span> / <span class="k">Q</span>　火 水 雷 风</li>
-          <li><span class="kk">发 弹</span><span class="k">空格</span>（连发有冷却，打中会回一点）</li>
+          <li><span class="kk">换元素</span><span class="k">1</span><span class="k">2</span><span class="k">3</span><span class="k">4</span><span class="k">5</span> / <span class="k">Q</span>　火 水 雷 风 冰</li>
+          <li><span class="kk">发 弹</span><span class="k">空格</span>（连发有冷却，打中会提前一点）</li>
         </ul>
         <b style="font-size:12.5px;letter-spacing:1px">元素反应</b>
         <table class="rxt">
@@ -128,9 +134,15 @@
           <tr><td><i class="e electro">雷</i>×任意</td><td>感电</td><td>同排连锁</td></tr>
           <tr><td><i class="e hydro">水</i>×<i class="e pyro">火</i></td><td>蒸发</td><td>范围爆发</td></tr>
           <tr><td><i class="e anemo">风</i>×任意</td><td>扩散</td><td>吹散一大片</td></tr>
+          <tr><td><i class="e cryo">冰</i>×<i class="e pyro">火</i></td><td>融化</td><td>高倍率 + 熄火</td></tr>
+          <tr><td><i class="e cryo">冰</i>×<i class="e hydro">水</i></td><td>冻结</td><td>变硬，火/雷可破冰</td></tr>
+          <tr><td><i class="e cryo">冰</i>×<i class="e electro">雷</i></td><td>超导</td><td>范围减甲</td></tr>
         </table>
         <p class="note">符块颜色 = 它的元素。用<b>克制元素</b>打，反应才对得上；
-          同元素会「燃烧」慢慢烧穿，逆向（火打水）只有小倍率。</p>
+          同元素会「燃烧」慢慢烧穿，逆向（火打水）只有小倍率。
+          直接伤害打不穿高血块 —— <b>反应才是必要的</b>，不是可选的。</p>
+        <p class="note mt"><b>天象</b>：阵中会随机落下带元素的弹幕（火直 / 水分裂 / 雷 Z 字 / 风横飘 / 冰封人），
+          落前有预警线。躲开是威胁；<b>故意让它打在符块上，就是白拿一次元素反应</b>。</p>
         <p class="note mt">共 3 关，每关 8 阵，第 8 阵是 <b>Boss</b>。Boss 会打弹幕 —— 躲开。</p>
       </div>
       <div class="pfoot">
@@ -192,22 +204,33 @@
 
   /* ---- 手感 / 平衡（集中在这里调） ---- */
   const CFG = {
-    // ⚠️ 2026-10-20 并入时按「降低游戏难度」这一条统一调过数值：
-    //   心数 4→5、下压速度 10.5+0.55×波 → 8.8+0.36×波、符块血 10+2×波 → 9+1.5×波。
-    //   调的是「压力增长曲线」而不是把敌人删掉 —— 前几阵几乎没变，第 6 阵以后才明显缓下来。
+    // ⚠️ 数值调整记录（每次调平衡都往上加一行，写清"为什么"）：
+    //   2026-10-20 并入时按「降低游戏难度」统一调过：心数 4→5、下压速度
+    //     10.5+0.55×波 → 8.8+0.36×波、符块血 10+2×波 → 9+1.5×波。
+    //     调的是「压力增长曲线」而不是把敌人删掉。
+    //   2026-10-22 用户实测反馈三点「射速过快 / 墙太慢 + 血太低」+ 要求环境弹幕与冰弹：
+    //     · 射速：命中返还让连发间隔只剩 26-8=18 帧（0.3s），等于无脑按住。
+    //       冷却 26→40、返还 8→5 —— 命中仍提前一点，但按住打空的间隔拉到 0.67s，
+    //       「瞄着打」和「乱按」正式拉开差距。
+    //     · 墙速：8.8px/s 走完 544px 要 62 秒，比清一面墙还慢，完全没有压力。
+    //       提到 21+0.55×波（第 8 阵 ×1.36 关卡系数 ≈ 34px/s，约 16 秒压到底），
+    //       减速余量同比放大（3.2→9.5，最多抵消 45%），保留 35% 速度下限不变。
+    //     · 血量：dmgBase 12 vs 血 9，无反应也一发一块，「换元素」没有收益。
+    //       提到 14+2.2×波：直接伤害要两发，≥1.3 倍反应一发破 —— 反应从「更快」
+    //       变成「必要」。
     hp: 5,                     // 初始心数
-    fireCd: 26,                // 发弹冷却（帧）；打中符块返还 6 帧 → 约等于连发
-    fireCdBounce: 8,           // 灵弹被弹回时返还的冷却帧
+    fireCd: 40,                // 发弹冷却（帧）；打中符块只返还 5 帧 → 不再约等于连发
+    fireCdBounce: 5,           // 灵弹被弹回时返还的冷却帧
     ballReturn: 1500,          // 一发灵弹最长存活帧数，超时自动回收（防止永久失联）
     aimSpd: 0.042,             // 瞄准角速度（弧度/帧）
     aimRange: Math.PI / 2 - 0.32,
     dmgBase: 12,               // 灵弹基础伤害
-    wallBaseSpeed: 8.8,        // 第 1 阵下压速度（像素/帧）
-    wallSpeedGain: 0.36,       // 每阵 +0.36
-    wallSlowOnHit: 0.10,       // 命中一块让墙体瞬间减速（压力反馈）
-    wallSlowMax: 3.2,          // 减速最多累积到多少
-    blockHpBase: 9,            // 符块基础血量
-    blockHpGain: 1.5,          // 每阵 +1.5
+    wallBaseSpeed: 21,         // 第 1 阵下压速度（像素/秒，见 updateWall 的 0.0166 折算）
+    wallSpeedGain: 0.55,       // 每阵 +0.55
+    wallSlowOnHit: 0.32,       // 命中一块让墙体瞬间减速（压力反馈，与墙速同单位）
+    wallSlowMax: 9.5,          // 减速最多累积到多少（约为墙速的 45%）
+    blockHpBase: 14,           // 符块基础血量（> dmgBase，逼玩家用反应）
+    blockHpGain: 2.2,          // 每阵 +2.2
     burnDmg: 0.55,             // 燃烧每帧伤害（按 60fps 折算）
     burnSpread: 2,             // 燃烧每次向外蔓延的块数
     burnSpreadCd: 26,          // 蔓延间隔（帧）
@@ -217,31 +240,49 @@
     swirlRadius: 132,          // 扩散范围半径
     swirlTintChance: 0.55,     // 扩散时给周围块染色（水元素残留）的概率
     overloadRadius: 108,       // 超载范围半径
+    /* ---- 环境弹幕「天象」---- */
+    envDmg: 8,                 // 环境弹砸到符块上的伤害（不触发玩家计分，见 hitBlock 的 fromEnv）
+    envIntervalMin: 200,       // 两发天象的最小间隔（帧）≈3.3s
+    envIntervalMax: 320,       // 最大间隔 ≈5.3s
+    envWarn: 45,               // 预警线提前量（帧）≈0.75s，够玩家走开或把墙挪过去接
+    envSpeedupPerWave: 6,      // 每阵间隔缩短的帧数
+    envSpeedupPerStage: 30,    // 每关再缩短的帧数
+    envFloor: 110,             // 间隔下限，防止高关变成弹幕地狱
+    freezeArmor: 5,            // 冻结给块的临时护甲（冻住 = 变硬）
+    freezeFrames: 150,         // 冻结持续帧数
+    iceBreakMul: 1.8,          // 火/雷破冰的伤害倍率（冻脆）
   };
 
   /* ---- 元素表 ----
      颜色特意比"淡彩"再深一档：底是暖纸（#f6ecd6），淡彩符块会糊在纸上，
      玩家读不出"这一排是什么元素"，元素反应玩法就废了。
-     正文/描边全部按白底对比度挑过，最浅的 c2 也只做点缀、不做主体。 */
+     正文/描边全部按白底对比度挑过，最浅的 c2 也只做点缀、不做主体。
+     冰（cryo）与水的区分：水是深蓝，冰压到青（c2 偏青绿），
+     符纹也不同（水滴 vs 雪花）—— 五个元素必须一眼能分。 */
   const EL = {
     pyro:    { name:'火', c:'#a83a12', c2:'#e0713a', rgb:'168,58,18' },
     hydro:   { name:'水', c:'#124a80', c2:'#3f93d6', rgb:'18,74,128' },
     electro: { name:'雷', c:'#4a2c99', c2:'#7d5ce0', rgb:'74,44,153' },
     anemo:   { name:'风', c:'#0f5f47', c2:'#33a884', rgb:'15,95,71' },
+    cryo:    { name:'冰', c:'#0e6f86', c2:'#59c2d4', rgb:'14,111,134' },
   };
-  const EL_ORDER = ['pyro','hydro','electro','anemo'];
-  const EL_NAME  = { pyro:'火', hydro:'水', electro:'雷', anemo:'风' };
+  const EL_ORDER = ['pyro','hydro','electro','anemo','cryo'];
+  const EL_NAME  = { pyro:'火', hydro:'水', electro:'雷', anemo:'风', cryo:'冰' };
 
   /* ==========================================================================
      二、元素反应表
      --------------------------------------------------------------------------
-     键 = 灵弹元素 + '+' + 符块元素。只写"有反应"的组合；同元素走燃烧（特殊规则）。
+     键 = 灵弹元素 + '+' + 符块元素。只写"有反应"的组合；同元素走燃烧（冰例外）。
      设计原则（对齐《原神》的手感，而不是数值）：
        · 蒸发是最佳单体倍率，但它**消耗元素状态**（不再持续）
        · 超载是范围爆发，用来清密集阵
        · 感电是"链"，在单排横向密集时最强
        · 扩散是"传染"，它不靠伤害，靠改变周围块的元素来制造后续连锁
        · 燃烧是"持续+蔓延"，适合铺开而不是爆发
+       · 融化是冰系版蒸发：倍率相同，但**会熄火**（冰灭火）——打正在烧的块更赚
+       · 冻结本身没有倍率，它是"状态"：冻住的块临时加护甲变硬，
+         但火/雷打上去会破冰并 1.8 倍溅射 → 制造「冻一下再砸」的二段循环
+       · 超导是范围减甲：给一整片块削护甲，让直接伤害重新打得动
      ========================================================================== */
   const RX = {
     'hydro+pyro':    { name:'蒸发', mul:2.0, kind:'vapor',    rgb:'255,138,74' },
@@ -253,6 +294,14 @@
     'pyro+anemo':    { name:'扩散', mul:1.1, kind:'swirl',    rgb:'104,214,176' },
     'hydro+anemo':   { name:'扩散', mul:1.1, kind:'swirl',    rgb:'104,214,176' },
     'electro+anemo': { name:'扩散', mul:1.1, kind:'swirl',    rgb:'104,214,176' },
+    'cryo+anemo':    { name:'扩散', mul:1.1, kind:'swirl',    rgb:'104,214,176' },
+    'anemo+cryo':    { name:'扩散', mul:1.1, kind:'swirl',    rgb:'104,214,176' },
+    'cryo+pyro':     { name:'融化', mul:2.0, kind:'melt',     rgb:'255,206,120' },
+    'pyro+cryo':     { name:'融化', mul:1.6, kind:'melt',     rgb:'255,206,120' },
+    'cryo+hydro':    { name:'冻结', mul:1.0, kind:'freeze',   rgb:'168,232,244' },
+    'hydro+cryo':    { name:'冻结', mul:1.2, kind:'freeze',   rgb:'168,232,244' },
+    'cryo+electro':  { name:'超导', mul:1.4, kind:'superconduct', rgb:'140,220,232' },
+    'electro+cryo':  { name:'超导', mul:1.3, kind:'superconduct', rgb:'140,220,232' },
   };
 
   /**
@@ -263,13 +312,16 @@
    *
    * 规则顺序很重要：
    *   1. 风打任何非风元素 → 扩散（风是"万能反应触发者"，除同元素）
-   *   2. 同元素 → 燃烧（这是本作唯一"同元素也有收益"的设定，鼓励铺火）
+   *   2. 同元素 → 燃烧（本作唯一"同元素也有收益"的设定，鼓励铺火）；
+   *      但**冰是例外**：冰打冰走「冻结」，语义上"自己冻自己"比"自己烧自己"通，
+   *      而且给了一条不带火也能挂冻结的路径（水弹环境弹也能挂）。
    *   3. 其余查表
-   * 为什么不把燃烧写进 RX 表：它没有"倍率"概念，伤害是持续的（见 burnTick），
-   * 走表会让 hitBlock 里出现一条 gcd 分支，不如在这里显式返回 kind:'burn'。
+   * 为什么不把燃烧/冻结写进 RX 表：它们没有"倍率"概念（燃烧是持续伤害、冻结是状态），
+   * 走表会让 hitBlock 里出现一条 gcd 分支，不如在这里显式返回 kind。
    */
   function reactionOf(atk, def) {
     if (atk === 'anemo' && def !== 'anemo') return { name:'扩散', mul:1.1, kind:'swirl', rgb:'104,214,176' };
+    if (atk === def && atk === 'cryo') return { name:'冻结', mul:1.0, kind:'freeze', rgb:'168,232,244' };
     if (atk === def) return { name:'燃烧', mul:1.0, kind:'burn', rgb:'214,96,40' };
     return RX[atk + '+' + def] || null;
   }
@@ -340,6 +392,9 @@
       wallY: 0, wallSpeed: CFG.wallBaseSpeed, wallFade: 1,
       slow: 0,                   // 命中给的"减速余量"
       boss: null,
+      /** 环境弹幕「天象」：timer 倒数到 0 就预报一发；warn 是当前预警（含 x 与元素）。 */
+      env: { timer: 150, warn: null },
+      paddleFreeze: 0,           // 被冰弹命中后的减速帧（移速 ×0.55）
       reactions: {},             // 反应名 → 次数，结算面板用
       broken: 0, wallsCleared: 0,
       /** 下一阵要生成的阵号（1..8）。与"当前显示阵号"分开，否则清阵后归零会永远重打第 1 阵。 */
@@ -381,6 +436,7 @@
       burn:0,            // 燃烧剩余帧
       burnTick:0,        // 下一次蔓延倒计时
       wet:0,             // 被水浸湿的帧数（残留水元素，可被火再次蒸发）
+      frozen:0,          // 被冻结的帧数（冰反应；期间加护甲，但火/雷可破冰溅射）
       reactCd:0,         // 反应冷却，防止一帧内无限连锁
       armor:0,           // 护甲：减免直接伤害的固定值（破甲靠反应）
       shift:0,           // 水平偏移（用于"交阵"的错位排布）
@@ -416,10 +472,16 @@
     run.wallSpeed = (CFG.wallBaseSpeed + wave * CFG.wallSpeedGain) * st.speedMul;
     const baseHp = CFG.blockHpBase + wave * CFG.blockHpGain + (run.stage - 1) * 6;
 
+    // 普通阵恢复天象：间隔随阵数/关卡缩短，但有下限
+    run.env.timer = rndi(CFG.envIntervalMin, CFG.envIntervalMax)
+                  - wave * CFG.envSpeedupPerWave - (run.stage - 1) * CFG.envSpeedupPerStage;
+    run.env.timer = Math.max(CFG.envFloor, run.env.timer);
+    run.env.warn = null;
+
     /* 阵型：0=满阵 1=棋盘 2=菱形 3=错位，按阵号轮转 */
     const pat = (wave - 1) % 4;
     for (let row = 0; row < rows; row++) {
-      const rowEl = EL_ORDER[(row + wave - 1) % 4];
+      const rowEl = EL_ORDER[(row + wave - 1) % EL_ORDER.length];
       for (let col = 0; col < COLS; col++) {
         if (pat === 1 && (row + col) % 2 === 0) continue;
         if (pat === 2 && Math.abs(col - 3.5) + Math.abs(row - (rows-1)/2) > 3.4) continue;
@@ -443,11 +505,11 @@
   function spawnBoss() {
     run.wallSpeed = CFG.wallBaseSpeed * 0.55;      // Boss 阵压得慢，给打弹幕的时间
     const rows = 3;
-    const coreEl = EL_ORDER[(run.stage + 1) % 4];
+    const coreEl = EL_ORDER[(run.stage + 1) % EL_ORDER.length];
     for (let row = 0; row < rows; row++) {
       for (let col = 0; col < COLS; col++) {
         if (row === 1 && (col === 3 || col === 4)) continue;     // 中间留核心位
-        run.blocks.push(mkBlock(col, row, EL_ORDER[(row + run.stage) % 4], 26 + run.stage * 8, { armor: 2 }));
+        run.blocks.push(mkBlock(col, row, EL_ORDER[(row + run.stage) % EL_ORDER.length], 26 + run.stage * 8, { armor: 2 }));
       }
     }
     const core = mkBlock(3, 1, coreEl, 360 + run.stage * 170, {
@@ -464,6 +526,7 @@
       elTimer: 220,
       moving: 0,
     };
+    run.env.timer = 1e9;            // Boss 阵自己就在发弹幕，天象让位（避免叠成弹幕地狱）
     run.nextWave = WAVES_PER_STAGE + 1;
     banner('符 核 现 世', '#a83226');
   }
@@ -474,6 +537,7 @@
 
   function updatePlayer(dt) {
     if (run.hurtCd > 0) run.hurtCd -= dt * 0.0166;
+    if (run.paddleFreeze > 0) run.paddleFreeze -= dt;
 
     let ax = 0, ay = 0;
     if (run.aiOn) {
@@ -485,8 +549,9 @@
       ay = (P['ArrowDown'] ? 1 : 0) - (P['ArrowUp'] ? 1 : 0);
     }
 
-    // 横移
-    paddle.x = clamp(paddle.x + ax * PADDLE_SPD * dt, PADDLE_HW, W - PADDLE_HW);
+    // 横移：被冰弹冻过之后 1.5 秒内移速 ×0.55（视觉上符盘结霜）
+    const spd = PADDLE_SPD * (run.paddleFreeze > 0 ? 0.55 : 1);
+    paddle.x = clamp(paddle.x + ax * spd * dt, PADDLE_HW, W - PADDLE_HW);
     // 炮口角度：绝对方向（朝上为 -PI/2），上下键在±(PI/2)范围内调。
     // ⚠️ 这里刻意**不**让角度跟随符盘倾斜：之前的写法把 tilt 锚进了 angle，
     //    结果"瞄准线"和"实际发射方向"是两个角，玩家看到的线和弹道对不上。
@@ -621,17 +686,41 @@
      ========================================================================== */
 
   /**
-   * hurtBlock —— 对单块造成直接伤害（护甲减免）。
+   * hurtBlock —— 对单块造成直接伤害（护甲减免 + 冻结结算）。
    * @param {object} blk 目标
    * @param {number} dmg 原始伤害
-   * @param {string} [atkEl] 造成伤害的元素（用于特效色）
+   * @param {string} [atkEl] 造成伤害的元素（用于特效色；火/雷可破冰）
    * @param {boolean} [silent] 静默（连锁伤害不刷粒子，避免爆屏）
    * @returns {boolean} 是否被击碎
    * 护甲块的设计意图：让"只会一颗颗点"的玩法在高关卡失效，逼玩家转向反应流。
+   * 冻结块（frozen>0）的结算，这是冰元素的核心循环：
+   *   · 火 / 雷  → 破冰：冻脆，伤害 ×1.8 并小范围溅射（"冻一下再砸"）
+   *   · 其他元素 → 冰甲未破，伤害 ×0.6（拿错元素打冻块会很别扭，逼玩家换弹）
    */
   function hurtBlock(blk, dmg, atkEl, silent) {
     if (!blk.alive) return false;
-    const real = Math.max(1, dmg - (blk.armor || 0));
+    let real = Math.max(1, dmg - (blk.armor || 0));
+
+    if (blk.frozen > 0) {
+      if (atkEl === 'pyro' || atkEl === 'electro') {
+        blk.frozen = 0;                       // 破冰
+        real *= CFG.iceBreakMul;
+        if (!silent) {
+          burst(blockCX(blk), blockCY(blk), 12, '#c8eff7', 3.4);
+          float(blockCX(blk), blockCY(blk) - 12, '破 冰', '#0e6f86');
+        }
+        // 碎冰溅射：连带的邻居一起吃一点（不触发反应，防无限链）
+        for (const o of run.blocks) {
+          if (o === blk || !o.alive) continue;
+          if (dist(blockCX(blk), blockCY(blk), blockCX(o), blockCY(o)) < PITCH_X * 1.6) {
+            hurtBlock(o, real * 0.3, atkEl, true);
+          }
+        }
+      } else {
+        real *= 0.6;                          // 冰甲未破：伤害打折
+      }
+    }
+
     blk.hp -= real;
     blk.flash = 1;
     if (!silent && atkEl) burst(blockCX(blk), blockCY(blk), 4, EL[atkEl].c2, 2);
@@ -676,13 +765,17 @@
    * @param {object} blk 目标
    * @param {string} atkEl 灵弹元素
    * @param {number} baseDmg 基础伤害
+   * @param {boolean} [fromEnv] true = 来自环境弹幕「天象」
    * @returns {object|null} 本次反应结果（供测试/调试）
    *
    * 为什么反应要走"先判冷却再查表"：一条灵弹可能在同一帧擦到相邻两块，
    * 若不设 reactCd，一块会被同一发弹连续触发两次反应，伤害直接翻倍，
    * 数值就崩了。0.3 秒（18 帧）是实测下来既能防重又能保持手感的值。
+   *
+   * fromEnv：环境弹照样触发**完整反应**（这是它的价值：不躲反而能白拿一次反应），
+   * 但不给分也不给墙减速 —— 否则玩家可以站着不动让天象替自己刷分。
    */
-  function hitBlock(blk, atkEl, baseDmg) {
+  function hitBlock(blk, atkEl, baseDmg, fromEnv) {
     if (!blk.alive) return null;
 
     let rx = null;
@@ -702,12 +795,12 @@
     if (rx) {
       blk.reactCd = 18;
       run.reactions[rx.name] = (run.reactions[rx.name] || 0) + 1;
-      run.score += 40;
+      if (!fromEnv) run.score += 40;
       run.edge.v = Math.max(run.edge.v, rx.kind === 'overload' ? 0.34 : 0.2);
       run.edge.rgb = rx.rgb;
       burst(cx, cy, 16, rx.rgb, 4);
       float(cx, cy - 10, rx.name + (mul > 1 ? ' ×' + mul.toFixed(1) : ''), EL[atkEl].c);
-      run.slow = Math.min(CFG.wallSlowMax, run.slow + CFG.wallSlowOnHit);
+      if (!fromEnv) run.slow = Math.min(CFG.wallSlowMax, run.slow + CFG.wallSlowOnHit);
 
       switch (rx.kind) {
         case 'burn':     applyBurn(blk); break;
@@ -715,6 +808,9 @@
         case 'vapor':    rxVapor(blk, total); break;
         case 'overload': rxOverload(blk, total); break;
         case 'swirl':    rxSwirl(blk, atkEl); break;
+        case 'melt':     rxMelt(blk); break;
+        case 'freeze':   rxFreeze(blk); break;
+        case 'superconduct': rxSuperconduct(blk, total); break;
       }
     }
 
@@ -826,6 +922,72 @@
     shakeScreen(2);
   }
 
+  /**
+   * rxMelt —— 融化（冰×火 / 火×冰）：倍率已由 mul 给足，这里补三件事：
+   *   ① 破冰：目标若冻着，先碎掉（否则冻结的减伤会把融化的高倍率吃掉）
+   *   ② 熄火：正在烧的块被冰浇灭 —— "火打冰墙"会失去持续伤害，这是融化的代价
+   *   ③ 化雪：把溅到的一块邻居打湿，给下一发水/雷铺二次反应
+   */
+  function rxMelt(blk) {
+    blk.frozen = 0;
+    blk.burn = 0;
+    const cx = blockCX(blk), cy = blockCY(blk);
+    run.ring = { x:cx, y:cy, r:8, max:64, rgb:'255,206,120', life:18 };
+    burst(cx, cy, 18, '#ffce78', 3.6);
+    shakeScreen(3);
+    for (const o of run.blocks) {
+      if (o === blk || !o.alive) continue;
+      if (dist(cx, cy, blockCX(o), blockCY(o)) < 64) o.wet = 90;
+    }
+  }
+
+  /**
+   * rxFreeze —— 冻结（冰×水 / 水×冰 / 冰×冰）：纯状态反应，本身倍率低。
+   *   主目标冻满 150 帧；范围内邻居只冻 70 帧（范围冻结是为了让"破冰溅射"有成片机会）。
+   *   冻住的块在 hurtBlock 里加 5 点临时护甲、且非火雷伤害 ×0.6 ——
+   *   于是"冻一片再拿火/雷挨个破"变成一条独立的清墙路线。
+   */
+  function rxFreeze(blk) {
+    blk.frozen = CFG.freezeFrames;
+    blk.burn = 0;                    // 冰熄火：冻住就不烧了
+    blk.burnTick = 0;
+    const cx = blockCX(blk), cy = blockCY(blk);
+    run.ring = { x:cx, y:cy, r:8, max:CFG.vaporRadius * 0.85, rgb:'168,232,244', life:22 };
+    burst(cx, cy, 20, '#a8e8f4', 3.2);
+    float(cx, cy - 12, '冻 结', '#0e6f86');
+    shakeScreen(2);
+    for (const o of run.blocks) {
+      if (o === blk || !o.alive) continue;
+      if (dist(cx, cy, blockCX(o), blockCY(o)) < CFG.vaporRadius * 0.85) {
+        o.frozen = Math.max(o.frozen, 70);
+        burst(blockCX(o), blockCY(o), 6, '#c8eff7', 2);
+      }
+    }
+  }
+
+  /**
+   * rxSuperconduct —— 超导（冰×雷 / 雷×冰）：范围减甲。
+   *   范围内每块护甲 -3（最低 0），让"直接伤害流"在这片区域重新打得动，
+   *   是冰系里唯一的进攻辅助位。伤害本身不高，价值在减甲。
+   */
+  function rxSuperconduct(src, mainDmg) {
+    const cx = blockCX(src), cy = blockCY(src);
+    run.ring = { x:cx, y:cy, r:8, max:CFG.overloadRadius, rgb:'140,220,232', life:20 };
+    burst(cx, cy, 22, '#8cdce8', 3.8);
+    shakeScreen(3);
+    let peeled = 0;
+    for (const o of run.blocks) {
+      if (!o.alive) continue;
+      if (o === src) continue;
+      if (dist(cx, cy, blockCX(o), blockCY(o)) < CFG.overloadRadius) {
+        if (o.armor > 0) { o.armor = Math.max(0, o.armor - 3); peeled++; }
+        hurtBlock(o, mainDmg * 0.5, 'cryo', true);
+        run.arcs.push({ x1:cx, y1:cy, x2:blockCX(o), y2:blockCY(o), life:14, rgb:'140,220,232' });
+      }
+    }
+    if (peeled > 0) float(cx, cy - 24, '破 甲 ×' + peeled, '#0e6f86');
+  }
+
   /* ==========================================================================
      十、符阵推进 / 燃烧漫延
      ========================================================================== */
@@ -836,8 +998,12 @@
       if (!b.alive) continue;
       if (b.reactCd > 0) b.reactCd -= dt;
       if (b.wet > 0) b.wet -= dt;
+      if (b.frozen > 0) b.frozen -= dt;
 
-      if (b.burn > 0) {
+      // 冻住的块不烧：冰把火熄了（冻结时 rxFreeze 也会主动清 burn，这里是兜底）
+      // ⚠️ 用 !(b.frozen > 0) 而不是 b.frozen <= 0：后者在 frozen 为 undefined/NaN 时
+      //    恒为 false，燃烧会"静默停摆"（判据里造块漏字段时踩过，2026-10-22）。
+      if (b.burn > 0 && !(b.frozen > 0)) {
         b.burn -= dt;
         b.hp -= CFG.burnDmg * dt;
         if (Math.random() < 0.08 * dt) burst(blockCX(b) + rnd(-16,16), blockCY(b) + rnd(-8,8), 1, '#f2915c', 1.4);
@@ -918,7 +1084,7 @@
     b.elTimer -= dt;
     if (b.elTimer <= 0) {
       b.elTimer = 220;
-      b.el = EL_ORDER[(EL_ORDER.indexOf(b.el) + 1) % 4];
+      b.el = EL_ORDER[(EL_ORDER.indexOf(b.el) + 1) % EL_ORDER.length];
       core.el = b.el;
       burst(blockCX(core), blockCY(core), 22, EL[b.el].c2, 4.5);
       float(blockCX(core), blockCY(core) - 26, '转 · ' + EL_NAME[b.el], EL[b.el].c);
@@ -1005,9 +1171,79 @@
     }
   }
 
+  /**
+   * updateEnv —— 环境弹幕「天象」的调度。
+   * 节奏：timer 倒数 → 起一条 0.75s 预警线 → 落弹。预警期内玩家有三个选择：
+   * 走开、把符盘让开、或者**故意不躲**——因为天象弹打在符块上会触发完整元素反应，
+   * 是白拿的一次反应触发器（但不计分、不给墙减速，见 hitBlock 的 fromEnv）。
+   * Boss 阵自动熄火（spawnBoss 把 timer 设成 1e9）：Boss 自己就在发弹幕，会叠成地狱。
+   */
+  function updateEnv(dt) {
+    const e = run.env;
+    if (!e) return;
+
+    if (e.warn) {
+      e.warn.t -= dt;
+      if (e.warn.t <= 0) {
+        spawnEnv(e.warn.el);
+        e.warn = null;
+        e.timer = Math.max(CFG.envFloor,
+          rndi(CFG.envIntervalMin, CFG.envIntervalMax)
+          - run.wave * CFG.envSpeedupPerWave - (run.stage - 1) * CFG.envSpeedupPerStage);
+      }
+      return;
+    }
+
+    e.timer -= dt;
+    // wave===0 是阵间休整，也让天象歇一会儿；弹幕总量有上限，保护碰撞复杂度
+    if (e.timer <= 0 && run.wave > 0 && run.wave !== WAVES_PER_STAGE && run.shots.length < 36) {
+      const el = pick(EL_ORDER);
+      // 风弹从侧面来，预警线就画在侧面那一侧
+      const x = el === 'anemo' ? (Math.random() < 0.5 ? 24 : W - 24)
+                               : rndi(WALL_X + 16, W - WALL_X - 16);
+      e.warn = { x, el, t: CFG.envWarn };
+    }
+  }
+
+  /**
+   * spawnEnv —— 落一发天象弹。五种元素五种性格：
+   *   火：直线快（4.6）—— 压迫感
+   *   水：慢（2.6）但半径大，命中时溅成两滴—— 封走位
+   *   雷：Z 字横摆（vx 正弦）—— 不好预判
+   *   风：从屏幕侧面斜进来—— 逼你离开舒适位
+   *   冰：中速（3.6），命中玩家时冻 1.5 秒（移速 ×0.55）
+   */
+  function spawnEnv(el) {
+    const s = { x: W/2, y: -14, vx: 0, vy: 3.2, r: 5.5, rgb: EL[el].rgb,
+                env: true, el, age: 0, split: false };
+    if (el === 'pyro')       { s.vy = 4.6; s.r = 5.5; }
+    else if (el === 'hydro') { s.vy = 2.6; s.r = 8; }
+    else if (el === 'cryo')  { s.vy = 3.6; s.r = 6; }
+    else if (el === 'anemo') {
+      const left = Math.random() < 0.5;
+      s.x = left ? -24 : W + 24;
+      s.y = rndi(150, 430);
+      s.vx = left ? 2.4 : -2.4;
+      s.vy = 1.6;
+      s.r = 6;
+    } else {
+      s.x = rndi(WALL_X + 16, W - WALL_X - 16);
+    }
+    run.shots.push(s);
+  }
+
   function updateShots(dt) {
     for (let i = run.shots.length - 1; i >= 0; i--) {
       const s = run.shots[i];
+      s.age = (s.age || 0) + dt;
+
+      // 天象弹的个性运动（Boss 弹保持原样）
+      if (s.env) {
+        if (s.el === 'anemo') s.vx += Math.sin(s.age * 0.08) * 0.06 * dt;   // 风：缓慢飘摆
+        if (s.el === 'electro') s.vx = Math.sin(s.age * 0.22) * 2.2;        // 雷：Z 字
+        if (s.split) s.vy += 0.045 * dt;                                  // 水花：轻重力抛物线
+      }
+
       s.x += s.vx * dt;
       s.y += s.vy * dt;
 
@@ -1023,8 +1259,24 @@
         const bx = blockX(blk), by = blockY(blk);
         if (s.x > bx - s.r && s.x < bx + blk.w + s.r &&
             s.y > by - s.r && s.y < by + blk.h + s.r) {
-          hurtBlock(blk, 6, 'pyro', true);
-          burst(s.x, s.y, 4, '#a83226', 2);
+          if (s.env) {
+            // 天象弹打符块 = 一次完整的元素反应（fromEnv：不计分、不给减速）
+            hitBlock(blk, s.el, CFG.envDmg, true);
+            burst(s.x, s.y, 6, EL[s.el].c2, 2.4);
+            // 水弹溅开：两滴小的斜向上溅出（带轻重力，划个小弧线再落），
+            // 出生点在命中点上方 —— 直接原地生成会被同一块下一帧就吃掉，看不见。
+            // 初速刻意给得小（vx ±1.3 / vy -1.2）：水滴是"溅在墙边"的物理，
+            // 横漂太快会直接飞出屏幕，那就成了普通弹幕而不是水花。
+            if (s.el === 'hydro' && !s.split) {
+              for (const dir of [-1, 1]) {
+                run.shots.push({ x: s.x, y: s.y - 5, vx: dir * 1.3, vy: -1.2, r: 3.6,
+                  rgb: s.rgb, env: true, el: 'hydro', age: 0, split: true });
+              }
+            }
+          } else {
+            hurtBlock(blk, 6, 'pyro', true);
+            burst(s.x, s.y, 4, '#a83226', 2);
+          }
           blocked = true;
           break;
         }
@@ -1034,6 +1286,11 @@
       // 打到玩家
       if (s.y > PADDLE_Y - 26 && Math.abs(s.x - paddle.x) < PADDLE_HW + s.r) {
         run.shots.splice(i, 1);
+        if (s.env && s.el === 'cryo') {          // 冰弹：冻住符盘 1.5 秒
+          run.paddleFreeze = 90;
+          float(paddle.x, PADDLE_Y - 44, '冰 封', '#0e6f86');
+          burst(paddle.x, PADDLE_Y - PADDLE_HH, 12, '#a8e8f4', 3);
+        }
         damagePlayer(1, '中 弹');
         continue;
       }
@@ -1135,6 +1392,7 @@
     updateBalls(dt);
     updateBoss(dt);
     updateShots(dt);
+    updateEnv(dt);
     updateWall(dt);
     updateFx(dt);
 
@@ -1156,7 +1414,7 @@
     ArrowDown:'down', KeyS:'down',
     Space:'fire', KeyJ:'fire',
   };
-  const ELKEY = { Digit1:'pyro', Digit2:'hydro', Digit3:'electro', Digit4:'anemo' };
+  const ELKEY = { Digit1:'pyro', Digit2:'hydro', Digit3:'electro', Digit4:'anemo', Digit5:'cryo' };
 
   addEventListener('keydown', e => {
     const code = e.code;
@@ -1166,7 +1424,7 @@
     if (ELKEY[code]) { setEl(ELKEY[code]); e.preventDefault(); }
     if (code === 'KeyQ' && !e.repeat) {
       const i = EL_ORDER.indexOf(run.el);
-      setEl(EL_ORDER[(i + 1) % 4]);
+      setEl(EL_ORDER[(i + 1) % EL_ORDER.length]);
     }
     if (code === 'KeyP' && !e.repeat) togglePause();
     if (code === 'KeyR' && !e.repeat && (run.scene === SCENES.over || run.scene === SCENES.clear)) startRun();
@@ -1215,11 +1473,16 @@
     const alive = run.blocks.filter(b => b.alive);
     if (alive.length) {
       const target = alive.reduce((a, b) => blockY(a) > blockY(b) ? a : b);   // 压得最低的块（最危险）
-      const def = target.wet > 0 ? 'hydro' : target.el;
-      const good = ['hydro','pyro','electro','anemo'].find(e => {
-        const r = reactionOf(e, def);
-        return r && r.mul >= 1.3 && r.kind !== 'burn';
-      }) || 'anemo';
+      let good;
+      if (target.frozen > 0) {
+        good = 'pyro';                      // 冻住的块：火/雷破冰是 1.8 倍，别浪费
+      } else {
+        const def = target.wet > 0 ? 'hydro' : target.el;
+        good = EL_ORDER.find(e => {
+          const r = reactionOf(e, def);
+          return r && r.mul >= 1.3 && r.kind !== 'burn';
+        }) || 'anemo';
+      }
       if (run.el !== good) setEl(good);
 
       // ② 瞄准：让炮口直接指向目标（角度是绝对方向，和玩家手动调的是同一个值）
@@ -1372,6 +1635,7 @@
     drawBlocks(g);
     drawBalls(g);
     drawShots(g);
+    drawEnvWarn(g);
     drawPaddle(g);
     drawFx(g);
 
@@ -1456,6 +1720,13 @@
         g.moveTo(cx - 8, cy); g.lineTo(cx + 8, cy);
       } else if (b.el === 'electro') {
         g.moveTo(cx - 6, cy - 8); g.lineTo(cx + 2, cy - 1); g.lineTo(cx - 3, cy + 1); g.lineTo(cx + 6, cy + 8);
+      } else if (b.el === 'cryo') {
+        // 雪花：三轴六射
+        for (let k = 0; k < 3; k++) {
+          const a = k * Math.PI / 3;
+          g.moveTo(cx - Math.cos(a) * 8, cy - Math.sin(a) * 8);
+          g.lineTo(cx + Math.cos(a) * 8, cy + Math.sin(a) * 8);
+        }
       } else {
         g.moveTo(cx - 8, cy - 6); g.quadraticCurveTo(cx, cy + 8, cx + 8, cy - 6);
         g.moveTo(cx, cy - 9); g.lineTo(cx, cy + 2);
@@ -1471,7 +1742,7 @@
         g.fillRect(x + 4, y + h - 6, (w - 8) * r, 3);
       }
 
-      // 燃烧 / 浸湿状态
+      // 燃烧 / 浸湿 / 冻结 状态
       if (b.burn > 0) {
         g.globalAlpha = 0.35 + 0.25 * Math.sin(run.t * 0.3);
         g.fillStyle = '#f2915c';
@@ -1481,6 +1752,18 @@
         g.globalAlpha = 0.18;
         g.fillStyle = '#63b8ea';
         roundRect(g, x, y, w, h, 4); g.fill();
+      }
+      if (b.frozen > 0) {
+        // 冻结：整块结霜 + 冰晶裂纹，让"这里冻着"一眼可读
+        g.globalAlpha = 0.42 + 0.12 * Math.sin(run.t * 0.25);
+        g.fillStyle = '#d8f4fa';
+        roundRect(g, x, y, w, h, 4); g.fill();
+        g.globalAlpha = 0.85;
+        g.strokeStyle = '#ffffff'; g.lineWidth = 1.2;
+        g.beginPath();
+        g.moveTo(x + 4, y + h * 0.3); g.lineTo(x + w - 6, y + h * 0.62);
+        g.moveTo(x + w * 0.32, y + 3); g.lineTo(x + w * 0.58, y + h - 4);
+        g.stroke();
       }
       // 受击白闪
       if (b.flash > 0) {
@@ -1538,10 +1821,41 @@
     for (const s of run.shots) {
       g.fillStyle = 'rgba(' + s.rgb + ',.92)';
       g.beginPath(); g.arc(s.x, s.y, s.r, 0, TAU); g.fill();
-      g.strokeStyle = 'rgba(255,250,240,.55)';
-      g.lineWidth = 1;
-      g.beginPath(); g.arc(s.x, s.y, s.r + 1.5, 0, TAU); g.stroke();
+      if (s.env) {
+        // 天象弹：外环 + 中心白点，和 Boss 弹（实心无环）一眼区分
+        g.strokeStyle = 'rgba(255,250,240,.8)'; g.lineWidth = 1.4;
+        g.beginPath(); g.arc(s.x, s.y, s.r + 2, 0, TAU); g.stroke();
+        g.fillStyle = 'rgba(255,250,240,.92)';
+        g.beginPath(); g.arc(s.x, s.y, s.r * 0.3, 0, TAU); g.fill();
+      } else {
+        g.strokeStyle = 'rgba(255,250,240,.55)';
+        g.lineWidth = 1;
+        g.beginPath(); g.arc(s.x, s.y, s.r + 1.5, 0, TAU); g.stroke();
+      }
     }
+  }
+
+  /** 天象预警线：元素色虚线 + 指向三角 + 元素名（0.75s 提前量） */
+  function drawEnvWarn(g) {
+    const w = run.env && run.env.warn;
+    if (!w) return;
+    const el = EL[w.el];
+    const a = 0.35 + 0.3 * Math.sin(run.t * 0.4);
+    g.save();
+    g.strokeStyle = 'rgba(' + el.rgb + ',' + a.toFixed(3) + ')';
+    g.lineWidth = 2; g.setLineDash([5, 6]);
+    g.beginPath(); g.moveTo(w.x, 8); g.lineTo(w.x, 92); g.stroke();
+    g.setLineDash([]);
+    g.fillStyle = 'rgba(' + el.rgb + ',.85)';
+    g.beginPath();
+    g.moveTo(w.x - 7, 96); g.lineTo(w.x + 7, 96); g.lineTo(w.x, 106);
+    g.closePath(); g.fill();
+    g.font = '11px "Songti SC",serif';
+    g.textAlign = 'center';
+    g.fillStyle = el.c;
+    g.fillText('天象 · ' + EL_NAME[w.el], w.x, 122);
+    g.textAlign = 'left';
+    g.restore();
   }
 
   function drawPaddle(g) {
@@ -1575,6 +1889,18 @@
       g.fillStyle = 'rgba(255,250,240,.55)';
       roundRect(g, -PADDLE_HW, -PADDLE_HH, PADDLE_HW * 2, PADDLE_HH * 2, PADDLE_HH);
       g.fill();
+    }
+
+    // 被冰弹冻住：整块结霜（玩家看得见自己"慢了"）
+    if (run.paddleFreeze > 0) {
+      g.fillStyle = 'rgba(216,244,250,.5)';
+      roundRect(g, -PADDLE_HW, -PADDLE_HH, PADDLE_HW * 2, PADDLE_HH * 2, PADDLE_HH);
+      g.fill();
+      g.strokeStyle = 'rgba(255,255,255,.9)'; g.lineWidth = 1.2;
+      g.beginPath();
+      g.moveTo(-PADDLE_HW + 4, 0); g.lineTo(PADDLE_HW - 4, -3);
+      g.moveTo(-PADDLE_HW + 4, 4); g.lineTo(PADDLE_HW - 4, 1);
+      g.stroke();
     }
 
     // 瞄准指示线：在"世界坐标"里画，必须抵消掉这层 rotate 才能和真实弹道一致。
@@ -1670,12 +1996,12 @@
     g.fillText(String(run.score), W - 26, 58);
     g.textAlign = 'left';
 
-    // 元素手牌：四枚小圆，放在 HUD 中段（原本在底部，会和符盘/提示条互相遮挡）
-    const elsX = 176, elsY = 36;
+    // 元素手牌：五枚小圆（火水雷风冰），放在 HUD 中段（原本在底部，会和符盘/提示条互相遮挡）
+    const elsX = 164, elsY = 36;
     for (let i = 0; i < EL_ORDER.length; i++) {
       const key = EL_ORDER[i];
       const on = run.el === key;
-      const cx = elsX + i * 27, cy = elsY;
+      const cx = elsX + i * 25, cy = elsY;
       g.fillStyle = on ? EL[key].c2 : hexA(EL[key].c, 0.28);
       g.beginPath(); g.arc(cx, cy, on ? 10 : 7, 0, TAU); g.fill();
       if (on) {
@@ -1691,7 +2017,7 @@
     // 当前元素名（手牌右侧）
     g.fillStyle = EL[run.el].c;
     g.font = 'bold 12px "Songti SC",serif';
-    g.fillText(EL_NAME[run.el], elsX + 4 * 27 + 2, elsY + 5);
+    g.fillText(EL_NAME[run.el], elsX + EL_ORDER.length * 25 + 4, elsY + 5);
 
     // 连击：右侧
     if (run.combo > 1) {
@@ -1787,7 +2113,7 @@
       const r = 190 + Math.sin(t * 0.7 + i) * 18;
       const x = W/2 + Math.cos(a) * r * 0.72;
       const y = H/2 + Math.sin(a) * r * 0.5;
-      const key = EL_ORDER[i % 4];
+      const key = EL_ORDER[i % EL_ORDER.length];
       g.fillStyle = hexA(EL[key].c2, 0.55);
       g.beginPath(); g.arc(x, y, 5, 0, TAU); g.fill();
     }
@@ -1863,6 +2189,7 @@
     newRun, startRun, spawnWave, spawnBoss, hitBlock, destroyBlock, hurtBlock,
     fireBall, setEl, launch: fireBall,
     spawnBall: fireBall,
+    spawnEnv, updateEnv, updateShots,
     step(n) { for (let i = 0; i < (n||60); i++) update(1); return run; },
     advance, frame,
     freeze() { loopOn = false; cancelAnimationFrame(raf); raf = 0; },

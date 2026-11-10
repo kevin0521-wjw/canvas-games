@@ -1470,6 +1470,14 @@
     AI.wantFire = false;
 
     // ① 选元素：优先触发高倍率反应的元素（同元素燃烧只有 1.0 倍，不优先）
+    //
+    // ⚠️ v1.5.0 修：原来用 EL_ORDER.find(...) 取「第一个倍率 ≥1.3 的元素」，
+    //   那是**顺序**不是**强弱**。冰的三条反应单发倍率都不占优
+    //   （融化 2.0 与蒸发 2.0 打平、冻结 1.0、超导 1.4 低于超载 1.5），
+    //   于是 find 永远轮不到冰 —— 冰在 AI 接管下是死内容。
+    //   冰的价值在**两发才兑现的组合**：冻结（成片挂冰）→ 火破冰 1.8 倍 + 溅射；
+    //   超导（范围削甲 + 半伤溅射）→ 直伤重新打得动。倍率表算不出这条链，
+    //   所以这里给冰单独记一个「组合价值」，再和单发倍率一起比。
     const alive = run.blocks.filter(b => b.alive);
     if (alive.length) {
       const target = alive.reduce((a, b) => blockY(a) > blockY(b) ? a : b);   // 压得最低的块（最危险）
@@ -1478,10 +1486,21 @@
         good = 'pyro';                      // 冻住的块：火/雷破冰是 1.8 倍，别浪费
       } else {
         const def = target.wet > 0 ? 'hydro' : target.el;
-        good = EL_ORDER.find(e => {
+        const oneShot = e => {              // 单发就能兑现的倍率（燃烧不算，它没有爆发）
           const r = reactionOf(e, def);
-          return r && r.mul >= 1.3 && r.kind !== 'burn';
-        }) || 'anemo';
+          return (r && r.kind !== 'burn') ? r.mul : 0;
+        };
+        const combo = e => {                // 两发才兑现的组合价值
+          if (e !== 'cryo') return 0;
+          if (def === 'hydro' || def === 'cryo') return 1.8;   // 冻住一片 → 破冰 1.8 倍 + 溅射
+          if (def === 'electro') return 1.5;                    // 超导：范围削甲 + 半伤溅射
+          return 0;
+        };
+        let bestScore = 0; good = 'anemo';
+        for (const e of EL_ORDER) {
+          const s = Math.max(oneShot(e), combo(e));
+          if (s > bestScore) { bestScore = s; good = e; }
+        }
       }
       if (run.el !== good) setEl(good);
 
@@ -2191,7 +2210,7 @@
     spawnBall: fireBall,
     spawnEnv, updateEnv, updateShots,
     step(n) { for (let i = 0; i < (n||60); i++) update(1); return run; },
-    advance, frame,
+    advance, frame, draw,
     freeze() { loopOn = false; cancelAnimationFrame(raf); raf = 0; },
     unfreeze() { if (!raf) { loopOn = true; lastTs = 0; raf = requestAnimationFrame(frame); } },
     toggleAI, toggleSpeed, togglePause,

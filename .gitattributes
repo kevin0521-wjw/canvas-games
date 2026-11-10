@@ -7,3 +7,9 @@
 *.png binary
 *.jpg binary
 *.ico binary
+# ⚠️ 演示录屏与 PDF 也必须显式声明：上面的 `* text=auto` 依赖 git 自动嗅探，
+#   而 text=auto 对「恰好没有 NUL 字节的二进制片段」有误判可能。
+#   mp4 的 ftyp box 里混着大量文本片段，一旦被当成文本做 CRLF 转换，
+#   播放器会直接报「moov atom not found」。
+*.mp4 binary
+*.pdf binary

@@ -69,10 +69,10 @@
   <h1>canvas-games 实现解析</h1>
   <div class="sub">六款单文件 HTML5 Canvas 游戏 —— 源码地图、架构拆解、算法细节与实际缺陷</div>
   <div class="meta">
-    <span>初稿 2026-10-19 · 复核 2026-10-20（v1.4.0）· 元素阵重调 2026-10-22（v1.5.0）</span>
+    <span>初稿 2026-10-19 · 复核 2026-10-20（v1.4.0）· 元素阵重调 2026-10-22（v1.5.0）· 2026-11-10（v1.5.1）</span>
     <span>源码合计 17,498 行 / 约 758 KB</span>
     <span>外部依赖 0</span>
-    <span>判据 246 项</span>
+    <span>判据 247 项</span>
   </div>
 </header>
 
@@ -124,7 +124,7 @@
     <td>2,204 行 / 92 KB</td>
     <td>520 × 880（竖）</td>
     <td>纯函数 + 模块级变量，IIFE</td>
-    <td>31 项</td>
+    <td>32 项</td>
   </tr>
   <tr>
     <td>星屑符咒 · 弹幕手记</td>
@@ -398,7 +398,7 @@ wantTilt = clamp(clamp(ang, -Math.PI + 0.4, -0.4) + Math.PI / 2, -TILT_MAX, TILT
   <tr><td>反应粒度</td><td>单块 × 倍率 + 连锁染色</td><td>范围 118px / 同排传导 / 时间维度 DoT / <b>状态（冻结、结霜）</b></td></tr>
   <tr><td>难度来源</td><td>墙压下来的速度</td><td>元素配错就打不动（护甲）+ 天象弹幕抢节奏</td></tr>
   <tr><td>元素数</td><td>4（火水雷风）</td><td><b>5</b>（火水雷风<b>冰</b>）</td></tr>
-  <tr><td>判据</td><td>36 项</td><td>31 项</td></tr>
+  <tr><td>判据</td><td>36 项</td><td>32 项</td></tr>
 </table>
 
 <h3>5.2 把反应做成「过程」：燃烧会自己蔓延</h3>
@@ -481,6 +481,31 @@ envFloor: 110,             // 间隔下限，防止高关变成弹幕地狱</cod
 <p>这制造了一个<b>二段循环</b>：先挂冻结让块变硬，再上火/雷破冰拿 1.8 倍并溅射到邻居。判据用精确值钉住它 —— 破冰一轮 <code>10 × 1.6 × 1.8 = 28.8</code>、冰甲未破 <code>10 × 1.1 × 0.6 = 6.6</code>，差 4.4 倍，手感上是「打对了」和「打错了」的分界。</p>
 <div class="note"><b>顺带修掉一个 NaN 陷阱：</b><code>if (b.burn > 0 &amp;&amp; b.frozen &lt;= 0)</code> 在 <code>frozen</code> 为 <code>undefined</code> 时<b>恒为 false</b> —— 燃烧会静默停摆（判据造的块漏字段时踩到，两条判据同时红）。改成 <code>!(b.frozen &gt; 0)</code>。这类「比较里带可能缺失的字段」的坑，在给已有系统加状态字段时几乎必然遇到。</div>
 <div class="warn"><b>加第五元素时最容易漏的是 <code>% 4</code>。</b>Boss 元素轮转、符阵排布、AI 选元素三处都写死了 <code>% 4</code>，加冰后会漏轮转（冰永远不出现 / 轮转错位）。全部改为 <code>% EL_ORDER.length</code> 后，AI 还要额外学一条：<b>看见冻结块优先上火破冰</b>。</div>
+
+<h3>5.9 AI 选元素：倍率表算不出「组合价值」</h3>
+<p>补录演示时发现：<b>AI 接管下冰一次都没被选中过</b>。问题出在选元素这一行：</p>
+<pre><code>// 旧写法：取「第一个倍率 ≥1.3 的元素」
+good = EL_ORDER.find(e =&gt; {
+  const r = reactionOf(e, def);
+  return r &amp;&amp; r.mul &gt;= 1.3 &amp;&amp; r.kind !== 'burn';
+}) || 'anemo';</code></pre>
+<p>这是<b>顺序</b>不是<b>强弱</b>。冰的三条反应单发倍率都不占优（融化 2.0 与蒸发 2.0 打平、冻结 1.0、超导 1.4 低于超载 1.5），而 <code>EL_ORDER = ['pyro','hydro','electro','anemo','cryo']</code> 里冰排在最后 —— <code>find</code> 永远轮不到它。<b>结果是冰在 AI 模式下是死内容</b>：玩家手动按 <code>5</code> 能用，AI 一次都不会。</p>
+<p>根因是<b>冰的收益要两发才兑现</b>：冻结（成片挂冰）→ 火破冰 1.8 倍 + 溅射；超导（范围削甲 + 半伤溅射）→ 直伤重新打得动。倍率表是单发量表，算不出这条链。修法是给冰单独记一个组合价值：</p>
+<pre><code>const oneShot = e =&gt; { const r = reactionOf(e, def);
+  return (r &amp;&amp; r.kind !== 'burn') ? r.mul : 0; };
+const combo = e =&gt; {
+  if (e !== 'cryo') return 0;
+  if (def === 'hydro' || def === 'cryo') return 1.8;  // 冻住一片 → 破冰 1.8 倍 + 溅射
+  if (def === 'electro') return 1.5;                   // 超导：范围削甲 + 半伤溅射
+  return 0;
+};
+let bestScore = 0; good = 'anemo';
+for (const e of EL_ORDER) {
+  const s = Math.max(oneShot(e), combo(e));
+  if (s &gt; bestScore) { bestScore = s; good = e; }
+}</code></pre>
+<p>改完之后 AI 会自动打出「<b>冰 → 冻结 → 火破冰 1.8 倍 + 溅射</b>」这条二段循环 —— 也就是 v1.5.0 最想让人玩到的那个动作。判据补了一条钉住它：水块上选冰、冻住后改用火。</p>
+<div class="warn"><b>这条 bug 的性质值得记一笔：</b>它不是「AI 打不赢」，而是<b>新加的元素在 AI 眼里不存在</b>。31 项判据全绿也照样绿 —— 没有一条断言检查「AI 会不会用新元素」。<b>加新机制时要同时问一句「AI 能不能用上它」。</b></div>
 
 <h2 id="dm">6 · 星屑符咒 · 弹幕手记</h2>
 
@@ -881,7 +906,7 @@ const w  = sp &gt; 260 ? 2.4 : (sp &gt; 140 ? 1.8 : 1.3);</code></pre>
 
 <h2 id="verify">14 · 判据如何验证这些实现</h2>
 
-<p class="lead">246 项判据不是「跑一遍不报错」，而是每一条都指向一个具体机制。六份 <code>verify/smoke.js</code> 共用同一套基础设施（17 / 36 / 31 / 46 / 52 / 64）。</p>
+<p class="lead">247 项判据不是「跑一遍不报错」，而是每一条都指向一个具体机制。六份 <code>verify/smoke.js</code> 共用同一套基础设施（17 / 36 / 32 / 46 / 52 / 64）。</p>
 
 <h3>14.1 测试基础设施</h3>
 <pre><code>node verify/smoke.js index.html __TP</code></pre>
@@ -926,9 +951,10 @@ assert('AI 单帧位移 ≤ 玩家移速', maxStep ≤ D.PADDLE_SPD);</code></pr
 </div>
 
 <footer>
-  解析对象：<span class="file">games/</span> 下六款单文件游戏 · 判据 246 项 · 一条命令跑完全仓<br>
+  解析对象：<span class="file">games/</span> 下六款单文件游戏 · 判据 247 项 · 一条命令跑完全仓<br>
   v1.4.0（2026-10-20）复核：元素反应三层递进、章节 BOSS、元素爆发、弹幕可读性、六款降难度。<br>
   v1.5.0（2026-10-22）：元素阵三项平衡性反向调整 + 「天象」环境弹幕 + 冰元素三反应（见第 5.6~5.8 节）。<br>
+  v1.5.1（2026-11-10）：修 AI 永不选冰的组合价值缺陷（见 5.9 节）；补录元素阵实机演示；演示与文档搬进仓库。<br>
   <b>行号引用沿用初稿快照（v1.3.0）</b>，v1.4.0 普遍有数十行偏移；机制描述以最新版本为准。第 13 节的三处缺陷均已修复。
 </footer>
 

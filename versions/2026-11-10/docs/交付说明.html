@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>canvas-games 交付说明</title>
+<style>
+  :root{
+    --paper:#fbfaf6; --card:#ffffff; --ink:#24211c; --ink2:#5a5348; --ink3:#8c8478;
+    --line:#e4ddcf; --line2:#f0ebe0;
+    --red:#a8402c; --blue:#1f5f86; --jade:#1c6b52; --gold:#8a6410; --violet:#5b3f8f;
+    --codebg:#f6f3ec;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--paper); color:var(--ink);
+    font:15px/1.8 "Segoe UI","Microsoft YaHei",system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:960px;margin:0 auto;padding:44px 30px 90px}
+  header{border-bottom:3px double var(--line);padding-bottom:22px;margin-bottom:32px}
+  h1{font-size:30px;margin:0 0 8px;letter-spacing:-.4px}
+  .sub{color:var(--ink2);font-size:14px}
+  .meta{margin-top:14px;font-size:12.5px;color:var(--ink3);display:flex;gap:18px;flex-wrap:wrap}
+  h2{font-size:21px;margin:42px 0 14px;padding-left:11px;border-left:4px solid var(--red);letter-spacing:-.2px}
+  h3{font-size:16px;margin:24px 0 9px;color:var(--blue)}
+  p{margin:9px 0}
+  code{background:var(--codebg);padding:1px 5px;border-radius:3px;font:12.5px/1.5 Consolas,"Courier New",monospace;color:var(--red)}
+  pre{
+    background:var(--codebg);border:1px solid var(--line2);border-left:3px solid var(--line);
+    padding:12px 14px;overflow-x:auto;margin:10px 0;border-radius:0 4px 4px 0;
+    font:12.5px/1.7 Consolas,"Courier New",monospace;color:#332e26;
+  }
+  pre code{background:none;padding:0;color:inherit}
+  table{width:100%;border-collapse:collapse;margin:12px 0;font-size:13.5px}
+  th,td{border:1px solid var(--line);padding:7px 10px;text-align:left;vertical-align:top}
+  th{background:#f4f0e6;font-weight:600;font-size:13px}
+  tr:nth-child(even) td{background:#fdfcf8}
+  .tag{display:inline-block;font-size:11px;padding:1px 7px;border-radius:10px;margin-right:5px;
+        border:1px solid currentColor;vertical-align:1px}
+  .t-red{color:var(--red)} .t-blue{color:var(--blue)} .t-jade{color:var(--jade)}
+  .t-gold{color:var(--gold)} .t-violet{color:var(--violet)}
+  .note{background:#fdf6e6;border:1px solid #ecdcb8;border-radius:6px;padding:11px 15px;margin:14px 0;font-size:13.5px}
+  .warn{background:#fbecea;border:1px solid #e7c3bd;border-radius:6px;padding:11px 15px;margin:14px 0;font-size:13.5px}
+  .warn b{color:var(--red)}
+  .ok{background:#eaf5ef;border:1px solid #c2ded0;border-radius:6px;padding:11px 15px;margin:14px 0;font-size:13.5px}
+  ul,ol{margin:8px 0 8px 22px;padding:0}
+  li{margin:5px 0}
+  .lead{font-size:15.5px;color:var(--ink2);margin:6px 0 18px}
+  .kbd{font:11.5px Consolas,monospace;background:#fff;border:1px solid var(--line);
+       border-bottom-width:2px;border-radius:4px;padding:1px 5px}
+  hr{border:0;border-top:1px solid var(--line);margin:34px 0}
+  a{color:var(--red)}
+  footer{margin-top:50px;padding-top:16px;border-top:1px solid var(--line);font-size:12.5px;color:var(--ink3)}
+  @media print{body{background:#fff}.wrap{padding:0}h2{page-break-after:avoid}pre,table{page-break-inside:avoid}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>canvas-games 交付说明</h1>
+  <div class="sub">六款单文件 HTML5 + Canvas 2D 游戏 —— 零依赖、零素材、双击即玩，附源码级解析、实机演示与可重跑的无头回归判据</div>
+  <div class="meta">
+    <span>交付版本 v1.5.1（2026-11-10）</span>
+    <span>线上档案站 · <a href="https://kevin0521-wjw.github.io/canvas-games/">kevin0521-wjw.github.io/canvas-games</a></span>
+    <span>源码合计 17,498 行 / 约 758 KB</span>
+    <span>判据 247 项 · 6/6 款全绿</span>
+  </div>
+</header>
+
+<p class="lead">这一份是<b>交付说明</b>：讲清楚「交付了什么、为什么这么改、怎么验证、怎么自己跑一遍」。
+逐行源码级别的拆解在 <a href="实现解析.html">实现解析.html</a>，实机画面在 <a href="../demo/演示合集.html">演示合集</a>。</p>
+
+<h2>一、本轮（v1.5.0 → v1.5.1）改了什么</h2>
+
+<p>起点是一条用户实测反馈：「<b>元素阵</b> —— 射速过快，墙移动太慢 + 血量太低；应该有随机的环境内触发风/水/火/雷弹幕；加一个冰弹，同样遵循元素反应」。拆成四件事，外加一个录制演示时暴露出来的真 bug。</p>
+
+<h3>① 三项数值反向调整</h3>
+<table>
+  <tr><th>项</th><th>旧值的问题</th><th>新值</th><th>实测</th></tr>
+  <tr>
+    <td>射速</td>
+    <td>命中返还 8 帧 → 净冷却只剩 18 帧（0.3s），按住不放等于连发</td>
+    <td><code>fireCd 26→40</code>、命中返还 <code>8→5</code></td>
+    <td>净冷却 35 帧（0.58s），「瞄着打」与「乱按」正式拉开差距</td>
+  </tr>
+  <tr>
+    <td>墙速</td>
+    <td><code>8.8+0.36n</code> px/s，走完 544px 要 62 秒 —— 比清完一面墙还慢，墙成了背景板</td>
+    <td><code>21+0.55n</code> px/s；减速余量同比放大 <code>3.2→9.5</code></td>
+    <td>10 秒实测下移 <b>214.6px</b>（配置预期 ≈215），减速上限约为墙速 45%、仍留 35% 速度下限</td>
+  </tr>
+  <tr>
+    <td>符块血量</td>
+    <td><code>9+1.5n</code>，而直接伤害是 12 —— <b>无反应也一发一块</b>，护甲与元素反应一起失效</td>
+    <td><code>14+2.2n</code></td>
+    <td>直接命中最少剩 2 血，<b>≥1.3 倍反应才能一发破</b></td>
+  </tr>
+</table>
+<div class="note"><b>为什么是「反向」：</b>v1.4.0 并档时按全站统一的「降难度」口径，把元素阵的心 4→5、墙速 <code>10.5+0.55n→8.8+0.36n</code>、符块血 <code>10+2n→9+1.5n</code> 一并压了下来。<b>但元素阵的难度模型和另外五款不同</b> —— 它的压力不来自敌人数量，而来自「元素反应是否构成硬约束」。压到血 9 之后，那条约束就断了：直接伤害 12 能一发一块，谁还 care 用什么元素。<b>同一套「缓曲线」手法，用在那五款上是对的，用在这款上是把截距压到了机制阈值以下。</b></div>
+
+<h3>② 天象：会触发反应的环境弹幕</h3>
+<p>普通阵每 3~5 秒随机落一发<b>带元素的弹幕</b>，落前 0.75 秒在顶部画一条虚线预警 + 元素名 + 三角标。</p>
+<table>
+  <tr><th>元素</th><th>弹道性格</th><th>逼玩家做什么</th></tr>
+  <tr><td class="t-red">火</td><td>直线快（4.6）</td><td>压迫感，正面让开</td></tr>
+  <tr><td class="t-blue">水</td><td>慢（2.6）但半径 8，命中溅成两滴</td><td>封走位 —— 水滴是抛物线（轻重力 0.045），不能按直线躲</td></tr>
+  <tr><td class="t-violet">雷</td><td>Z 字横摆（<code>vx = sin(age*0.22)*2.2</code>）</td><td>不好预判，得提前离场</td></tr>
+  <tr><td class="t-jade">风</td><td>从屏幕侧面斜进来（左右随机）</td><td>逼你离开舒适位</td></tr>
+  <tr><td>冰</td><td>中速（3.6），命中玩家冻 1.5 秒</td><td>移速 ×0.55 的那 1.5 秒里躲不开别的东西</td></tr>
+</table>
+<p><b>双刃设计：</b>天象弹打在符块上会触发<b>完整元素反应</b>（走同一个 <code>hitBlock</code>），但 <code>fromEnv = true</code> 时<b>不计分、不给墙减速</b>。于是「躲」是保命，「故意接在符块上」是白拿一次反应 —— 但不给分，站着刷天象没有收益。Boss 阵自动熄火（<code>spawnBoss</code> 把 timer 设成 <code>1e9</code>）：Boss 自己就在发弹幕，再叠天象就是地狱。</p>
+
+<h3>③ 冰：第五个元素，三条反应</h3>
+<p><code>cryo</code>（<span class="kbd">5</span> 键直选、<span class="kbd">Q</span> 循环覆盖五个），颜色压到青、符纹用雪花以区别于深蓝的水滴。</p>
+<table>
+  <tr><th>反应</th><th>组合与倍率</th><th>效果</th><th>设计意图</th></tr>
+  <tr><td class="t-gold">融化</td><td>冰×火 2.0 / 火×冰 1.6</td><td>最高单体倍率，但<b>熄火</b>、并把邻块打湿 90 帧</td><td>冰系版蒸发：强，但消耗状态</td></tr>
+  <tr><td class="t-blue">冻结</td><td>冰×水 1.0 / 水×冰 1.2 / <b>冰×冰</b></td><td>块临时 <b>+5 护甲</b>（150 帧）变硬；火/雷打上去<b>破冰 1.8 倍 + 邻居 0.3 溅射</b></td><td>本身没有收益，是<b>给下一发铺路</b>的状态</td></tr>
+  <tr><td class="t-violet">超导</td><td>冰×雷 1.4 / 雷×冰 1.3</td><td>108px 内削 3 点护甲，并对范围内其他块造成半伤溅射</td><td>范围削甲，让直接伤害重新打得动</td></tr>
+</table>
+<p>冰×冰也走冻结（<code>reactionOf</code> 里的显式例外，没进 <code>RX</code> 表）—— 语义上「自己冻自己」比「自己烧自己」通，而且给了一条不带水也能挂冻结的路径（环境水弹同样能挂）。风×冰照旧走扩散。</p>
+<p>这制造了一个<b>二段循环</b>：先挂冻结让块变硬，再上火/雷破冰拿 1.8 倍并溅射到邻居。判据用精确值钉住它 —— 破冰一轮 <code>10 × 1.6 × 1.8 = 28.8</code>、冰甲未破 <code>10 × 1.1 × 0.6 = 6.6</code>，差 4.4 倍，手感上是「打对了」和「打错了」的分界。</p>
+
+<h3>④ 录制演示时挖出来的真 bug：AI 永远不会选冰</h3>
+<p>补录元素阵演示时，发现 AI 接管下<b>冰一次都没被选中过</b>。原因在 AI 的选元素逻辑：</p>
+<pre><code>// 旧：取「第一个倍率 ≥1.3 的元素」
+good = EL_ORDER.find(e =&gt; {
+  const r = reactionOf(e, def);
+  return r &amp;&amp; r.mul &gt;= 1.3 &amp;&amp; r.kind !== 'burn';
+}) || 'anemo';</code></pre>
+<p>这是<b>顺序</b>不是<b>强弱</b>。冰的三条反应单发倍率都不占优（融化 2.0 与蒸发 2.0 打平、冻结 1.0、超导 1.4 低于超载 1.5），而 <code>EL_ORDER</code> 里火水雷风排在冰前面 —— <code>find</code> 永远轮不到冰。<b>冰在 AI 模式下是死内容</b>：玩家手动按 <span class="kbd">5</span> 能用，AI 永远不会用。</p>
+<p>修法是给冰单独记一个「组合价值」，因为它的收益要<b>两发才兑现</b>：</p>
+<pre><code>const oneShot = e =&gt; { const r = reactionOf(e, def);
+  return (r &amp;&amp; r.kind !== 'burn') ? r.mul : 0; };
+const combo = e =&gt; {
+  if (e !== 'cryo') return 0;
+  if (def === 'hydro' || def === 'cryo') return 1.8;  // 冻住一片 → 破冰 1.8 倍 + 溅射
+  if (def === 'electro') return 1.5;                   // 超导：范围削甲 + 半伤溅射
+  return 0;
+};
+let bestScore = 0; good = 'anemo';
+for (const e of EL_ORDER) {
+  const s = Math.max(oneShot(e), combo(e));
+  if (s &gt; bestScore) { bestScore = s; good = e; }
+}</code></pre>
+<p>改完之后 AI 会自动打出「<b>冰 → 冻结 → 火破冰 1.8 倍 + 溅射</b>」这条二段循环 —— 也就是 v1.5.0 最想让人玩到的那个动作。补了一条判据钉住它（水块上选冰、冻住后改用火）。</p>
+<div class="warn"><b>这条 bug 的性质值得记一笔：</b>它不是「AI 打不赢」，而是<b>新加的元素在 AI 眼里不存在</b>。判据全绿（31 项）也照样绿 —— 因为没有一条断言检查「AI 会不会用新元素」。<b>加新机制时，要同时问一句「AI 能不能用上它」。</b></div>
+
+<h2>二、这一轮踩过的坑</h2>
+<ol>
+  <li><b>NaN 陷阱：<code>b.frozen &lt;= 0</code></b> —— 当 <code>frozen</code> 字段不存在（<code>undefined</code>）时，这个比较<b>恒为 false</b>，于是燃烧 DoT 会静默停摆，而且不报错。安全写法是 <code>!(b.frozen &gt; 0)</code>。</li>
+  <li><b>判据必须命中当帧抓</b> —— 水弹分裂出的小水滴带横漂和轻重力，飞一会儿就被回收或出界。<code>step(120)</code> 之后数只能看到「剩下的」，会误报「0 滴」。</li>
+  <li><b>分裂弹不能原地生成</b> —— 出生点上移 5px、给 <code>vy = -1.2</code> 斜上溅出，否则下一帧就被同一块符块继续吃掉。</li>
+  <li><b>加第五元素时 <code>% 4</code> 全部要改成 <code>% EL_ORDER.length</code></b> —— Boss 元素轮转、符阵排布、AI 选元素三处都写死了 4，加冰后会漏轮转。</li>
+  <li><b><code>freeze()</code> 会停掉 rAF</b> —— 冻结后连续截图得到的是完全相同的字节。视觉验证必须让 rAF 自己画。</li>
+</ol>
+
+<h2>三、验证</h2>
+<table>
+  <tr><th>项</th><th>结果</th></tr>
+  <tr><td>判据总数</td><td><b>247 项</b>（17 / 36 / 32 / 46 / 52 / 64），6/6 款全绿</td></tr>
+  <tr><td>元素阵自身</td><td>18 → <b>32 项</b>：三项平衡数值、冰系五组反应、冻结/破冰/冰甲精确值、超导削甲、天象自动调度与「不计分」、水弹分裂当帧抓取、冰弹冻人、Q 循环五元素、AI 按组合价值选元素</td></tr>
+  <tr><td>语法 / 配色对比度</td><td><code>node _syntaxcheck.js</code> 全通过</td></tr>
+  <tr><td>视觉</td><td>五张 CDP 截图逐张核过：五元素手牌、冻结冰晶裂纹、天象预警虚线、环境弹白环、Boss 混排护壁</td></tr>
+  <tr><td>演示</td><td>六段 mp4，520×880 / 800×600 / 480×640 / 640×448 / 720×480 / 520×880，统一 20fps、9 秒、180 帧</td></tr>
+</table>
+
+<h2>四、版本时间线</h2>
+<table>
+  <tr><th>版本</th><th>日期</th><th>做了什么</th><th>判据</th></tr>
+  <tr><td>v1.0.0</td><td>2026-10-12</td><td>四款游戏跑到判据全绿，第一次留档</td><td>92</td></tr>
+  <tr><td>v1.1.0</td><td>2026-10-13</td><td>AI 接管 + 二倍速；平衡探针炸出三个真 bug</td><td>—</td></tr>
+  <tr><td>v1.2.0</td><td>2026-10-13</td><td>修影响全部判据脚本的收尾 bug；平衡探针第三代</td><td>120</td></tr>
+  <tr><td>v1.2.1</td><td>2026-10-15</td><td>档案页深色 → 浅色，强调色整组重挑</td><td>120</td></tr>
+  <tr><td>v1.3.0</td><td>2026-10-19</td><td>八条整改：去抖屏闪屏、符箓灵弹重做、全部补 AI 与二倍速</td><td>183</td></tr>
+  <tr><td>v1.4.0</td><td>2026-10-20</td><td>元素反应拆链 + 元素爆发 + 章节 BOSS；五款降难度；并入元素阵</td><td>215 → 233</td></tr>
+  <tr><td>v1.5.0</td><td>2026-10-22</td><td>元素阵三项数值反向调整 + 天象 + 冰元素三反应</td><td>233 → 246</td></tr>
+  <tr><td><b>v1.5.1</b></td><td><b>2026-11-10</b></td><td><b>修 AI 永不选冰的 bug；补录元素阵演示；文档与演示搬进仓库</b></td><td><b>246 → 247</b></td></tr>
+</table>
+<p>每次发布的源码、判据与回归日志都留在 <code>versions/&lt;日期&gt;/</code>，可以从任意一版重跑。</p>
+
+<h2>五、怎么玩、怎么跑</h2>
+<h3>玩</h3>
+<p>每款游戏就是一个 <code>index.html</code>，<b>双击即玩</b>，不需要服务器、不联网、没有第三方库。
+个别浏览器对本地 <code>file://</code> 媒体有限制，那就起个静态服务器：</p>
+<pre><code>cd games
+npx serve .
+# 然后打开 http://localhost:3000/</code></pre>
+<h3>快捷键（六款基本统一）</h3>
+<table>
+  <tr><th></th><th>移动</th><th>开火</th><th>其它</th></tr>
+  <tr><td>通用</td><td><span class="kbd">← → ↑ ↓</span> / <span class="kbd">WASD</span></td><td><span class="kbd">空格</span></td><td>暂停 <span class="kbd">P</span> · AI 接管 <span class="kbd">E</span> · 二倍速 <span class="kbd">T</span></td></tr>
+  <tr><td>符箓灵弹 · 元素阵</td><td><span class="kbd">← →</span> 走位　<span class="kbd">↑ ↓</span> 瞄准</td><td><span class="kbd">空格</span>（带元素）</td><td><span class="kbd">1</span>–<span class="kbd">5</span> / <span class="kbd">Q</span> 换元素（火水雷风<b>冰</b>）· <span class="kbd">P</span> 暂停</td></tr>
+</table>
+<h3>跑判据</h3>
+<p>需要 Node.js 18+ 与本机的 Edge 或 Chrome。</p>
+<pre><code>cd games
+node _run_all.js                # 六款全跑，约 40 秒
+node talisman-array/verify/smoke.js index.html __TP   # 单款</code></pre>
+<p>判据跑在<b>真实浏览器</b>里（headless Edge + 原生 WebSocket 直连 CDP，不引 puppeteer），不是 jsdom 模拟 —— 因为要验的东西有一半是「画出来对不对」。结果落到 <code>_logs/</code>，档案页上的断言数是从日志自动回填的，不是手填。</p>
+<h3>录演示</h3>
+<pre><code>node _tools/record-demo.cjs --game talisman-array --out "06_符箓灵弹-元素阵.mp4"</code></pre>
+<p>冻结 rAF 后按固定步长推进、逐帧抓画布像素、交给 ffmpeg 压 H.264 ——
+所以同一份代码每次录出来的画面完全一致，返工只要重跑脚本。</p>
+
+<h2>六、仓库里有什么</h2>
+<table>
+  <tr><th>路径</th><th>内容</th></tr>
+  <tr><td><code>games/&lt;游戏名&gt;/index.html</code></td><td>六款单文件游戏本体</td></tr>
+  <tr><td><code>games/&lt;游戏名&gt;/verify/smoke.js</code></td><td>每款的无头回归判据</td></tr>
+  <tr><td><code>games/_logs/</code></td><td>每次回归的原始输出（档案页断言数的来源）</td></tr>
+  <tr><td><code>games/_tools/</code></td><td>平衡性探针、状态诊断、演示录制器</td></tr>
+  <tr><td><code>games/versions/&lt;日期&gt;/</code></td><td>每次发布的源码 + 判据 + 日志快照</td></tr>
+  <tr><td><code>games/docs/实现解析.html</code></td><td>源码级解析：架构、算法、缺陷、判据自误案例</td></tr>
+  <tr><td><code>games/docs/开发过程与借鉴分析.pdf</code></td><td>长文版开发过程与机制借鉴分析</td></tr>
+  <tr><td><code>games/docs/交付说明.html</code></td><td>本文件</td></tr>
+  <tr><td><code>games/demo/</code></td><td>六段实机录屏 mp4 + 一页播放的演示合集</td></tr>
+  <tr><td><code>games/manifest.json</code></td><td>档案站的元数据源（含全部版本记录）</td></tr>
+</table>
+
+<h2>七、素材与版权</h2>
+<p>六款游戏的图形<b>全部由 Canvas 2D API 程序化绘制</b>：没有位图素材、没有外部字体、没有音频文件、没有第三方库。借鉴的是<b>玩法机制与视觉语言</b>（原神元素反应、东方弹幕、元气骑士房间循环、打砖块反弹角、雷电三阶段），未使用任何第三方模型、贴图或字体资源。</p>
+
+<footer>
+  canvas-games · v1.5.1（2026-11-10）· 六款游戏 / 247 项判据 / 零依赖<br>
+  线上：<a href="https://kevin0521-wjw.github.io/canvas-games/">kevin0521-wjw.github.io/canvas-games</a>
+</footer>
+</div>
+</body>
+</html>

@@ -17,6 +17,12 @@
 **/_statediagprof/
 **/_teardownprof/
 
+# ⚠️ 演示录制器（_tools/record-demo.cjs）的产物：逐帧截图 + headless profile，
+#   都是可再生的中间物（重跑一次脚本就有），入库只会让仓库平白多几百张图。
+_tools/_frames/
+_tools/_check/
+_tools/_recprof/
+
 # ⚠️ _tools/ 跑出来的 .log/.json 不入库：
 #   人工归档过的证据放 _reports/（进仓库），这里只留最新一次的原始产物。
 _tools/*.log

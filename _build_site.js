@@ -262,15 +262,31 @@ const html = `<!DOCTYPE html>
     所以旧版随时可回滚、可对比。快照只增不改。</p>
   <div class="snap">${snapHtml}</div>
 
-  <h2>实现解析</h2>
+  <h2>文档与演示</h2>
   <p style="font-size:13px;color:var(--dim);margin-top:0">
-    一份对着源码写的技术解析：六款共用的八层骨架、元素反应的三层递进（表 → 副作用 → 反应链）、
+    四份交付物互相咬合：<b>交付说明</b>讲清楚「改了什么、为什么、怎么验证」；
+    <b>实现解析</b>是对着源码写的技术拆解（六款共用的八层骨架、元素反应的三层递进、
     章节 BOSS 与二段式弹型、AI 为什么只能写「虚拟摇杆」、二倍速的三种写法，
-    以及判据自己会犯的九种错。行号引用的是解析时的快照。</p>
-  <p><a href="docs/${encodeURIComponent('实现解析.html')}"
-        style="display:inline-block;padding:9px 16px;border:1px solid var(--line);
-               border-radius:7px;text-decoration:none;color:var(--ink);background:#fff">
-    打开《canvas-games 实现解析》→</a></p>
+    以及判据自己会犯的十一种错）；<b>实机演示</b>是六段 AI 接管录屏；
+    <b>PDF</b> 是长文版的开发过程与机制借鉴分析。</p>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin:14px 0 6px">
+    <a href="docs/${encodeURIComponent('交付说明.html')}" style="display:block;padding:12px 14px;border:1px solid var(--line);border-radius:7px;text-decoration:none;color:var(--ink);background:#fff">
+      <div style="font-weight:700;font-size:14px;margin-bottom:4px">交付说明 →</div>
+      <div style="font-size:12px;color:var(--dim);line-height:1.6">本轮改了什么 · 三条教训 · 判据证据 · 版本时间线 · 怎么自己跑一遍</div>
+    </a>
+    <a href="docs/${encodeURIComponent('实现解析.html')}" style="display:block;padding:12px 14px;border:1px solid var(--line);border-radius:7px;text-decoration:none;color:var(--ink);background:#fff">
+      <div style="font-weight:700;font-size:14px;margin-bottom:4px">实现解析 →</div>
+      <div style="font-size:12px;color:var(--dim);line-height:1.6">源码级拆解：架构、算法、缺陷、判据自误案例</div>
+    </a>
+    <a href="demo/${encodeURIComponent('演示合集.html')}" style="display:block;padding:12px 14px;border:1px solid var(--line);border-radius:7px;text-decoration:none;color:var(--ink);background:#fff">
+      <div style="font-weight:700;font-size:14px;margin-bottom:4px">实机演示 →</div>
+      <div style="font-size:12px;color:var(--dim);line-height:1.6">六段 AI 接管录屏，20fps / 9 秒 / 逻辑分辨率</div>
+    </a>
+    <a href="docs/${encodeURIComponent('开发过程与借鉴分析.pdf')}" style="display:block;padding:12px 14px;border:1px solid var(--line);border-radius:7px;text-decoration:none;color:var(--ink);background:#fff">
+      <div style="font-weight:700;font-size:14px;margin-bottom:4px">开发过程与借鉴分析 →</div>
+      <div style="font-size:12px;color:var(--dim);line-height:1.6">长文 PDF：机制从哪来、怎么落到代码上</div>
+    </a>
+  </div>
 
   <footer>
     ${footerHtml(manifest.footer)}

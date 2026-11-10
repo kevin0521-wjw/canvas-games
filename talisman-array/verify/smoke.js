@@ -554,6 +554,29 @@ function rmTree(dir) {
     step('Q 循环覆盖全部五元素（火→水→雷→风→冰→火）',
       q === 'hydro,electro,anemo,cryo,pyro,hydro', q);
 
+    /* ---------- 14. AI 选元素看「组合价值」而不只是单发倍率 ---------- */
+    // 回归点：原来用 EL_ORDER.find(...) 取「第一个倍率 ≥1.3 的元素」，
+    // 那是顺序不是强弱 —— 冰永远排不上，AI 接管下冰是死内容。
+    const aiEl = await evaluate(`(() => {
+      const D = ${EXPORT};
+      D.startRun(); D.freeze();
+      const R = D.run;
+      R.aiOn = true; D.AI.on = true;
+      // 全刷成水：单发最优是火（蒸发 1.6），但冰的「冻结成片 → 破冰 1.8 倍」更高
+      R.blocks.forEach(b => { if (b.alive) b.el = 'hydro'; });
+      D.step(1);
+      const onHydro = R.el;
+      // 冻住最下面那块（AI 的目标）：它应当立刻改用火去破冰
+      const alive = R.blocks.filter(b => b.alive);
+      const low = alive.reduce((a, b) => D.blockY(a) > D.blockY(b) ? a : b);
+      low.frozen = 100;
+      D.step(1);
+      return { onHydro, onFrozen: R.el };
+    })()`);
+    step('AI 按组合价值选元素：水块上选冰，冻住后改用火破冰',
+      aiEl.onHydro === 'cryo' && aiEl.onFrozen === 'pyro',
+      '水块 → ' + aiEl.onHydro + '；冻住 → ' + aiEl.onFrozen);
+
     /* ---------- 12. 稳定性 ---------- */
     const stable = await evaluate(`(() => {
       const D = ${EXPORT};

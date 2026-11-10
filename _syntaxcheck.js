@@ -105,6 +105,19 @@ if (fs.existsSync(DOCS)) {
       }
     }
     console.log(`✅ docs/${f}: 标签配平`);
+
+    // 引号配平：中文直角引号「」必须成对。
+    // 踩过：2026-11-10 改文案时给「元素阵」补了个 」，
+    // 结果原文末尾本来就有闭引号 → 变成「多一个」，同样不报错、只是读着别扭。
+    const vis = body.replace(/<[^>]+>/g, '').replace(/&[a-z]+;/g, ' ');
+    const openQ = (vis.match(/「/g) || []).length;
+    const closeQ = (vis.match(/」/g) || []).length;
+    if (openQ !== closeQ) {
+      bad++;
+      console.log(`❌ docs/${f}: 「 ${openQ} 个 / 」 ${closeQ} 个 —— 差 ${openQ - closeQ}`);
+    } else {
+      console.log(`✅ docs/${f}: 引号配平（${openQ} 对）`);
+    }
   }
 }
 

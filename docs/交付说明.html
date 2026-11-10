@@ -60,7 +60,7 @@
 
 <header>
   <h1>canvas-games 交付说明</h1>
-  <div class="sub">六款单文件 HTML5 + Canvas 2D 游戏 —— 零依赖、零素材、双击即玩，附源码级解析、实机演示与可重跑的无头回归判据</div>
+  <div class="sub">六款单文件 HTML5 + Canvas 2D 游戏，零依赖、零素材、双击即玩，附源码级解析、实机演示与可重跑的无头回归判据</div>
   <div class="meta">
     <span>交付版本 v1.5.1（2026-11-10）</span>
     <span>线上档案站 · <a href="https://kevin0521-wjw.github.io/canvas-games/">kevin0521-wjw.github.io/canvas-games</a></span>
@@ -76,7 +76,7 @@
 
 <h2>一、本轮（v1.5.0 → v1.5.1）改了什么</h2>
 
-<p>起点是一条用户实测反馈：「<b>元素阵</b> —— 射速过快，墙移动太慢 + 血量太低；应该有随机的环境内触发风/水/火/雷弹幕；加一个冰弹，同样遵循元素反应」。拆成四件事，外加一个录制演示时暴露出来的真 bug。</p>
+<p>起点是一条用户实测反馈：「<b>元素阵</b>：射速过快，墙移动太慢 + 血量太低；应该有随机的环境内触发风/水/火/雷弹幕；加一个冰弹，同样遵循元素反应」。拆成四件事，外加一个录制演示时暴露出来的真 bug。</p>
 
 <h3>① 三项数值反向调整</h3>
 <table>
@@ -89,30 +89,30 @@
   </tr>
   <tr>
     <td>墙速</td>
-    <td><code>8.8+0.36n</code> px/s，走完 544px 要 62 秒 —— 比清完一面墙还慢，墙成了背景板</td>
+    <td><code>8.8+0.36n</code> px/s，走完 544px 要 62 秒，比清完一面墙还慢，墙成了背景板</td>
     <td><code>21+0.55n</code> px/s；减速余量同比放大 <code>3.2→9.5</code></td>
     <td>10 秒实测下移 <b>214.6px</b>（配置预期 ≈215），减速上限约为墙速 45%、仍留 35% 速度下限</td>
   </tr>
   <tr>
     <td>符块血量</td>
-    <td><code>9+1.5n</code>，而直接伤害是 12 —— <b>无反应也一发一块</b>，护甲与元素反应一起失效</td>
+    <td><code>9+1.5n</code>，而直接伤害是 12，<b>无反应也一发一块</b>，护甲与元素反应一起失效</td>
     <td><code>14+2.2n</code></td>
     <td>直接命中最少剩 2 血，<b>≥1.3 倍反应才能一发破</b></td>
   </tr>
 </table>
-<div class="note"><b>为什么是「反向」：</b>v1.4.0 并档时按全站统一的「降难度」口径，把元素阵的心 4→5、墙速 <code>10.5+0.55n→8.8+0.36n</code>、符块血 <code>10+2n→9+1.5n</code> 一并压了下来。<b>但元素阵的难度模型和另外五款不同</b> —— 它的压力不来自敌人数量，而来自「元素反应是否构成硬约束」。压到血 9 之后，那条约束就断了：直接伤害 12 能一发一块，谁还 care 用什么元素。<b>同一套「缓曲线」手法，用在那五款上是对的，用在这款上是把截距压到了机制阈值以下。</b></div>
+<div class="note"><b>为什么是「反向」：</b>v1.4.0 并档时按全站统一的「降难度」口径，把元素阵的心 4→5、墙速 <code>10.5+0.55n→8.8+0.36n</code>、符块血 <code>10+2n→9+1.5n</code> 一并压了下来。<b>但元素阵的难度模型和另外五款不同</b>。它的压力不来自敌人数量，而来自「元素反应是否构成硬约束」。压到血 9 之后，那条约束就断了：直接伤害 12 能一发一块，谁还 care 用什么元素。<b>同一套「缓曲线」手法，用在那五款上是对的，用在这款上是把截距压到了机制阈值以下。</b></div>
 
 <h3>② 天象：会触发反应的环境弹幕</h3>
 <p>普通阵每 3~5 秒随机落一发<b>带元素的弹幕</b>，落前 0.75 秒在顶部画一条虚线预警 + 元素名 + 三角标。</p>
 <table>
   <tr><th>元素</th><th>弹道性格</th><th>逼玩家做什么</th></tr>
   <tr><td class="t-red">火</td><td>直线快（4.6）</td><td>压迫感，正面让开</td></tr>
-  <tr><td class="t-blue">水</td><td>慢（2.6）但半径 8，命中溅成两滴</td><td>封走位 —— 水滴是抛物线（轻重力 0.045），不能按直线躲</td></tr>
+  <tr><td class="t-blue">水</td><td>慢（2.6）但半径 8，命中溅成两滴</td><td>封走位。水滴是抛物线（轻重力 0.045），不能按直线躲</td></tr>
   <tr><td class="t-violet">雷</td><td>Z 字横摆（<code>vx = sin(age*0.22)*2.2</code>）</td><td>不好预判，得提前离场</td></tr>
   <tr><td class="t-jade">风</td><td>从屏幕侧面斜进来（左右随机）</td><td>逼你离开舒适位</td></tr>
   <tr><td>冰</td><td>中速（3.6），命中玩家冻 1.5 秒</td><td>移速 ×0.55 的那 1.5 秒里躲不开别的东西</td></tr>
 </table>
-<p><b>双刃设计：</b>天象弹打在符块上会触发<b>完整元素反应</b>（走同一个 <code>hitBlock</code>），但 <code>fromEnv = true</code> 时<b>不计分、不给墙减速</b>。于是「躲」是保命，「故意接在符块上」是白拿一次反应 —— 但不给分，站着刷天象没有收益。Boss 阵自动熄火（<code>spawnBoss</code> 把 timer 设成 <code>1e9</code>）：Boss 自己就在发弹幕，再叠天象就是地狱。</p>
+<p><b>双刃设计：</b>天象弹打在符块上会触发<b>完整元素反应</b>（走同一个 <code>hitBlock</code>），但 <code>fromEnv = true</code> 时<b>不计分、不给墙减速</b>。于是「躲」是保命，「故意接在符块上」是白拿一次反应。但不给分，站着刷天象没有收益。Boss 阵自动熄火（<code>spawnBoss</code> 把 timer 设成 <code>1e9</code>）：Boss 自己就在发弹幕，再叠天象就是地狱。</p>
 
 <h3>③ 冰：第五个元素，三条反应</h3>
 <p><code>cryo</code>（<span class="kbd">5</span> 键直选、<span class="kbd">Q</span> 循环覆盖五个），颜色压到青、符纹用雪花以区别于深蓝的水滴。</p>
@@ -122,8 +122,8 @@
   <tr><td class="t-blue">冻结</td><td>冰×水 1.0 / 水×冰 1.2 / <b>冰×冰</b></td><td>块临时 <b>+5 护甲</b>（150 帧）变硬；火/雷打上去<b>破冰 1.8 倍 + 邻居 0.3 溅射</b></td><td>本身没有收益，是<b>给下一发铺路</b>的状态</td></tr>
   <tr><td class="t-violet">超导</td><td>冰×雷 1.4 / 雷×冰 1.3</td><td>108px 内削 3 点护甲，并对范围内其他块造成半伤溅射</td><td>范围削甲，让直接伤害重新打得动</td></tr>
 </table>
-<p>冰×冰也走冻结（<code>reactionOf</code> 里的显式例外，没进 <code>RX</code> 表）—— 语义上「自己冻自己」比「自己烧自己」通，而且给了一条不带水也能挂冻结的路径（环境水弹同样能挂）。风×冰照旧走扩散。</p>
-<p>这制造了一个<b>二段循环</b>：先挂冻结让块变硬，再上火/雷破冰拿 1.8 倍并溅射到邻居。判据用精确值钉住它 —— 破冰一轮 <code>10 × 1.6 × 1.8 = 28.8</code>、冰甲未破 <code>10 × 1.1 × 0.6 = 6.6</code>，差 4.4 倍，手感上是「打对了」和「打错了」的分界。</p>
+<p>冰×冰也走冻结（<code>reactionOf</code> 里的显式例外，没进 <code>RX</code> 表）。语义上「自己冻自己」比「自己烧自己」通，而且给了一条不带水也能挂冻结的路径（环境水弹同样能挂）。风×冰照旧走扩散。</p>
+<p>这制造了一个<b>二段循环</b>：先挂冻结让块变硬，再上火/雷破冰拿 1.8 倍并溅射到邻居。判据用精确值钉住它：破冰一轮 <code>10 × 1.6 × 1.8 = 28.8</code>、冰甲未破 <code>10 × 1.1 × 0.6 = 6.6</code>，差 4.4 倍，手感上是「打对了」和「打错了」的分界。</p>
 
 <h3>④ 录制演示时挖出来的真 bug：AI 永远不会选冰</h3>
 <p>补录元素阵演示时，发现 AI 接管下<b>冰一次都没被选中过</b>。原因在 AI 的选元素逻辑：</p>
@@ -132,7 +132,7 @@ good = EL_ORDER.find(e =&gt; {
   const r = reactionOf(e, def);
   return r &amp;&amp; r.mul &gt;= 1.3 &amp;&amp; r.kind !== 'burn';
 }) || 'anemo';</code></pre>
-<p>这是<b>顺序</b>不是<b>强弱</b>。冰的三条反应单发倍率都不占优（融化 2.0 与蒸发 2.0 打平、冻结 1.0、超导 1.4 低于超载 1.5），而 <code>EL_ORDER</code> 里火水雷风排在冰前面 —— <code>find</code> 永远轮不到冰。<b>冰在 AI 模式下是死内容</b>：玩家手动按 <span class="kbd">5</span> 能用，AI 永远不会用。</p>
+<p>这是<b>顺序</b>不是<b>强弱</b>。冰的三条反应单发倍率都不占优（融化 2.0 与蒸发 2.0 打平、冻结 1.0、超导 1.4 低于超载 1.5），而 <code>EL_ORDER</code> 里火水雷风排在冰前面，<code>find</code> 永远轮不到冰。<b>冰在 AI 模式下是死内容</b>：玩家手动按 <span class="kbd">5</span> 能用，AI 永远不会用。</p>
 <p>修法是给冰单独记一个「组合价值」，因为它的收益要<b>两发才兑现</b>：</p>
 <pre><code>const oneShot = e =&gt; { const r = reactionOf(e, def);
   return (r &amp;&amp; r.kind !== 'burn') ? r.mul : 0; };
@@ -147,16 +147,16 @@ for (const e of EL_ORDER) {
   const s = Math.max(oneShot(e), combo(e));
   if (s &gt; bestScore) { bestScore = s; good = e; }
 }</code></pre>
-<p>改完之后 AI 会自动打出「<b>冰 → 冻结 → 火破冰 1.8 倍 + 溅射</b>」这条二段循环 —— 也就是 v1.5.0 最想让人玩到的那个动作。补了一条判据钉住它（水块上选冰、冻住后改用火）。</p>
-<div class="warn"><b>这条 bug 的性质值得记一笔：</b>它不是「AI 打不赢」，而是<b>新加的元素在 AI 眼里不存在</b>。判据全绿（31 项）也照样绿 —— 因为没有一条断言检查「AI 会不会用新元素」。<b>加新机制时，要同时问一句「AI 能不能用上它」。</b></div>
+<p>改完之后 AI 会自动打出「<b>冰 → 冻结 → 火破冰 1.8 倍 + 溅射</b>」这条二段循环，也就是 v1.5.0 最想让人玩到的那个动作。补了一条判据钉住它（水块上选冰、冻住后改用火）。</p>
+<div class="warn"><b>这条 bug 的性质值得记一笔：</b>它不是「AI 打不赢」，而是<b>新加的元素在 AI 眼里不存在</b>。判据全绿（31 项）也照样绿，因为没有一条断言检查「AI 会不会用新元素」。<b>加新机制时，要同时问一句「AI 能不能用上它」。</b></div>
 
 <h2>二、这一轮踩过的坑</h2>
 <ol>
-  <li><b>NaN 陷阱：<code>b.frozen &lt;= 0</code></b> —— 当 <code>frozen</code> 字段不存在（<code>undefined</code>）时，这个比较<b>恒为 false</b>，于是燃烧 DoT 会静默停摆，而且不报错。安全写法是 <code>!(b.frozen &gt; 0)</code>。</li>
-  <li><b>判据必须命中当帧抓</b> —— 水弹分裂出的小水滴带横漂和轻重力，飞一会儿就被回收或出界。<code>step(120)</code> 之后数只能看到「剩下的」，会误报「0 滴」。</li>
-  <li><b>分裂弹不能原地生成</b> —— 出生点上移 5px、给 <code>vy = -1.2</code> 斜上溅出，否则下一帧就被同一块符块继续吃掉。</li>
-  <li><b>加第五元素时 <code>% 4</code> 全部要改成 <code>% EL_ORDER.length</code></b> —— Boss 元素轮转、符阵排布、AI 选元素三处都写死了 4，加冰后会漏轮转。</li>
-  <li><b><code>freeze()</code> 会停掉 rAF</b> —— 冻结后连续截图得到的是完全相同的字节。视觉验证必须让 rAF 自己画。</li>
+  <li><b>NaN 陷阱：<code>b.frozen &lt;= 0</code></b>。当 <code>frozen</code> 字段不存在（<code>undefined</code>）时，这个比较<b>恒为 false</b>，于是燃烧 DoT 会静默停摆，而且不报错。安全写法是 <code>!(b.frozen &gt; 0)</code>。</li>
+  <li><b>判据必须命中当帧抓</b>：水弹分裂出的小水滴带横漂和轻重力，飞一会儿就被回收或出界。<code>step(120)</code> 之后数只能看到「剩下的」，会误报「0 滴」。</li>
+  <li><b>分裂弹不能原地生成</b>。出生点上移 5px、给 <code>vy = -1.2</code> 斜上溅出，否则下一帧就被同一块符块继续吃掉。</li>
+  <li><b>加第五元素时 <code>% 4</code> 全部要改成 <code>% EL_ORDER.length</code></b>：Boss 元素轮转、符阵排布、AI 选元素三处都写死了 4，加冰后会漏轮转。</li>
+  <li><b><code>freeze()</code> 会停掉 rAF</b>。冻结后连续截图得到的是完全相同的字节。视觉验证必须让 rAF 自己画。</li>
 </ol>
 
 <h2>三、验证</h2>
@@ -201,11 +201,10 @@ npx serve .
 <pre><code>cd games
 node _run_all.js                # 六款全跑，约 40 秒
 node talisman-array/verify/smoke.js index.html __TP   # 单款</code></pre>
-<p>判据跑在<b>真实浏览器</b>里（headless Edge + 原生 WebSocket 直连 CDP，不引 puppeteer），不是 jsdom 模拟 —— 因为要验的东西有一半是「画出来对不对」。结果落到 <code>_logs/</code>，档案页上的断言数是从日志自动回填的，不是手填。</p>
+<p>判据跑在<b>真实浏览器</b>里（headless Edge + 原生 WebSocket 直连 CDP，不引 puppeteer），不是 jsdom 模拟。因为要验的东西有一半是「画出来对不对」。结果落到 <code>_logs/</code>，档案页上的断言数是从日志自动回填的，不是手填。</p>
 <h3>录演示</h3>
 <pre><code>node _tools/record-demo.cjs --game talisman-array --out "06_符箓灵弹-元素阵.mp4"</code></pre>
-<p>冻结 rAF 后按固定步长推进、逐帧抓画布像素、交给 ffmpeg 压 H.264 ——
-所以同一份代码每次录出来的画面完全一致，返工只要重跑脚本。</p>
+<p>冻结 rAF 后按固定步长推进、逐帧抓画布像素、交给 ffmpeg 压 H.264 。所以同一份代码每次录出来的画面完全一致，返工只要重跑脚本。</p>
 
 <h2>六、仓库里有什么</h2>
 <table>
@@ -227,7 +226,7 @@ node talisman-array/verify/smoke.js index.html __TP   # 单款</code></pre>
 
 <p>
   按用户要求把 <code>开发过程与借鉴分析.pdf</code> 整篇重写：叙事重心从「技术拆解」换成
-  <b>「心路历程」</b> —— 从太空射击（Space Invaders 1978 → Galaga → R-Type → Batsugun 1993
+  <b>「心路历程」</b>。从太空射击（Space Invaders 1978 → Galaga → R-Type → Batsugun 1993
   判定点缩小 = 弹幕诞生 → 东方）与肉鸽（Rogue 1980 → 1993 年连流派名都是 Usenet 社区投票出来的
   → 2008 柏林解释 → Spelunky / 以撒 / FTL → Hades 2020 把死亡写进叙事）两条设计血脉讲起，
   再顺着讲每一款游戏背后的选择、撞过的墙、以及判断标准的演变。
@@ -237,12 +236,12 @@ node talisman-array/verify/smoke.js index.html __TP   # 单款</code></pre>
 <div class="box warn">
   <span class="t">顺手修掉一个「从头到尾零报错」的静默失败</span>
   新写的源 HTML 里，1.2.4 那张时间线的 <b>5 行各少写一个 <code>&lt;/div&gt;</code></b>。
-  HTML 解析器会自动补齐 —— 页面能显示、<b>没有任何报错</b>，但后面所有内容都被塞进
+  HTML 解析器会自动补齐。页面能显示、<b>没有任何报错</b>，但后面所有内容都被塞进
   第一行的 <code>.txt</code>（一个 flex 子项，min-content 只有 47px）→
   表格全被压成 260px 的竖条、文档撑到上百页 →
   Chrome 的 print-to-PDF 只吐了 9 页就停，<b>正文只剩三分之一</b>。<br><br>
   误导人的地方在于：消融实验（改分页 CSS、开/关背景打印）显示产物都精确停在同一字节数，
-  看起来像「Chrome 有个 2.26MB 硬上限」—— 那是假结论，最后还是靠<b>数标签开合次数</b>定位到真凶。
+  看起来像「Chrome 有个 2.26MB 硬上限」，那是假结论，最后还是靠<b>数标签开合次数</b>定位到真凶。
 </div>
 
 <p>
@@ -250,7 +249,7 @@ node talisman-array/verify/smoke.js index.html __TP   # 单款</code></pre>
 </p>
 <ol>
   <li><code>_syntaxcheck.js</code> 增加 <code>docs/*.html</code> 的<b>标签配平</b>检查（<code>&lt;div&gt;</code> / <code>&lt;table&gt;</code> / <code>&lt;tr&gt;</code> / <code>&lt;td&gt;</code> / <code>&lt;ul&gt;</code> / <code>&lt;li&gt;</code> / <code>&lt;p&gt;</code> / <code>&lt;pre&gt;</code> 开合必须相等），进标准回归；</li>
-  <li><code>_tools/build-pdf.cjs</code> 出片前<b>读源文件</b>做同样的检查（<b>不能读 DOM</b> —— 解析器已补齐，DOM 永远配平），出片后比对「实际页数 vs 布局估算页数」，低于 60% 即判为被截断并报错退出。</li>
+  <li><code>_tools/build-pdf.cjs</code> 出片前<b>读源文件</b>做同样的检查（<b>不能读 DOM</b>：解析器已补齐，DOM 永远配平），出片后比对「实际页数 vs 布局估算页数」，低于 60% 即判为被截断并报错退出。</li>
 </ol>
 
 <div class="box ok">

@@ -215,8 +215,8 @@ node talisman-array/verify/smoke.js index.html __TP   # 单款</code></pre>
   <tr><td><code>games/_tools/</code></td><td>平衡性探针、状态诊断、演示录制器</td></tr>
   <tr><td><code>games/versions/&lt;日期&gt;/</code></td><td>每次发布的源码 + 判据 + 日志快照</td></tr>
   <tr><td><code>games/docs/实现解析.html</code></td><td>源码级解析：架构、算法、缺陷、判据自误案例</td></tr>
-  <tr><td><code>games/docs/开发过程与借鉴分析.html</code></td><td>设计笔记（心路历程）：从太空射击与肉鸽两条设计血脉讲起</td></tr>
-  <tr><td><code>games/docs/开发过程与借鉴分析.pdf</code></td><td>上一条的 A4 打印版，25 页，由 <code>_tools/build-pdf.cjs</code> 生成</td></tr>
+  <tr><td><code>games/docs/开发过程与借鉴分析.html</code></td><td>设计笔记（心路历程）：从太空射击与肉鸽两条设计血脉讲起，末尾附录 D 收录全部出处与视频</td></tr>
+  <tr><td><code>games/docs/开发过程与借鉴分析.pdf</code></td><td>上一条的 A4 打印版，30 页，由 <code>_tools/build-pdf.cjs</code> 生成；PDF 内链接可点（58 条标注 / 47 个 URL）</td></tr>
   <tr><td><code>games/docs/交付说明.html</code></td><td>本文件</td></tr>
   <tr><td><code>games/demo/</code></td><td>六段实机录屏 mp4 + 一页播放的演示合集</td></tr>
   <tr><td><code>games/manifest.json</code></td><td>档案站的元数据源（含全部版本记录）</td></tr>
@@ -258,6 +258,22 @@ node talisman-array/verify/smoke.js index.html __TP   # 单款</code></pre>
   一份 25 页的 PDF 少印了 16 页，而生成它的那条命令<b>返回了成功</b>。<br><br>
   <b>任何「跑完就当成了」的流程，都需要一条「跑完了但结果对不对」的检查。</b>
   这正是本仓库从第一天就在做的事，只不过这次主角从游戏换成了文档。
+</div>
+
+<h3>文档里的史实都有出处</h3>
+<p>
+  设计笔记第一、二章提到的每个年份、开发者和机制，都在<b>附录 D「参考资料与延伸观看」</b>里配了出处：
+  D.1 太空射击 22 条、D.2 肉鸽 9 条，逐条标了「作品 / 年份 / 文中位置 / 出处」；
+  D.3 收 10 条视频与讲座；D.4 收 6 条延伸阅读与查证工具。
+</p>
+<div class="box note">
+  <span class="t">链接是实测的，而且踩了一个坑</span>
+  所有 URL 在 2026-11-10 逐条发 HTTP 请求确认可达，只收 200 的。
+  踩到的坑值得记：<b>GDC Vault 的地址形如 <code>play/&lt;ID&gt;/任意标题</code>，后半截标题随便写都返回 200</b>，
+  真正内容只看 ID —— 我按「地址能打开」筛出的两条，打开确实是 200，标题却是别的演讲。
+  所以每个 GDC 链接都改成<b>按页面标题逐条核对</b>，宁可少收也不放假出处。<br><br>
+  另外，Chrome 的 print-to-pdf 会保留外链标注，所以这份 PDF <b>印出来链接是可点的</b>：
+  30 页里有 58 条可点击标注、覆盖 47 个不同 URL。
 </div>
 
 <h2>八、素材与版权</h2>

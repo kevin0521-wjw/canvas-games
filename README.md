@@ -309,6 +309,31 @@ for (const e of EL_ORDER) {
 > **「它不能证明文章由谁撰写，也不保证通过任何 AI 检测器。」**
 > 这一轮做的是「去掉模板化表达」，不是「骗过检测器」。
 
+### v1.5.4 · 给设计笔记补上「参考资料与延伸观看」
+
+用户要求「找素材支撑你的游戏历史，参考文献/视频」。第一、二章提到的每个年份、开发者和机制都不是凭印象写的，
+所以给设计笔记加了**附录 D**：
+
+| 小节 | 内容 |
+|---|---|
+| D.1 太空射击 | 22 条：Spacewar! / Space Invaders / Galaga / Defender / Scramble / Xevious / Gradius / R-Type / Toaplan / Batsugun / Cave / DonPachi / DoDonPachi / 东方 / 红魔乡 / ZUN / 斑鸠 / Undertale / 枪火重生 / Vampire Survivors / 弹幕词条 / Shoot 'em up 总览 |
+| D.2 肉鸽 | 9 条：Rogue / 神秘迷宫 / 「roguelike」这个词 / 柏林解释 / Spelunky / 以撒 / FTL / Hades / Diablo |
+| D.3 视频与讲座 | 10 条：GDC Vault 的 Hades 对话设计演讲、GDC 播客两期逐字稿、开发者访谈、GDC 2006 工作坊纪要（含 Jonathan Mak「把射击做成一张专辑」）、以及 GDC / Retro Game Reviews / Game Maker's Toolkit / TotalBiscuit 四个 YouTube 频道 |
+| D.4 延伸阅读 | 6 条：flukz 的射击游戏史长文、The International Arcade Museum（KLOV 街机资料库）、Guinness 记录、东方官网、两项原始文献 |
+
+每条都标了「**文中位置**」（对应第几章第几节），读者不用自己去猜哪句话是查来的、哪句话是我的判断。
+
+**所有链接都是实测的，不是抄的**：2026-11-10 用 `curl -x http://127.0.0.1:7897` 对每个候选 URL 发请求，只收 200 的。
+其中踩到一个必须记下来的坑：
+
+> **GDC Vault 的 URL 形如 `gdcvault.com/play/<ID>/任意标题`，后半截标题随便写都返回 200，真正内容只看 ID。**
+> 我按「地址能打开」筛出的两条 GDC 链接，打开确实是 200，标题却是别的演讲
+> （一条是《Tomorrow's Military Shooter》，一条是《Angry Birds 2》）。
+> 所以每个 GDC 链接都改成**按页面 `<title>` 逐条核对** —— 宁可少收也不放假出处。
+
+**PDF 里链接是可点的**：Chrome 的 print-to-pdf 会保留外链标注，成稿 30 页里带 **58 条可点击标注、覆盖 47 个不同 URL**，
+从 p27 排到 p30 —— 印出来还能直接点进去核对。
+
 ### 为什么判据要写得这么琐碎
 
 这个仓库里最值得留档的不是游戏，是那批「**断言全绿但游戏其实不可用**」的案例。举几个真实发生过的：

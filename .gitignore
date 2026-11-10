@@ -43,3 +43,6 @@ _reports/*.png
 Thumbs.db
 desktop.ini
 .DS_Store
+
+# 临时备份：改文案前留一份，核对完即删（不入库）
+_backup_*.html

@@ -264,15 +264,20 @@ const html = `<!DOCTYPE html>
 
   <h2>文档与演示</h2>
   <p style="font-size:13px;color:var(--dim);margin-top:0">
-    四份交付物互相咬合：<b>交付说明</b>讲清楚「改了什么、为什么、怎么验证」；
+    五份交付物互相咬合：<b>交付说明</b>讲清楚「改了什么、为什么、怎么验证」；
+    <b>设计笔记</b>从太空射击与肉鸽两条设计血脉讲起，讲我每个选择背后的判断、以及被自己判据打脸的那几次；
     <b>实现解析</b>是对着源码写的技术拆解（六款共用的八层骨架、元素反应的三层递进、
     章节 BOSS 与二段式弹型、AI 为什么只能写「虚拟摇杆」、二倍速的三种写法，
     以及判据自己会犯的十一种错）；<b>实机演示</b>是六段 AI 接管录屏；
-    <b>PDF</b> 是长文版的开发过程与机制借鉴分析。</p>
-  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin:14px 0 6px">
+    <b>PDF</b> 是设计笔记的 A4 打印版。</p>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:12px;margin:14px 0 6px">
     <a href="docs/${encodeURIComponent('交付说明.html')}" style="display:block;padding:12px 14px;border:1px solid var(--line);border-radius:7px;text-decoration:none;color:var(--ink);background:#fff">
       <div style="font-weight:700;font-size:14px;margin-bottom:4px">交付说明 →</div>
       <div style="font-size:12px;color:var(--dim);line-height:1.6">本轮改了什么 · 三条教训 · 判据证据 · 版本时间线 · 怎么自己跑一遍</div>
+    </a>
+    <a href="docs/${encodeURIComponent('开发过程与借鉴分析.html')}" style="display:block;padding:12px 14px;border:1px solid var(--line);border-radius:7px;text-decoration:none;color:var(--ink);background:#fff">
+      <div style="font-weight:700;font-size:14px;margin-bottom:4px">设计笔记 · 心路历程 →</div>
+      <div style="font-size:12px;color:var(--dim);line-height:1.6">从 Space Invaders 到东方、从 Rogue 到 Hades：两条设计血脉，以及我每个选择的理由与翻车现场</div>
     </a>
     <a href="docs/${encodeURIComponent('实现解析.html')}" style="display:block;padding:12px 14px;border:1px solid var(--line);border-radius:7px;text-decoration:none;color:var(--ink);background:#fff">
       <div style="font-weight:700;font-size:14px;margin-bottom:4px">实现解析 →</div>
@@ -283,8 +288,8 @@ const html = `<!DOCTYPE html>
       <div style="font-size:12px;color:var(--dim);line-height:1.6">六段 AI 接管录屏，20fps / 9 秒 / 逻辑分辨率</div>
     </a>
     <a href="docs/${encodeURIComponent('开发过程与借鉴分析.pdf')}" style="display:block;padding:12px 14px;border:1px solid var(--line);border-radius:7px;text-decoration:none;color:var(--ink);background:#fff">
-      <div style="font-weight:700;font-size:14px;margin-bottom:4px">开发过程与借鉴分析 →</div>
-      <div style="font-size:12px;color:var(--dim);line-height:1.6">长文 PDF：机制从哪来、怎么落到代码上</div>
+      <div style="font-weight:700;font-size:14px;margin-bottom:4px">设计笔记 PDF ↓</div>
+      <div style="font-size:12px;color:var(--dim);line-height:1.6">25 页 A4 打印版，可直接分发</div>
     </a>
   </div>
 

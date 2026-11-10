@@ -22,6 +22,7 @@
 _tools/_frames/
 _tools/_check/
 _tools/_recprof/
+_tools/_pdfprof/
 
 # ⚠️ _tools/ 跑出来的 .log/.json 不入库：
 #   人工归档过的证据放 _reports/（进仓库），这里只留最新一次的原始产物。

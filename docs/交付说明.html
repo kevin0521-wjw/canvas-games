@@ -70,7 +70,9 @@
 </header>
 
 <p class="lead">这一份是<b>交付说明</b>：讲清楚「交付了什么、为什么这么改、怎么验证、怎么自己跑一遍」。
-逐行源码级别的拆解在 <a href="实现解析.html">实现解析.html</a>，实机画面在 <a href="../demo/演示合集.html">演示合集</a>。</p>
+逐行源码级别的拆解在 <a href="实现解析.html">实现解析.html</a>，
+从设计血脉讲起的<b>心路历程</b>在 <a href="开发过程与借鉴分析.html">开发过程与借鉴分析.html</a>（<a href="开发过程与借鉴分析.pdf">PDF 版</a>），
+实机画面在 <a href="../demo/演示合集.html">演示合集</a>。</p>
 
 <h2>一、本轮（v1.5.0 → v1.5.1）改了什么</h2>
 
@@ -214,13 +216,52 @@ node talisman-array/verify/smoke.js index.html __TP   # 单款</code></pre>
   <tr><td><code>games/_tools/</code></td><td>平衡性探针、状态诊断、演示录制器</td></tr>
   <tr><td><code>games/versions/&lt;日期&gt;/</code></td><td>每次发布的源码 + 判据 + 日志快照</td></tr>
   <tr><td><code>games/docs/实现解析.html</code></td><td>源码级解析：架构、算法、缺陷、判据自误案例</td></tr>
-  <tr><td><code>games/docs/开发过程与借鉴分析.pdf</code></td><td>长文版开发过程与机制借鉴分析</td></tr>
+  <tr><td><code>games/docs/开发过程与借鉴分析.html</code></td><td>设计笔记（心路历程）：从太空射击与肉鸽两条设计血脉讲起</td></tr>
+  <tr><td><code>games/docs/开发过程与借鉴分析.pdf</code></td><td>上一条的 A4 打印版，25 页，由 <code>_tools/build-pdf.cjs</code> 生成</td></tr>
   <tr><td><code>games/docs/交付说明.html</code></td><td>本文件</td></tr>
   <tr><td><code>games/demo/</code></td><td>六段实机录屏 mp4 + 一页播放的演示合集</td></tr>
   <tr><td><code>games/manifest.json</code></td><td>档案站的元数据源（含全部版本记录）</td></tr>
 </table>
 
-<h2>七、素材与版权</h2>
+<h2>七、文档这一轮也重做了一遍</h2>
+
+<p>
+  按用户要求把 <code>开发过程与借鉴分析.pdf</code> 整篇重写：叙事重心从「技术拆解」换成
+  <b>「心路历程」</b> —— 从太空射击（Space Invaders 1978 → Galaga → R-Type → Batsugun 1993
+  判定点缩小 = 弹幕诞生 → 东方）与肉鸽（Rogue 1980 → 1993 年连流派名都是 Usenet 社区投票出来的
+  → 2008 柏林解释 → Spelunky / 以撒 / FTL → Hades 2020 把死亡写进叙事）两条设计血脉讲起，
+  再顺着讲每一款游戏背后的选择、撞过的墙、以及判断标准的演变。
+  24 页 → 25 页，技术内容一个没删，挪进了附录 A。
+</p>
+
+<div class="box warn">
+  <span class="t">顺手修掉一个「从头到尾零报错」的静默失败</span>
+  新写的源 HTML 里，1.2.4 那张时间线的 <b>5 行各少写一个 <code>&lt;/div&gt;</code></b>。
+  HTML 解析器会自动补齐 —— 页面能显示、<b>没有任何报错</b>，但后面所有内容都被塞进
+  第一行的 <code>.txt</code>（一个 flex 子项，min-content 只有 47px）→
+  表格全被压成 260px 的竖条、文档撑到上百页 →
+  Chrome 的 print-to-PDF 只吐了 9 页就停，<b>正文只剩三分之一</b>。<br><br>
+  误导人的地方在于：消融实验（改分页 CSS、开/关背景打印）显示产物都精确停在同一字节数，
+  看起来像「Chrome 有个 2.26MB 硬上限」—— 那是假结论，最后还是靠<b>数标签开合次数</b>定位到真凶。
+</div>
+
+<p>
+  两道护栏就此加上，且都做了回归验证（把 bug 复原回去，护栏精确报出「div（120 开 / 115 闭）」并拒绝出片）：
+</p>
+<ol>
+  <li><code>_syntaxcheck.js</code> 增加 <code>docs/*.html</code> 的<b>标签配平</b>检查（<code>&lt;div&gt;</code> / <code>&lt;table&gt;</code> / <code>&lt;tr&gt;</code> / <code>&lt;td&gt;</code> / <code>&lt;ul&gt;</code> / <code>&lt;li&gt;</code> / <code>&lt;p&gt;</code> / <code>&lt;pre&gt;</code> 开合必须相等），进标准回归；</li>
+  <li><code>_tools/build-pdf.cjs</code> 出片前<b>读源文件</b>做同样的检查（<b>不能读 DOM</b> —— 解析器已补齐，DOM 永远配平），出片后比对「实际页数 vs 布局估算页数」，低于 60% 即判为被截断并报错退出。</li>
+</ol>
+
+<div class="box ok">
+  <span class="t">这一条其实是第五章的延续</span>
+  「判据全绿不等于对」说的是<b>游戏逻辑</b>；这一条说的是<b>文档本身</b>：
+  一份 25 页的 PDF 少印了 16 页，而生成它的那条命令<b>返回了成功</b>。<br><br>
+  <b>任何「跑完就当成了」的流程，都需要一条「跑完了但结果对不对」的检查。</b>
+  这正是本仓库从第一天就在做的事，只不过这次主角从游戏换成了文档。
+</div>
+
+<h2>八、素材与版权</h2>
 <p>六款游戏的图形<b>全部由 Canvas 2D API 程序化绘制</b>：没有位图素材、没有外部字体、没有音频文件、没有第三方库。借鉴的是<b>玩法机制与视觉语言</b>（原神元素反应、东方弹幕、元气骑士房间循环、打砖块反弹角、雷电三阶段），未使用任何第三方模型、贴图或字体资源。</p>
 
 <footer>

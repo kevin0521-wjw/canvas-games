@@ -73,5 +73,40 @@ for (const g of games) {
   console.log(`✅ ${g}: ${blocks.length} 个 script 块 + ${files.length} 个判据文件`);
 }
 
+/* ---------------------------------------------------------------------------
+ * 文档 HTML 的结构自检。
+ *
+ * 起因（2026-11-10）：开发过程 PDF 第一次只印出 9 页 / 正文三分之一，
+ * 排查了半小时，最后发现是**源 HTML 少写了 5 个 </div>** ——
+ * 1.2.4 那张时间线的每一行都少一个闭合标签，于是后面所有内容都被塞进
+ * 第一行的 .txt（一个 flex 子项，min-content 只有 47px），
+ * 表格全被压成 260px 的竖条，整个文档撑到几百页，
+ * 最后撞上 Chrome print-to-PDF 约 2.26MB 的输出上限被静默截断。
+ *
+ * ⚠️ 为什么浏览器不报错：HTML 解析器对未闭合的 div 会自动补齐，
+ *   语法完全合法，页面也能显示 —— 只是**布局悄悄变成了另一个东西**。
+ *   这类问题静态检查抓不到，判据也抓不到，只有结构计数能抓。
+ *
+ * 这里做的是**标签配平计数**：开合必须相等，且中途不能转负。
+ * -------------------------------------------------------------------------- */
+const DOCS = path.resolve(__dirname, 'docs');
+if (fs.existsSync(DOCS)) {
+  const docs = fs.readdirSync(DOCS).filter(f => f.endsWith('.html'));
+  for (const f of docs) {
+    const html = fs.readFileSync(path.join(DOCS, f), 'utf8');
+    const body = html.slice(html.indexOf('<body') >= 0 ? html.indexOf('<body') : 0);
+    for (const tag of ['div', 'table', 'tr', 'td', 'th', 'ul', 'ol', 'li', 'p', 'pre']) {
+      const open = (body.match(new RegExp(`<${tag}(\\s|>)`, 'g')) || []).length;
+      const close = (body.match(new RegExp(`</${tag}>`, 'g')) || []).length;
+      if (open !== close) {
+        bad++;
+        console.log(`❌ docs/${f}: <${tag}> 开 ${open} / 闭 ${close} —— 差 ${open - close}`);
+        console.log(`   ↳ 这类错误浏览器不会报错，但会让后面所有内容被塞进前一个容器，布局悄悄塌掉。`);
+      }
+    }
+    console.log(`✅ docs/${f}: 标签配平`);
+  }
+}
+
 console.log(bad === 0 ? '\n✅ 语法全部通过' : `\n❌ ${bad} 处语法错误`);
 process.exit(bad === 0 ? 0 : 1);
